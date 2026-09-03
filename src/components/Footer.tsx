@@ -1,19 +1,19 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export interface FooterProps {
   onNavigateToInfo?: (sectionId: string) => void;
 }
 
 export const Footer: React.FC<FooterProps> = ({ onNavigateToInfo }) => {
+  const navigate = useNavigate();
+
   const handleLinkClick = (sectionId: string) => (e: React.MouseEvent) => {
     e.preventDefault();
     if (onNavigateToInfo) {
       onNavigateToInfo(sectionId);
     } else {
-      const el = document.getElementById(sectionId);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
+      navigate(`/informacion/${sectionId}`);
     }
   };
 
@@ -24,7 +24,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateToInfo }) => {
         <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-6 gap-y-2 mb-6 font-medium text-gray-700">
           <a
             id="footer-link-trabaja"
-            href="#trabaja-con-nosotros"
+            href="/informacion/trabaja-con-nosotros"
             onClick={handleLinkClick('trabaja-con-nosotros')}
             className="hover:text-[#0058bb] transition-colors cursor-pointer"
           >
@@ -32,7 +32,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateToInfo }) => {
           </a>
           <a
             id="footer-link-terminos"
-            href="#terminos-y-condiciones"
+            href="/informacion/terminos-y-condiciones"
             onClick={handleLinkClick('terminos-y-condiciones')}
             className="hover:text-[#0058bb] transition-colors cursor-pointer"
           >
@@ -40,7 +40,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateToInfo }) => {
           </a>
           <a
             id="footer-link-mayorista"
-            href="#venta-mayorista"
+            href="/informacion/venta-mayorista"
             onClick={handleLinkClick('venta-mayorista')}
             className="hover:text-[#0058bb] transition-colors cursor-pointer"
           >
@@ -48,7 +48,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateToInfo }) => {
           </a>
           <a
             id="footer-link-fabrica"
-            href="#fabrica"
+            href="/informacion/fabrica"
             onClick={handleLinkClick('fabrica')}
             className="hover:text-[#0058bb] transition-colors cursor-pointer"
           >
@@ -56,7 +56,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateToInfo }) => {
           </a>
           <a
             id="footer-link-logistica"
-            href="#logistica-envio"
+            href="/informacion/logistica-envio"
             onClick={handleLinkClick('logistica-envio')}
             className="hover:text-[#0058bb] transition-colors cursor-pointer"
           >
@@ -64,7 +64,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateToInfo }) => {
           </a>
           <a
             id="footer-link-minorista"
-            href="#minorista"
+            href="/informacion/minorista"
             onClick={handleLinkClick('minorista')}
             className="hover:text-[#0058bb] transition-colors cursor-pointer"
           >

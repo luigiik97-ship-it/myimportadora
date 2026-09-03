@@ -1,20 +1,30 @@
 import React, { useState, useEffect } from 'react';
+import {
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+  useLocation,
+} from 'react-router-dom';
 import { Product, CartItem, Order, SizeVariant, ViewMode, Category, UserProfile } from './types';
 import { fetchProducts, fetchCategories, saveOrder, updateProduct, updateOrderEmailStatus, getSupabase, isSupabaseConfigured } from './services/supabase';
 import { getLocalAuthUser, fetchUserProfile } from './services/auth';
 import { sendOrderEmails } from './services/emailjs';
 import { getActiveVariantImages, getItemEffectiveNormalPrice, getSelectedVariantStock, deductStockFromProduct } from './utils/variantHelpers';
+import { slugifyCategory } from './utils/categoryHelpers';
+import {
+  ProductDetailRouteWrapper,
+  CategoryRouteWrapper,
+  ConfirmationRouteWrapper,
+  InfoPageRouteWrapper,
+} from './components/routes/RouteWrappers';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { HomeView } from './components/HomeView';
-import { CategoryView } from './components/CategoryView';
-import { ProductDetailView } from './components/ProductDetailView';
 import { CartView } from './components/CartView';
 import { CheckoutView } from './components/CheckoutView';
-import { OrderConfirmationView } from './components/OrderConfirmationView';
 import { AdminView } from './components/AdminView';
 import { QuickBuyView } from './components/QuickBuyView';
-import { InfoPageView } from './components/InfoPageView';
 import { AuthModal } from './components/AuthModal';
 import { AccountModal } from './components/AccountModal';
 import { MobileOrientationLock } from './components/common/MobileOrientationLock';
@@ -55,19 +65,16 @@ const serializeCartForStorage = (items: CartItem[]) => {
 };
 
 export default function App() {
-  const [view, setView] = useState<ViewMode>(() => {
-    if (window.location.pathname.includes('/admin') || window.location.hash.includes('admin')) {
-      return 'admin';
-    }
-    return 'home';
-  });
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedProductVariants, setSelectedProductVariants] = useState<Record<string, string> | undefined>(undefined);
   const [selectedProductImage, setSelectedProductImage] = useState<string | undefined>(undefined);
-  const [previousView, setPreviousView] = useState<ViewMode>('home');
+  const [previousView, setPreviousView] = useState<string>('home');
   const [currentCategory, setCurrentCategory] = useState<string>('Todo');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -79,16 +86,63 @@ export default function App() {
     }
     return [];
   });
-  const [lastOrder, setLastOrder] = useState<Order | null>(null);
+  const [lastOrder, setLastOrder] = useState<Order | null>(() => {
+    try {
+      const saved = sessionStorage.getItem('my_commerce_last_order');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return null;
+  });
   const [cartNotification, setCartNotification] = useState<CartNotificationData | null>(null);
   const [lastShoppingView, setLastShoppingView] = useState<'home' | 'category' | 'quick_buy'>('home');
 
+  // Route matching helpers
+  const isHome = location.pathname === '/';
+  const isCategory = location.pathname.startsWith('/categoria');
+  const isQuickBuy = location.pathname === '/compra-rapida' || location.pathname === '/quick-buy' || location.pathname === '/quick_buy';
+  const isAdmin = location.pathname === '/admin';
+  const isProductDetail = location.pathname.startsWith('/producto');
+  const showTopBar = isHome || isCategory;
+
   // Dismiss cart notification immediately whenever navigating away from product_detail
   useEffect(() => {
-    if (view !== 'product_detail') {
+    if (!isProductDetail) {
       setCartNotification(null);
     }
-  }, [view]);
+  }, [isProductDetail]);
+
+  // Scroll to top on route change (except institutional info sub-sections)
+  useEffect(() => {
+    if (!location.pathname.startsWith('/informacion')) {
+      window.scrollTo(0, 0);
+    }
+  }, [location.pathname]);
+
+  // Sync active category selector from URL pathname
+  useEffect(() => {
+    if (location.pathname === '/') {
+      setCurrentCategory('Todo');
+    } else if (location.pathname.startsWith('/categoria/')) {
+      const slug = location.pathname.replace('/categoria/', '');
+      const matched = categories.find(
+        (c) => slugifyCategory(c.name) === slug || c.slug?.toLowerCase() === slug.toLowerCase()
+      );
+      if (matched) {
+        setCurrentCategory(matched.name);
+      } else {
+        const prodMatch = products.find(
+          (p) => slugifyCategory(p.category) === slug || (p.subcategory && slugifyCategory(p.subcategory) === slug)
+        );
+        if (prodMatch) {
+          if (slugifyCategory(prodMatch.category) === slug) {
+            setCurrentCategory(prodMatch.category);
+          } else if (prodMatch.subcategory && slugifyCategory(prodMatch.subcategory) === slug) {
+            setCurrentCategory(prodMatch.subcategory);
+          }
+        }
+      }
+    }
+  }, [location.pathname, categories, products]);
 
   // Shared Delivery & Payment Method State (persisted across views & session)
   const [deliveryOption, setDeliveryOption] = useState<'pickup' | 'delivery'>(() => {
@@ -184,11 +238,14 @@ export default function App() {
   // Load products & categories from Supabase / local
   const loadData = async () => {
     try {
+      setIsLoadingData(true);
       const [prods, cats] = await Promise.all([fetchProducts(), fetchCategories()]);
       setProducts(prods);
       setCategories(cats);
     } catch (e) {
       console.error('Error loading initial data:', e);
+    } finally {
+      setIsLoadingData(false);
     }
   };
 
@@ -262,21 +319,6 @@ export default function App() {
 
   useEffect(() => {
     loadData();
-
-    // Listen to URL changes (e.g. user types /admin or changes hash)
-    const handleLocationChange = () => {
-      if (window.location.pathname.includes('/admin') || window.location.hash.includes('admin')) {
-        setView('admin');
-      }
-    };
-
-    window.addEventListener('popstate', handleLocationChange);
-    window.addEventListener('hashchange', handleLocationChange);
-
-    return () => {
-      window.removeEventListener('popstate', handleLocationChange);
-      window.removeEventListener('hashchange', handleLocationChange);
-    };
   }, []);
 
   // Cart operations
@@ -386,7 +428,7 @@ export default function App() {
   ) => {
     handleAddToCart(product, selectedColor, selectedSizeVariant, quantity, selectedImage, selectedVariants, false);
     setCartNotification(null);
-    setView('checkout');
+    navigate('/checkout');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -547,8 +589,11 @@ export default function App() {
 
   const handleOrderCompleted = (order: Order) => {
     setLastOrder(order);
+    try {
+      sessionStorage.setItem('my_commerce_last_order', JSON.stringify(order));
+    } catch (e) {}
     setCart([]); // Clear cart
-    setView('confirmation');
+    navigate('/confirmacion');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -562,43 +607,50 @@ export default function App() {
     setSelectedProduct(product);
     setSelectedProductVariants(initialVariants);
     setSelectedProductImage(initialImage);
-    setPreviousView(view === 'cart' ? 'cart' : (currentCategory && currentCategory !== 'Todo' ? 'category' : 'home'));
-    setView('product_detail');
+    const prev = location.pathname.includes('/compra-rapida')
+      ? 'quick_buy'
+      : location.pathname.includes('/carrito')
+      ? 'cart'
+      : currentCategory && currentCategory !== 'Todo'
+      ? 'category'
+      : 'home';
+    setPreviousView(prev);
+    navigate(`/producto/${product.id}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleGoHome = () => {
     setCartNotification(null);
-    setView('home');
     setLastShoppingView('home');
     setSelectedProduct(null);
     setSelectedProductVariants(undefined);
     setSelectedProductImage(undefined);
     setCurrentCategory('Todo');
     setSearchQuery('');
+    navigate('/');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleGoToQuickBuy = () => {
     setCartNotification(null);
-    setView('quick_buy');
     setLastShoppingView('quick_buy');
+    navigate('/compra-rapida');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleGoToCart = () => {
     setCartNotification(null);
-    setView('cart');
+    navigate('/carrito');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleOpenInfoPage = (sectionId: string) => {
     setCartNotification(null);
     setTargetInfoSection(sectionId);
-    if (view !== 'info') {
-      setView('info');
-      window.scrollTo({ top: 0, behavior: 'instant' });
+    if (!location.pathname.startsWith('/informacion')) {
+      navigate(`/informacion/${sectionId}`);
     } else {
+      navigate(`/informacion/${sectionId}`, { replace: true });
       const el = document.getElementById(sectionId);
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -607,14 +659,13 @@ export default function App() {
   };
 
   const handleExitAdmin = () => {
-    window.history.pushState(null, '', '/');
-    setView('home');
+    navigate('/');
     loadData();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // Render Admin View if on /admin
-  if (view === 'admin') {
+  if (isAdmin) {
     return (
       <div className="min-h-screen bg-[#fbf9f8] text-[#1b1c1c] font-sans antialiased">
         <AdminView onExitAdmin={handleExitAdmin} />
@@ -626,216 +677,231 @@ export default function App() {
     <div className="min-h-screen flex flex-col bg-[#fbf9f8] text-[#1b1c1c] font-sans antialiased">
       {/* Global Navigation Header (Royal Blue) */}
       <Navbar
-        showTopBar={view === 'home' || view === 'category'}
+        showTopBar={showTopBar}
         currentCategory={currentCategory}
         categories={categories}
         onSelectCategory={(cat) => {
           setCartNotification(null);
           setCurrentCategory(cat);
           if (cat === 'Todo') {
-            setView('home');
             setLastShoppingView('home');
+            navigate('/');
           } else {
-            setView('category');
             setLastShoppingView('category');
+            navigate(`/categoria/${slugifyCategory(cat)}`);
           }
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         searchQuery={searchQuery}
         onSearchChange={(q) => {
           setSearchQuery(q);
-          if (view !== 'home' && view !== 'category' && q.trim()) setView('home');
+          if (!isHome && !isCategory && q.trim()) {
+            navigate('/');
+          }
         }}
         cartItems={cart}
         onOpenCart={handleGoToCart}
         onGoHome={handleGoHome}
         onOpenQuickBuy={handleGoToQuickBuy}
-        isQuickBuyActive={view === 'quick_buy'}
+        isQuickBuyActive={isQuickBuy}
         currentUser={currentUser}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onOpenAccount={() => setIsAccountModalOpen(true)}
       />
 
-      {/* Main Content Area */}
+      {/* Main Content Area with Real Browser Routes */}
       <main className="flex-1">
-        {view === 'quick_buy' && (
-          <QuickBuyView
-            products={products}
-            categories={categories}
-            cartItems={cart}
-            deliveryOption={deliveryOption}
-            onSelectDeliveryOption={handleSelectDeliveryOption}
-            paymentMethod={paymentMethod}
-            onSelectPaymentMethod={handleSelectPaymentMethod}
-            onAddToCart={(prod, col, sz, qty, img, vars) =>
-              handleAddToCart(prod, col, sz, qty, img, vars, false)
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <HomeView
+                products={products}
+                categories={categories}
+                onSelectProduct={handleSelectProduct}
+                onSelectCategory={(cat) => {
+                  setCurrentCategory(cat);
+                  if (cat === 'Todo') {
+                    setLastShoppingView('home');
+                    navigate('/');
+                    window.scrollTo({ top: 300, behavior: 'smooth' });
+                  } else {
+                    setLastShoppingView('category');
+                    navigate(`/categoria/${slugifyCategory(cat)}`);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
+                }}
+                currentCategory={currentCategory}
+                searchQuery={searchQuery}
+              />
             }
-            onUpdateCartQuantity={handleUpdateCartQuantity}
-            onSetCartItemQuantity={handleSetCartItemQuantity}
-            onRemoveCartItem={handleRemoveCartItem}
-            onOpenCart={handleGoToCart}
-            onGoToHome={() => {
-              setView('home');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            onProceedToCheckout={() => {
-              setView('checkout');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            onSelectProductDetail={(prod, variants, img) => {
-              setPreviousView('quick_buy');
-              handleSelectProduct(prod, variants, img);
-            }}
           />
-        )}
 
-        {view === 'home' && (
-          <HomeView
-            products={products}
-            categories={categories}
-            onSelectProduct={handleSelectProduct}
-            onSelectCategory={(cat) => {
-              setCurrentCategory(cat);
-              if (cat === 'Todo') {
-                setView('home');
-                setLastShoppingView('home');
-                window.scrollTo({ top: 300, behavior: 'smooth' });
-              } else {
-                setView('category');
-                setLastShoppingView('category');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }
-            }}
-            currentCategory={currentCategory}
-            searchQuery={searchQuery}
-          />
-        )}
-
-        {view === 'category' && (
-          <CategoryView
-            categoryName={currentCategory}
-            products={products}
-            categories={categories}
-            onSelectProduct={handleSelectProduct}
-            onBack={handleGoHome}
-            onSelectCategory={(cat) => {
-              if (cat === 'Todo') {
-                setCurrentCategory('Todo');
-                setView('home');
-                setLastShoppingView('home');
-              } else {
-                setCurrentCategory(cat);
-                setLastShoppingView('category');
-              }
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-          />
-        )}
-
-        {view === 'product_detail' && selectedProduct && (
-          <ProductDetailView
-            product={selectedProduct}
-            allProducts={products}
-            initialSelectedVariants={selectedProductVariants}
-            initialSelectedImage={selectedProductImage}
-            backLabel={
-              previousView === 'quick_buy'
-                ? 'Volver a Compra Rápida'
-                : previousView === 'cart'
-                ? 'Volver al carrito'
-                : undefined
+          <Route
+            path="/categoria/:categorySlug"
+            element={
+              <CategoryRouteWrapper
+                products={products}
+                categories={categories}
+                onSelectProduct={handleSelectProduct}
+                onGoHome={handleGoHome}
+              />
             }
-            onBack={() => {
-              setCartNotification(null);
-              if (previousView === 'quick_buy') {
-                setView('quick_buy');
-              } else if (previousView === 'cart') {
-                setView('cart');
-              } else if (currentCategory && currentCategory !== 'Todo') {
-                setView('category');
-              } else {
-                setView('home');
-              }
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            onGoToCart={handleGoToCart}
-            onAddToCart={handleAddToCart}
-            onBuyNow={handleBuyNow}
-            onSelectRelated={handleSelectProduct}
           />
-        )}
 
-        {view === 'cart' && (
-          <CartView
-            cartItems={cart}
-            onSelectProduct={handleSelectProduct}
-            onSelectCategory={(cat) => {
-              setCurrentCategory(cat);
-              if (cat === 'Todo') {
-                setView('home');
-              } else {
-                setView('category');
-              }
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            onUpdateQuantity={handleUpdateCartQuantity}
-            onRemoveItem={handleRemoveCartItem}
-            onProceedToCheckout={() => {
-              setView('checkout');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            onContinueShopping={() => {
-              if (lastShoppingView === 'quick_buy') {
-                handleGoToQuickBuy();
-              } else {
-                handleGoHome();
-              }
-            }}
+          <Route
+            path="/producto/:productId"
+            element={
+              <ProductDetailRouteWrapper
+                products={products}
+                isLoadingData={isLoadingData}
+                selectedProductVariants={selectedProductVariants}
+                selectedProductImage={selectedProductImage}
+                previousView={previousView}
+                onGoToCart={handleGoToCart}
+                onAddToCart={handleAddToCart}
+                onBuyNow={handleBuyNow}
+                onSelectRelated={handleSelectProduct}
+              />
+            }
           />
-        )}
 
-        {view === 'checkout' && (
-          <CheckoutView
-            cartItems={cart}
-            currentUser={currentUser}
-            onAuthSuccess={(profile) => setCurrentUser(profile)}
-            initialDeliveryOption={deliveryOption}
-            initialPaymentMethod={paymentMethod}
-            onDeliveryOptionChange={handleSelectDeliveryOption}
-            onPaymentMethodChange={handleSelectPaymentMethod}
-            onBackToCart={() => {
-              setView('cart');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            onOrderCompleted={handleOrderCompleted}
-            onSaveOrderToSupabaseAndEmail={handleSaveOrderToSupabaseAndEmail}
+          <Route
+            path="/carrito"
+            element={
+              <CartView
+                cartItems={cart}
+                onSelectProduct={handleSelectProduct}
+                onSelectCategory={(cat) => {
+                  setCurrentCategory(cat);
+                  if (cat === 'Todo') {
+                    navigate('/');
+                  } else {
+                    navigate(`/categoria/${slugifyCategory(cat)}`);
+                  }
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                onUpdateQuantity={handleUpdateCartQuantity}
+                onRemoveItem={handleRemoveCartItem}
+                onProceedToCheckout={() => {
+                  navigate('/checkout');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                onContinueShopping={() => {
+                  if (lastShoppingView === 'quick_buy') {
+                    handleGoToQuickBuy();
+                  } else {
+                    handleGoHome();
+                  }
+                }}
+              />
+            }
           />
-        )}
 
-        {view === 'confirmation' && lastOrder && (
-          <OrderConfirmationView
-            order={lastOrder}
-            onContinueShopping={() => {
-              if (lastShoppingView === 'quick_buy') {
-                handleGoToQuickBuy();
-              } else {
-                handleGoHome();
-              }
-            }}
+          <Route
+            path="/checkout"
+            element={
+              <CheckoutView
+                cartItems={cart}
+                currentUser={currentUser}
+                onAuthSuccess={(profile) => setCurrentUser(profile)}
+                initialDeliveryOption={deliveryOption}
+                initialPaymentMethod={paymentMethod}
+                onDeliveryOptionChange={handleSelectDeliveryOption}
+                onPaymentMethodChange={handleSelectPaymentMethod}
+                onBackToCart={() => {
+                  navigate('/carrito');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                onOrderCompleted={handleOrderCompleted}
+                onSaveOrderToSupabaseAndEmail={handleSaveOrderToSupabaseAndEmail}
+              />
+            }
           />
-        )}
 
-        {view === 'info' && (
-          <InfoPageView
-            targetSection={targetInfoSection}
-            onGoHome={handleGoHome}
-            onOpenQuickBuy={handleGoToQuickBuy}
+          <Route
+            path="/confirmacion"
+            element={
+              <ConfirmationRouteWrapper
+                lastOrder={lastOrder}
+                onContinueShopping={() => {
+                  if (lastShoppingView === 'quick_buy') {
+                    handleGoToQuickBuy();
+                  } else {
+                    handleGoHome();
+                  }
+                }}
+              />
+            }
           />
-        )}
+
+          <Route
+            path="/compra-rapida"
+            element={
+              <QuickBuyView
+                products={products}
+                categories={categories}
+                cartItems={cart}
+                deliveryOption={deliveryOption}
+                onSelectDeliveryOption={handleSelectDeliveryOption}
+                paymentMethod={paymentMethod}
+                onSelectPaymentMethod={handleSelectPaymentMethod}
+                onAddToCart={(prod, col, sz, qty, img, vars) =>
+                  handleAddToCart(prod, col, sz, qty, img, vars, false)
+                }
+                onUpdateCartQuantity={handleUpdateCartQuantity}
+                onSetCartItemQuantity={handleSetCartItemQuantity}
+                onRemoveCartItem={handleRemoveCartItem}
+                onOpenCart={handleGoToCart}
+                onGoToHome={handleGoHome}
+                onProceedToCheckout={() => {
+                  navigate('/checkout');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                onSelectProductDetail={(prod, variants, img) => {
+                  setPreviousView('quick_buy');
+                  handleSelectProduct(prod, variants, img);
+                }}
+              />
+            }
+          />
+
+          {/* Quick Buy aliases */}
+          <Route path="/quick-buy" element={<Navigate to="/compra-rapida" replace />} />
+          <Route path="/quick_buy" element={<Navigate to="/compra-rapida" replace />} />
+
+          {/* Institutional / Terms / Info routes */}
+          <Route
+            path="/informacion/:sectionId"
+            element={
+              <InfoPageRouteWrapper
+                onGoHome={handleGoHome}
+                onOpenQuickBuy={handleGoToQuickBuy}
+              />
+            }
+          />
+          <Route
+            path="/informacion"
+            element={
+              <InfoPageRouteWrapper
+                onGoHome={handleGoHome}
+                onOpenQuickBuy={handleGoToQuickBuy}
+              />
+            }
+          />
+          <Route path="/terminos" element={<Navigate to="/informacion/terminos-y-condiciones" replace />} />
+          <Route path="/faq" element={<Navigate to="/informacion/preguntas-frecuentes" replace />} />
+          <Route path="/contacto" element={<Navigate to="/informacion/contacto" replace />} />
+          <Route path="/nosotros" element={<Navigate to="/informacion/sobre-nosotros" replace />} />
+          <Route path="/trabaja-con-nosotros" element={<Navigate to="/informacion/trabaja-con-nosotros" replace />} />
+
+          {/* Catch-all route to home */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </main>
 
       {/* Footer (oculto en la página de compra rápida) */}
-      {view !== 'quick_buy' && <Footer onNavigateToInfo={handleOpenInfoPage} />}
+      {!isQuickBuy && <Footer onNavigateToInfo={handleOpenInfoPage} />}
 
       {/* Mobile-only Orientation Lock */}
       <MobileOrientationLock />
@@ -865,7 +931,7 @@ export default function App() {
       )}
 
       {/* Top Added-To-Cart Toast Notification (active only on product_detail view) */}
-      {view === 'product_detail' && (
+      {isProductDetail && (
         <AddedToCartNotification
           data={cartNotification}
           onClose={() => setCartNotification(null)}

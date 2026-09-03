@@ -21,12 +21,14 @@ interface InfoPageViewProps {
   targetSection?: string | null;
   onGoHome: () => void;
   onOpenQuickBuy?: () => void;
+  onSectionChange?: (sectionId: string) => void;
 }
 
 export const InfoPageView: React.FC<InfoPageViewProps> = ({
   targetSection,
   onGoHome,
   onOpenQuickBuy,
+  onSectionChange,
 }) => {
   const [activeTab, setActiveTab] = useState<string>(targetSection || 'trabaja-con-nosotros');
 
@@ -47,6 +49,9 @@ export const InfoPageView: React.FC<InfoPageViewProps> = ({
 
   const scrollToSection = (id: string) => {
     setActiveTab(id);
+    if (onSectionChange) {
+      onSectionChange(id);
+    }
     const el = document.getElementById(id);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
