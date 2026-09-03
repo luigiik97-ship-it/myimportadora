@@ -1,0 +1,9 @@
+{
+  "name": "MY - Venta Mayorista y Minorista",
+  "short_name": "MY",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0058bb",
+  "theme_color": "#0058bb"
+}

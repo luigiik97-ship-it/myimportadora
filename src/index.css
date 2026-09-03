@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Ocultar barra de desplazamiento vertical en dispositivos móviles sin afectar el scroll táctil */
+@media (max-width: 768px) {
+  html,
+  body,
+  * {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+
+  ::-webkit-scrollbar,
+  *::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+  }
+}
+
+/* Ocultar flechas arriba/abajo en inputs numéricos */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Bloqueo de orientación horizontal en teléfonos móviles */
+@media screen and (orientation: landscape) and (max-height: 550px) and (max-width: 1000px) and (pointer: coarse) {
+  body.mobile-landscape-locked {
+    overflow: hidden !important;
+  }
+}
+

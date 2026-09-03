@@ -1,0 +1,6 @@
+{
+  "name": "MY Commerce System",
+  "description": "Plataforma de comercio mayorista y minorista con catálogo de productos, variantes de tamaño y precios dinámicos, carrito con cálculo mayorista por categoría, checkout con WhatsApp y confirmación por EmailJS, panel de administración /admin protegido y sincronización con Supabase.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
