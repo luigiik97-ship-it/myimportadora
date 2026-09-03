@@ -64,41 +64,90 @@ export const safeLocalStorageSet = (key: string, value: string): boolean => {
   }
 };
 
+// ================= CACHING & DEDUPLICATION LAYER ================= //
+let cachedProducts: Product[] | null = null;
+let productsCacheTimestamp = 0;
+let inFlightProductsPromise: Promise<Product[]> | null = null;
+
+let cachedCategories: Category[] | null = null;
+let categoriesCacheTimestamp = 0;
+let inFlightCategoriesPromise: Promise<Category[]> | null = null;
+
+const CACHE_TTL_MS = 1000 * 60 * 3; // 3 minutes in-memory freshness
+
+export const getCachedProducts = (): Product[] => {
+  if (cachedProducts && cachedProducts.length > 0) {
+    return cachedProducts;
+  }
+  return getLocalProducts();
+};
+
+export const getCachedCategories = (): Category[] => {
+  if (cachedCategories && cachedCategories.length > 0) {
+    return cachedCategories;
+  }
+  return getLocalCategories();
+};
+
+export const invalidateProductsCache = () => {
+  cachedProducts = null;
+  productsCacheTimestamp = 0;
+};
+
+export const invalidateCategoriesCache = () => {
+  cachedCategories = null;
+  categoriesCacheTimestamp = 0;
+};
+
 // Initial loader for local storage categories
 export const getLocalCategories = (): Category[] => {
+  if (cachedCategories && cachedCategories.length > 0) return cachedCategories;
   try {
     const saved = localStorage.getItem(LOCAL_CATEGORIES_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        cachedCategories = parsed;
+        return parsed;
+      }
     }
   } catch (e) {
     console.error('Error reading local categories', e);
   }
   safeLocalStorageSet(LOCAL_CATEGORIES_KEY, JSON.stringify(INITIAL_CATEGORIES));
+  cachedCategories = INITIAL_CATEGORIES;
   return INITIAL_CATEGORIES;
 };
 
 export const saveLocalCategories = (categories: Category[]) => {
+  cachedCategories = categories;
+  categoriesCacheTimestamp = Date.now();
   safeLocalStorageSet(LOCAL_CATEGORIES_KEY, JSON.stringify(categories));
 };
 
 // Initial loader for local storage
-const getLocalProducts = (): Product[] => {
+export const getLocalProducts = (): Product[] => {
+  if (cachedProducts && cachedProducts.length > 0) return cachedProducts;
   try {
     const saved = localStorage.getItem(LOCAL_PRODUCTS_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        cachedProducts = parsed;
+        return parsed;
+      }
     }
   } catch (e) {
     console.error('Error reading local products', e);
   }
   safeLocalStorageSet(LOCAL_PRODUCTS_KEY, JSON.stringify(INITIAL_PRODUCTS));
+  cachedProducts = INITIAL_PRODUCTS;
   return INITIAL_PRODUCTS;
 };
 
-const saveLocalProducts = (products: Product[]) => {
+export const saveLocalProducts = (products: Product[]) => {
+  cachedProducts = products;
+  productsCacheTimestamp = Date.now();
   safeLocalStorageSet(LOCAL_PRODUCTS_KEY, JSON.stringify(products));
 };
 
@@ -338,208 +387,218 @@ async function executeAdaptiveProductWrite(
   return { success: false, error: 'Max retry attempts reached' };
 }
 
-export const fetchProducts = async (): Promise<Product[]> => {
-  if (isSupabaseConfigured() && supabaseInstance) {
-    try {
-      const { data, error } = await supabaseInstance
-        .from('products')
-        .select('*')
-        .order('created_at', { ascending: false });
+export const fetchProducts = async (options?: { force?: boolean }): Promise<Product[]> => {
+  const now = Date.now();
 
-      if (error) {
-        console.warn('Supabase fetchProducts error, usando fallback local:', error.message);
-        return getLocalProducts();
-      }
-
-      if (data && data.length > 0) {
-        knownProductColumns = new Set(Object.keys(data[0]));
-        console.log(`\n================== [VARIANT DEBUG - POST-LOAD INICIO] ==================`);
-        console.log(`[VARIANT DEBUG - POST-LOAD] Se obtuvieron ${data.length} productos desde Supabase.`);
-
-        // Map database columns to Product interface with robust variant and 6-image extraction
-        const mappedProducts = data.map((item: any) => {
-          const colors = Array.isArray(item.colors)
-            ? item.colors
-            : (item.colors
-            ? (typeof item.colors === 'string' && item.colors.startsWith('[')
-                ? JSON.parse(item.colors)
-                : [item.colors])
-            : []);
-
-          // Robust variant types normalization (extracts from variant_types, size_variants meta, or specs meta)
-          const variantTypes = normalizeVariantTypes(item);
-          const sizeVariants = cleanSizeVariantsList(
-            Array.isArray(item.size_variants)
-              ? item.size_variants
-              : (item.sizeVariants
-              ? (typeof item.sizeVariants === 'string' ? JSON.parse(item.sizeVariants) : item.sizeVariants)
-              : [])
-          );
-          const rawSpecs = Array.isArray(item.specs)
-            ? item.specs
-            : (item.specs
-            ? (typeof item.specs === 'string' && item.specs.startsWith('[') ? JSON.parse(item.specs) : item.specs)
-            : []);
-          const specs = cleanSpecsList(rawSpecs);
-
-          const prodImages = extractProductImages(item);
-
-          let resolvedCashPrice: number | undefined = undefined;
-          if (item.cash_price !== undefined && item.cash_price !== null && item.cash_price !== '') {
-            resolvedCashPrice = Number(item.cash_price);
-          } else if (item.cashPrice !== undefined && item.cashPrice !== null && item.cashPrice !== '') {
-            resolvedCashPrice = Number(item.cashPrice);
-          } else if (Array.isArray(rawSpecs)) {
-            const cashSpec = rawSpecs.find(
-              (s: any) => s && (s.key === '__cash_price' || s.label === '__cash_price' || s.key === 'cashPrice' || s.label === 'cashPrice')
-            );
-            if (cashSpec && cashSpec.value && !isNaN(Number(cashSpec.value))) {
-              resolvedCashPrice = Number(cashSpec.value);
-            }
-          }
-
-          let resolvedRetailCashPrice: number | undefined = undefined;
-          if (item.retail_cash_price !== undefined && item.retail_cash_price !== null && item.retail_cash_price !== '') {
-            resolvedRetailCashPrice = Number(item.retail_cash_price);
-          } else if (item.retailCashPrice !== undefined && item.retailCashPrice !== null && item.retailCashPrice !== '') {
-            resolvedRetailCashPrice = Number(item.retailCashPrice);
-          } else if (Array.isArray(rawSpecs)) {
-            const retailCashSpec = rawSpecs.find(
-              (s: any) => s && (s.key === '__retail_cash_price' || s.label === '__retail_cash_price' || s.key === 'retailCashPrice' || s.label === 'retailCashPrice')
-            );
-            if (retailCashSpec && retailCashSpec.value && !isNaN(Number(retailCashSpec.value))) {
-              resolvedRetailCashPrice = Number(retailCashSpec.value);
-            }
-          }
-          // Fallback to resolvedCashPrice if specific retail cash price was not configured
-          if (resolvedRetailCashPrice === undefined && resolvedCashPrice !== undefined) {
-            resolvedRetailCashPrice = resolvedCashPrice;
-          }
-
-          let resolvedWholesaleCashPrice: number | undefined = undefined;
-          if (item.wholesale_cash_price !== undefined && item.wholesale_cash_price !== null && item.wholesale_cash_price !== '') {
-            resolvedWholesaleCashPrice = Number(item.wholesale_cash_price);
-          } else if (item.wholesaleCashPrice !== undefined && item.wholesaleCashPrice !== null && item.wholesaleCashPrice !== '') {
-            resolvedWholesaleCashPrice = Number(item.wholesaleCashPrice);
-          } else if (Array.isArray(rawSpecs)) {
-            const wholesaleCashSpec = rawSpecs.find(
-              (s: any) => s && (s.key === '__wholesale_cash_price' || s.label === '__wholesale_cash_price' || s.key === 'wholesaleCashPrice' || s.label === 'wholesaleCashPrice')
-            );
-            if (wholesaleCashSpec && wholesaleCashSpec.value && !isNaN(Number(wholesaleCashSpec.value))) {
-              resolvedWholesaleCashPrice = Number(wholesaleCashSpec.value);
-            }
-          }
-          // Fallback to resolvedCashPrice if specific wholesale cash price was not configured
-          if (resolvedWholesaleCashPrice === undefined && resolvedCashPrice !== undefined) {
-            resolvedWholesaleCashPrice = resolvedCashPrice;
-          }
-
-          let resolvedAdditionalImage: string | undefined = undefined;
-          if (item.additional_image || item.additionalImage || item.lifestyle_image || item.lifestyleImage) {
-            resolvedAdditionalImage = item.additional_image || item.additionalImage || item.lifestyle_image || item.lifestyleImage;
-          } else if (Array.isArray(rawSpecs)) {
-            const addImgSpec = rawSpecs.find(
-              (s: any) => s && (s.key === '__additional_image' || s.label === '__additional_image' || s.key === 'additionalImage' || s.label === 'additionalImage')
-            );
-            if (addImgSpec && addImgSpec.value) {
-              resolvedAdditionalImage = addImgSpec.value;
-            }
-          }
-
-          let resolvedRating: number = 5.0;
-          if (item.rating !== undefined && item.rating !== null && !isNaN(Number(item.rating))) {
-            resolvedRating = Number(item.rating);
-          } else if (Array.isArray(rawSpecs)) {
-            const ratingSpec = rawSpecs.find(
-              (s: any) => s && (s.key === '__rating' || s.label === '__rating')
-            );
-            if (ratingSpec && ratingSpec.value && !isNaN(Number(ratingSpec.value))) {
-              resolvedRating = Number(ratingSpec.value);
-            }
-          }
-
-          let resolvedReviewsCount: number = 128;
-          if (item.reviews_count !== undefined && item.reviews_count !== null && !isNaN(Number(item.reviews_count))) {
-            resolvedReviewsCount = Number(item.reviews_count);
-          } else if (item.reviewsCount !== undefined && item.reviewsCount !== null && !isNaN(Number(item.reviewsCount))) {
-            resolvedReviewsCount = Number(item.reviewsCount);
-          } else if (Array.isArray(rawSpecs)) {
-            const reviewsCountSpec = rawSpecs.find(
-              (s: any) => s && (s.key === '__reviews_count' || s.label === '__reviews_count')
-            );
-            if (reviewsCountSpec && reviewsCountSpec.value && !isNaN(Number(reviewsCountSpec.value))) {
-              resolvedReviewsCount = Number(reviewsCountSpec.value);
-            }
-          }
-
-          let resolvedReviews: any[] | undefined = undefined;
-          if (Array.isArray(item.reviews) && item.reviews.length > 0) {
-            resolvedReviews = item.reviews;
-          } else if (typeof item.reviews === 'string' && item.reviews.trim().startsWith('[')) {
-            try {
-              resolvedReviews = JSON.parse(item.reviews);
-            } catch (e) {}
-          } else if (Array.isArray(rawSpecs)) {
-            const reviewsSpec = rawSpecs.find(
-              (s: any) => s && (s.key === '__reviews' || s.label === '__reviews')
-            );
-            if (reviewsSpec && reviewsSpec.value) {
-              try {
-                resolvedReviews = JSON.parse(reviewsSpec.value);
-              } catch (e) {}
-            }
-          }
-
-          // Post-load debug for each product's variants and cash prices
-          console.log(`[VARIANT & CASH DEBUG - POST-LOAD] Producto ID: "${item.id || item.product_id}" | Título: "${item.title}"`);
-          console.log(`  └─ Precios: Mayorista: $${item.wholesale_price || item.wholesalePrice || 0} | Minorista: $${item.retail_price || item.retailPrice || 0}`);
-          console.log(`  └─ Precios Efectivo: Min: ${resolvedRetailCashPrice !== undefined ? `$${resolvedRetailCashPrice}` : 'N/A'} | May: ${resolvedWholesaleCashPrice !== undefined ? `$${resolvedWholesaleCashPrice}` : 'N/A'}`);
-          console.log(`  └─ Imágenes base (${prodImages.length}):`, prodImages);
-          console.log(`  └─ Imagen adicional:`, resolvedAdditionalImage || 'Predeterminada');
-          console.log(`  └─ Rating: ${resolvedRating} (${resolvedReviewsCount} opiniones, ${resolvedReviews?.length || 0} comentarios)`);
-
-          return {
-            id: item.id || String(item.product_id),
-            title: item.title,
-            description: item.description || '',
-            category: item.category || 'Bijuteria',
-            subcategory: item.subcategory || '',
-            images: prodImages,
-            additionalImage: resolvedAdditionalImage,
-            minWholesaleQty: Number(item.min_wholesale_qty || item.minWholesaleQty || 1),
-            wholesalePrice: Number(item.wholesale_price || item.wholesalePrice || 0),
-            retailPrice: Number(item.retail_price || item.retailPrice || 0),
-            cashPrice: resolvedCashPrice,
-            retailCashPrice: resolvedRetailCashPrice,
-            wholesaleCashPrice: resolvedWholesaleCashPrice,
-            colors,
-            sizeVariants,
-            variantTypes,
-            stock: Number(item.stock || 0),
-            soldCount: Number(item.sold_count || item.soldCount || 0),
-            rating: resolvedRating,
-            reviewsCount: resolvedReviewsCount,
-            reviews: resolvedReviews,
-            specs,
-            isBestSeller: Boolean(item.is_best_seller ?? item.isBestSeller),
-            createdAt: item.created_at || item.createdAt
-          };
-        });
-
-        console.log(`================== [VARIANT DEBUG - POST-LOAD FIN] ==================\n`);
-        return mappedProducts;
-      } else {
-        // Seed initial products to Supabase if empty
-        await seedInitialProducts();
-        return getLocalProducts();
-      }
-    } catch (err) {
-      console.warn('Error connecting to Supabase, fallback to local:', err);
-      return getLocalProducts();
-    }
+  // 1. Fast path: return in-memory cached products if fresh and not explicitly forced
+  if (!options?.force && cachedProducts && cachedProducts.length > 0 && (now - productsCacheTimestamp < CACHE_TTL_MS)) {
+    return cachedProducts;
   }
 
-  return getLocalProducts();
+  // 2. Request deduplication: if a request is already running, join the existing promise
+  if (inFlightProductsPromise) {
+    return inFlightProductsPromise;
+  }
+
+  inFlightProductsPromise = (async () => {
+    try {
+      if (isSupabaseConfigured() && supabaseInstance) {
+        try {
+          const { data, error } = await supabaseInstance
+            .from('products')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+          if (error) {
+            console.warn('Supabase fetchProducts error, usando fallback local:', error.message);
+            return getLocalProducts();
+          }
+
+          if (data && data.length > 0) {
+            knownProductColumns = new Set(Object.keys(data[0]));
+
+            // Map database columns to Product interface with robust variant and 6-image extraction
+            const mappedProducts = data.map((item: any) => {
+              const colors = Array.isArray(item.colors)
+                ? item.colors
+                : (item.colors
+                ? (typeof item.colors === 'string' && item.colors.startsWith('[')
+                    ? JSON.parse(item.colors)
+                    : [item.colors])
+                : []);
+
+              // Robust variant types normalization (extracts from variant_types, size_variants meta, or specs meta)
+              const variantTypes = normalizeVariantTypes(item);
+              const sizeVariants = cleanSizeVariantsList(
+                Array.isArray(item.size_variants)
+                  ? item.size_variants
+                  : (item.sizeVariants
+                  ? (typeof item.sizeVariants === 'string' ? JSON.parse(item.sizeVariants) : item.sizeVariants)
+                  : [])
+              );
+              const rawSpecs = Array.isArray(item.specs)
+                ? item.specs
+                : (item.specs
+                ? (typeof item.specs === 'string' && item.specs.startsWith('[') ? JSON.parse(item.specs) : item.specs)
+                : []);
+              const specs = cleanSpecsList(rawSpecs);
+
+              const prodImages = extractProductImages(item);
+
+              let resolvedCashPrice: number | undefined = undefined;
+              if (item.cash_price !== undefined && item.cash_price !== null && item.cash_price !== '') {
+                resolvedCashPrice = Number(item.cash_price);
+              } else if (item.cashPrice !== undefined && item.cashPrice !== null && item.cashPrice !== '') {
+                resolvedCashPrice = Number(item.cashPrice);
+              } else if (Array.isArray(rawSpecs)) {
+                const cashSpec = rawSpecs.find(
+                  (s: any) => s && (s.key === '__cash_price' || s.label === '__cash_price' || s.key === 'cashPrice' || s.label === 'cashPrice')
+                );
+                if (cashSpec && cashSpec.value && !isNaN(Number(cashSpec.value))) {
+                  resolvedCashPrice = Number(cashSpec.value);
+                }
+              }
+
+              let resolvedRetailCashPrice: number | undefined = undefined;
+              if (item.retail_cash_price !== undefined && item.retail_cash_price !== null && item.retail_cash_price !== '') {
+                resolvedRetailCashPrice = Number(item.retail_cash_price);
+              } else if (item.retailCashPrice !== undefined && item.retailCashPrice !== null && item.retailCashPrice !== '') {
+                resolvedRetailCashPrice = Number(item.retailCashPrice);
+              } else if (Array.isArray(rawSpecs)) {
+                const retailCashSpec = rawSpecs.find(
+                  (s: any) => s && (s.key === '__retail_cash_price' || s.label === '__retail_cash_price' || s.key === 'retailCashPrice' || s.label === 'retailCashPrice')
+                );
+                if (retailCashSpec && retailCashSpec.value && !isNaN(Number(retailCashSpec.value))) {
+                  resolvedRetailCashPrice = Number(retailCashSpec.value);
+                }
+              }
+              // Fallback to resolvedCashPrice if specific retail cash price was not configured
+              if (resolvedRetailCashPrice === undefined && resolvedCashPrice !== undefined) {
+                resolvedRetailCashPrice = resolvedCashPrice;
+              }
+
+              let resolvedWholesaleCashPrice: number | undefined = undefined;
+              if (item.wholesale_cash_price !== undefined && item.wholesale_cash_price !== null && item.wholesale_cash_price !== '') {
+                resolvedWholesaleCashPrice = Number(item.wholesale_cash_price);
+              } else if (item.wholesaleCashPrice !== undefined && item.wholesaleCashPrice !== null && item.wholesaleCashPrice !== '') {
+                resolvedWholesaleCashPrice = Number(item.wholesaleCashPrice);
+              } else if (Array.isArray(rawSpecs)) {
+                const wholesaleCashSpec = rawSpecs.find(
+                  (s: any) => s && (s.key === '__wholesale_cash_price' || s.label === '__wholesale_cash_price' || s.key === 'wholesaleCashPrice' || s.label === 'wholesaleCashPrice')
+                );
+                if (wholesaleCashSpec && wholesaleCashSpec.value && !isNaN(Number(wholesaleCashSpec.value))) {
+                  resolvedWholesaleCashPrice = Number(wholesaleCashSpec.value);
+                }
+              }
+              // Fallback to resolvedCashPrice if specific wholesale cash price was not configured
+              if (resolvedWholesaleCashPrice === undefined && resolvedCashPrice !== undefined) {
+                resolvedWholesaleCashPrice = resolvedCashPrice;
+              }
+
+              let resolvedAdditionalImage: string | undefined = undefined;
+              if (item.additional_image || item.additionalImage || item.lifestyle_image || item.lifestyleImage) {
+                resolvedAdditionalImage = item.additional_image || item.additionalImage || item.lifestyle_image || item.lifestyleImage;
+              } else if (Array.isArray(rawSpecs)) {
+                const addImgSpec = rawSpecs.find(
+                  (s: any) => s && (s.key === '__additional_image' || s.label === '__additional_image' || s.key === 'additionalImage' || s.label === 'additionalImage')
+                );
+                if (addImgSpec && addImgSpec.value) {
+                  resolvedAdditionalImage = addImgSpec.value;
+                }
+              }
+
+              let resolvedRating: number = 5.0;
+              if (item.rating !== undefined && item.rating !== null && !isNaN(Number(item.rating))) {
+                resolvedRating = Number(item.rating);
+              } else if (Array.isArray(rawSpecs)) {
+                const ratingSpec = rawSpecs.find(
+                  (s: any) => s && (s.key === '__rating' || s.label === '__rating')
+                );
+                if (ratingSpec && ratingSpec.value && !isNaN(Number(ratingSpec.value))) {
+                  resolvedRating = Number(ratingSpec.value);
+                }
+              }
+
+              let resolvedReviewsCount: number = 128;
+              if (item.reviews_count !== undefined && item.reviews_count !== null && !isNaN(Number(item.reviews_count))) {
+                resolvedReviewsCount = Number(item.reviews_count);
+              } else if (item.reviewsCount !== undefined && item.reviewsCount !== null && !isNaN(Number(item.reviewsCount))) {
+                resolvedReviewsCount = Number(item.reviewsCount);
+              } else if (Array.isArray(rawSpecs)) {
+                const reviewsCountSpec = rawSpecs.find(
+                  (s: any) => s && (s.key === '__reviews_count' || s.label === '__reviews_count')
+                );
+                if (reviewsCountSpec && reviewsCountSpec.value && !isNaN(Number(reviewsCountSpec.value))) {
+                  resolvedReviewsCount = Number(reviewsCountSpec.value);
+                }
+              }
+
+              let resolvedReviews: any[] | undefined = undefined;
+              if (Array.isArray(item.reviews) && item.reviews.length > 0) {
+                resolvedReviews = item.reviews;
+              } else if (typeof item.reviews === 'string' && item.reviews.trim().startsWith('[')) {
+                try {
+                  resolvedReviews = JSON.parse(item.reviews);
+                } catch (e) {}
+              } else if (Array.isArray(rawSpecs)) {
+                const reviewsSpec = rawSpecs.find(
+                  (s: any) => s && (s.key === '__reviews' || s.label === '__reviews')
+                );
+                if (reviewsSpec && reviewsSpec.value) {
+                  try {
+                    resolvedReviews = JSON.parse(reviewsSpec.value);
+                  } catch (e) {}
+                }
+              }
+
+              return {
+                id: item.id || String(item.product_id),
+                title: item.title,
+                description: item.description || '',
+                category: item.category || 'Bijuteria',
+                subcategory: item.subcategory || '',
+                images: prodImages,
+                additionalImage: resolvedAdditionalImage,
+                minWholesaleQty: Number(item.min_wholesale_qty || item.minWholesaleQty || 1),
+                wholesalePrice: Number(item.wholesale_price || item.wholesalePrice || 0),
+                retailPrice: Number(item.retail_price || item.retailPrice || 0),
+                cashPrice: resolvedCashPrice,
+                retailCashPrice: resolvedRetailCashPrice,
+                wholesaleCashPrice: resolvedWholesaleCashPrice,
+                colors,
+                sizeVariants,
+                variantTypes,
+                stock: Number(item.stock || 0),
+                soldCount: Number(item.sold_count || item.soldCount || 0),
+                rating: resolvedRating,
+                reviewsCount: resolvedReviewsCount,
+                reviews: resolvedReviews,
+                specs,
+                isBestSeller: Boolean(item.is_best_seller ?? item.isBestSeller),
+                createdAt: item.created_at || item.createdAt
+              };
+            });
+
+            saveLocalProducts(mappedProducts);
+            return mappedProducts;
+          } else {
+            // Seed initial products to Supabase if empty
+            await seedInitialProducts();
+            return getLocalProducts();
+          }
+        } catch (err) {
+          console.warn('Error connecting to Supabase, fallback to local:', err);
+          return getLocalProducts();
+        }
+      }
+
+      return getLocalProducts();
+    } finally {
+      inFlightProductsPromise = null;
+    }
+  })();
+
+  return inFlightProductsPromise;
 };
 
 export const createProduct = async (product: Omit<Product, 'id'> & { id?: string }): Promise<Product> => {
@@ -1303,34 +1362,51 @@ export const deleteOrder = async (orderId: string): Promise<void> => {
 
 // ---------------- CATEGORIES API ---------------- //
 
-export const fetchCategories = async (): Promise<Category[]> => {
-  if (isSupabaseConfigured() && supabaseInstance) {
-    try {
-      const { data, error } = await supabaseInstance
-        .from('categories')
-        .select('*')
-        .order('sort_order', { ascending: true })
-        .order('created_at', { ascending: true });
-
-      if (!error && data && Array.isArray(data) && data.length > 0) {
-        const mapped: Category[] = data.map((item: any) => ({
-          id: item.id,
-          name: item.name,
-          slug: item.slug || item.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
-          image: item.image_url || item.image || 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=600',
-          sortOrder: typeof item.sort_order === 'number' ? item.sort_order : (item.sortOrder || 0),
-          isVisible: item.is_visible !== undefined ? Boolean(item.is_visible) : (item.isVisible !== undefined ? Boolean(item.isVisible) : true),
-          description: item.description || '',
-          createdAt: item.created_at || item.createdAt,
-        }));
-        saveLocalCategories(mapped);
-        return mapped;
-      }
-    } catch (e) {
-      console.warn('Error fetching categories from Supabase, using local categories:', e);
-    }
+export const fetchCategories = async (options?: { force?: boolean }): Promise<Category[]> => {
+  const now = Date.now();
+  if (!options?.force && cachedCategories && cachedCategories.length > 0 && (now - categoriesCacheTimestamp < CACHE_TTL_MS)) {
+    return cachedCategories;
   }
-  return getLocalCategories();
+
+  if (inFlightCategoriesPromise) {
+    return inFlightCategoriesPromise;
+  }
+
+  inFlightCategoriesPromise = (async () => {
+    try {
+      if (isSupabaseConfigured() && supabaseInstance) {
+        try {
+          const { data, error } = await supabaseInstance
+            .from('categories')
+            .select('*')
+            .order('sort_order', { ascending: true })
+            .order('created_at', { ascending: true });
+
+          if (!error && data && Array.isArray(data) && data.length > 0) {
+            const mapped: Category[] = data.map((item: any) => ({
+              id: item.id,
+              name: item.name,
+              slug: item.slug || item.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
+              image: item.image_url || item.image || 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=600',
+              sortOrder: typeof item.sort_order === 'number' ? item.sort_order : (item.sortOrder || 0),
+              isVisible: item.is_visible !== undefined ? Boolean(item.is_visible) : (item.isVisible !== undefined ? Boolean(item.isVisible) : true),
+              description: item.description || '',
+              createdAt: item.created_at || item.createdAt,
+            }));
+            saveLocalCategories(mapped);
+            return mapped;
+          }
+        } catch (e) {
+          console.warn('Error fetching categories from Supabase, using local categories:', e);
+        }
+      }
+      return getLocalCategories();
+    } finally {
+      inFlightCategoriesPromise = null;
+    }
+  })();
+
+  return inFlightCategoriesPromise;
 };
 
 export const saveCategory = async (category: Partial<Category>): Promise<Category> => {

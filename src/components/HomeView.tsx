@@ -3,10 +3,13 @@ import { Product, Category } from '../types';
 import { isProductCompletelyOutOfStock } from '../utils/variantHelpers';
 import { getStorefrontCategories } from '../utils/categoryHelpers';
 import { Truck, ArrowRight, ArrowLeftRight, Banknote, MapPin, Building2, Store, ChevronLeft, ChevronRight, Sparkles, ShieldCheck, Tag } from 'lucide-react';
+import { ImageWithSkeleton } from './common/ImageWithSkeleton';
+import { ProductGridSkeleton } from './common/ProductCardSkeleton';
 
 interface HomeViewProps {
   products: Product[];
   categories?: Category[];
+  isLoadingData?: boolean;
   onSelectProduct: (product: Product) => void;
   onSelectCategory: (category: string) => void;
   currentCategory: string;
@@ -16,6 +19,7 @@ interface HomeViewProps {
 export const HomeView: React.FC<HomeViewProps> = ({
   products,
   categories = [],
+  isLoadingData = false,
   onSelectProduct,
   onSelectCategory,
   currentCategory,
@@ -330,7 +334,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               className="snap-start shrink-0 w-[120px] sm:w-[140px] md:w-[150px] group flex flex-col items-center bg-white rounded-xl p-2.5 border border-gray-200/90 shadow-2xs hover:shadow-md hover:border-[#0058bb]/50 transition-all cursor-pointer text-center justify-between"
             >
               <div className="w-full aspect-square rounded-lg overflow-hidden bg-gray-100 mb-2 flex items-center justify-center relative">
-                <img
+                <ImageWithSkeleton
                   src={cat.image}
                   alt={cat.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -355,63 +359,67 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5">
-          {bestSellers.map((product) => {
-            const isOutOfStock = isProductCompletelyOutOfStock(product);
+          {isLoadingData && bestSellers.length === 0 ? (
+            <ProductGridSkeleton count={4} />
+          ) : (
+            bestSellers.map((product) => {
+              const isOutOfStock = isProductCompletelyOutOfStock(product);
 
-            return (
-              <div
-                key={product.id}
-                id={`product-card-${product.id}`}
-                onClick={() => onSelectProduct(product)}
-                className="group bg-white rounded-xl border border-gray-200/90 overflow-hidden shadow-xs hover:shadow-lg hover:border-[#0058bb]/50 transition-all cursor-pointer flex flex-col"
-              >
-                {/* Product Thumbnail */}
-                <div className="relative aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
-                  <img
-                    src={product.images[0]}
-                    alt={product.title}
-                    className={`w-full h-full object-cover ${
-                      isOutOfStock ? 'opacity-60 grayscale-[30%]' : 'group-hover:scale-105'
-                    } transition-transform duration-300`}
-                  />
-                  {isOutOfStock && (
-                    <span className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-xs">
-                      Sin stock
-                    </span>
-                  )}
-                </div>
-
-                {/* Info */}
-                <div className="p-3.5 flex-1 flex flex-col justify-between space-y-2">
-                  <h3 className="text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
-                    {product.title}
-                  </h3>
-
-                  <div className="pt-1">
-                    {/* Wholesale Price Highlight */}
-                    <div className="flex items-baseline gap-1.5 flex-wrap">
-                      <span className="text-lg md:text-xl font-bold text-gray-900 font-['Montserrat']">
-                        ${product.wholesalePrice.toLocaleString('es-AR')}
+              return (
+                <div
+                  key={product.id}
+                  id={`product-card-${product.id}`}
+                  onClick={() => onSelectProduct(product)}
+                  className="group bg-white rounded-xl border border-gray-200/90 overflow-hidden shadow-xs hover:shadow-lg hover:border-[#0058bb]/50 transition-all cursor-pointer flex flex-col"
+                >
+                  {/* Product Thumbnail */}
+                  <div className="relative aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
+                    <ImageWithSkeleton
+                      src={product.images[0]}
+                      alt={product.title}
+                      className={`w-full h-full object-cover ${
+                        isOutOfStock ? 'opacity-60 grayscale-[30%]' : 'group-hover:scale-105'
+                      } transition-transform duration-300`}
+                    />
+                    {isOutOfStock && (
+                      <span className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-xs z-10">
+                        Sin stock
                       </span>
-                      {isOutOfStock ? (
-                        <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
-                          Sin stock
+                    )}
+                  </div>
+
+                  {/* Info */}
+                  <div className="p-3.5 flex-1 flex flex-col justify-between space-y-2">
+                    <h3 className="text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
+                      {product.title}
+                    </h3>
+
+                    <div className="pt-1">
+                      {/* Wholesale Price Highlight */}
+                      <div className="flex items-baseline gap-1.5 flex-wrap">
+                        <span className="text-lg md:text-xl font-bold text-gray-900 font-['Montserrat']">
+                          ${product.wholesalePrice.toLocaleString('es-AR')}
                         </span>
-                      ) : (
-                        <span className="text-xs font-semibold text-[#00a650]">
-                          min. {product.minWholesaleQty} u.
-                        </span>
-                      )}
-                    </div>
-                    {/* Retail comparison */}
-                    <div className="text-xs text-gray-500 font-medium mt-0.5">
-                      ${product.retailPrice.toLocaleString('es-AR')} x1 unidad
+                        {isOutOfStock ? (
+                          <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
+                            Sin stock
+                          </span>
+                        ) : (
+                          <span className="text-xs font-semibold text-[#00a650]">
+                            min. {product.minWholesaleQty} u.
+                          </span>
+                        )}
+                      </div>
+                      {/* Retail comparison */}
+                      <div className="text-xs text-gray-500 font-medium mt-0.5">
+                        ${product.retailPrice.toLocaleString('es-AR')} x1 unidad
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </section>
 
@@ -465,7 +473,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </h2>
         </div>
 
-        {filteredProducts.length === 0 ? (
+        {isLoadingData && filteredProducts.length === 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
+            <ProductGridSkeleton count={10} />
+          </div>
+        ) : filteredProducts.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-xl border border-gray-200 p-8 space-y-3">
             <p className="text-base text-gray-600 font-medium">
               No encontramos productos que coincidan con tu búsqueda o filtro.
@@ -493,7 +505,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 >
                   {/* Thumbnail */}
                   <div className="relative aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
-                    <img
+                    <ImageWithSkeleton
                       src={product.images[0]}
                       alt={product.title}
                       className={`w-full h-full object-cover ${
@@ -501,7 +513,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       } transition-transform duration-300`}
                     />
                     {isOutOfStock && (
-                      <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded shadow-xs">
+                      <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded shadow-xs z-10">
                         Sin stock
                       </span>
                     )}

@@ -28,6 +28,7 @@ import {
   getResolvedProductPrices,
   ResolvedProductPrices
 } from '../utils/variantHelpers';
+import { ImageWithSkeleton } from './common/ImageWithSkeleton';
 
 export interface QuickBuyItem {
   itemId: string;
@@ -766,11 +767,10 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                             className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-white rounded-lg border border-gray-200 p-0 shrink-0 overflow-hidden flex items-center justify-center cursor-pointer hover:border-blue-400 hover:shadow-xs transition-all group/img relative"
                             title={`Ampliar imagen de ${item.title}`}
                           >
-                            <img
+                            <ImageWithSkeleton
                               src={item.image}
                               alt={`${item.title} ${item.variantText}`}
                               className="w-full h-full object-cover group-hover/img:scale-105 transition-transform duration-200"
-                              loading="lazy"
                             />
                           </button>
 

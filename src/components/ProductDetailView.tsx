@@ -12,6 +12,7 @@ import {
 } from '../utils/variantHelpers';
 import { ClassicStar as Star } from './common/ClassicStar';
 import { MichyOfficialBadge } from './common/MichyOfficialBadge';
+import { ImageWithSkeleton } from './common/ImageWithSkeleton';
 import {
   Truck,
   ShieldCheck,
@@ -401,12 +402,11 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
           >
-            <img
+            <ImageWithSkeleton
               id="main-product-image"
               src={activeImages[activeImageIndex] || activeImages[0] || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'}
               alt={product.title}
               className="max-h-[350px] sm:max-h-[380px] md:max-h-[440px] w-full object-contain transition-transform duration-300 group-hover:scale-105"
-              draggable={false}
             />
 
             {/* Navigation arrows if multiple images exist */}
@@ -870,7 +870,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               className="bg-white rounded-xl border border-gray-200 p-3.5 shadow-xs hover:shadow-md hover:border-[#0058bb]/40 transition-all cursor-pointer flex flex-col justify-between"
             >
               <div className="aspect-square w-full bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center mb-2">
-                <img src={rel.images[0]} alt={rel.title} className="w-full h-full object-cover" />
+                <ImageWithSkeleton src={rel.images[0]} alt={rel.title} className="w-full h-full object-cover" />
               </div>
               <div>
                 <h4 className="text-sm font-semibold text-gray-800 line-clamp-2 mb-1">{rel.title}</h4>

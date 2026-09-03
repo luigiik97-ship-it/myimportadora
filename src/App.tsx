@@ -7,7 +7,7 @@ import {
   useLocation,
 } from 'react-router-dom';
 import { Product, CartItem, Order, SizeVariant, ViewMode, Category, UserProfile } from './types';
-import { fetchProducts, fetchCategories, saveOrder, updateProduct, updateOrderEmailStatus, getSupabase, isSupabaseConfigured } from './services/supabase';
+import { fetchProducts, fetchCategories, getCachedProducts, getCachedCategories, saveOrder, updateProduct, updateOrderEmailStatus, getSupabase, isSupabaseConfigured } from './services/supabase';
 import { getLocalAuthUser, fetchUserProfile } from './services/auth';
 import { sendOrderEmails } from './services/emailjs';
 import { getActiveVariantImages, getItemEffectiveNormalPrice, getSelectedVariantStock, deductStockFromProduct } from './utils/variantHelpers';
@@ -68,9 +68,9 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
+  const [products, setProducts] = useState<Product[]>(() => getCachedProducts());
+  const [categories, setCategories] = useState<Category[]>(() => getCachedCategories());
+  const [isLoadingData, setIsLoadingData] = useState<boolean>(() => getCachedProducts().length === 0);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedProductVariants, setSelectedProductVariants] = useState<Record<string, string> | undefined>(undefined);
   const [selectedProductImage, setSelectedProductImage] = useState<string | undefined>(undefined);
@@ -235,15 +235,21 @@ export default function App() {
     }
   }, [cart]);
 
-  // Load products & categories from Supabase / local
-  const loadData = async () => {
+  // Load products & categories from Supabase / local in background
+  const loadData = async (force = false) => {
     try {
-      setIsLoadingData(true);
-      const [prods, cats] = await Promise.all([fetchProducts(), fetchCategories()]);
-      setProducts(prods);
-      setCategories(cats);
+      if (products.length === 0) {
+        setIsLoadingData(true);
+      }
+      const [prods, cats] = await Promise.all([fetchProducts({ force }), fetchCategories({ force })]);
+      if (prods && prods.length > 0) {
+        setProducts(prods);
+      }
+      if (cats && cats.length > 0) {
+        setCategories(cats);
+      }
     } catch (e) {
-      console.error('Error loading initial data:', e);
+      console.error('Error loading data:', e);
     } finally {
       setIsLoadingData(false);
     }
@@ -718,6 +724,7 @@ export default function App() {
               <HomeView
                 products={products}
                 categories={categories}
+                isLoadingData={isLoadingData}
                 onSelectProduct={handleSelectProduct}
                 onSelectCategory={(cat) => {
                   setCurrentCategory(cat);
@@ -743,6 +750,7 @@ export default function App() {
               <CategoryRouteWrapper
                 products={products}
                 categories={categories}
+                isLoadingData={isLoadingData}
                 onSelectProduct={handleSelectProduct}
                 onGoHome={handleGoHome}
               />

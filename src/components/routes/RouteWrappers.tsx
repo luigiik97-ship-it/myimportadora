@@ -131,11 +131,13 @@ export function ProductDetailRouteWrapper({
 export function CategoryRouteWrapper({
   products,
   categories,
+  isLoadingData,
   onSelectProduct,
   onGoHome,
 }: {
   products: Product[];
   categories: Category[];
+  isLoadingData?: boolean;
   onSelectProduct: (product: Product, variants?: Record<string, string>, img?: string) => void;
   onGoHome: () => void;
 }) {
@@ -180,6 +182,7 @@ export function CategoryRouteWrapper({
       categoryName={resolvedCategoryName}
       products={products}
       categories={categories}
+      isLoadingData={isLoadingData}
       onSelectProduct={onSelectProduct}
       onBack={onGoHome}
       onSelectCategory={(cat) => {

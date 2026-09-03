@@ -3,11 +3,14 @@ import { Product, Category } from '../types';
 import { getStorefrontCategories, filterProductsByCategory, slugifyCategory } from '../utils/categoryHelpers';
 import { isProductCompletelyOutOfStock } from '../utils/variantHelpers';
 import { ArrowLeft, Search, SlidersHorizontal, Sparkles, ShoppingBag, ArrowRight } from 'lucide-react';
+import { ImageWithSkeleton } from './common/ImageWithSkeleton';
+import { ProductGridSkeleton } from './common/ProductCardSkeleton';
 
 interface CategoryViewProps {
   categoryName: string;
   products: Product[];
   categories?: Category[];
+  isLoadingData?: boolean;
   onSelectProduct: (product: Product) => void;
   onBack: () => void;
   onSelectCategory: (category: string) => void;
@@ -17,6 +20,7 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
   categoryName,
   products,
   categories = [],
+  isLoadingData = false,
   onSelectProduct,
   onBack,
   onSelectCategory,
@@ -212,7 +216,11 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
       </div>
 
       {/* Products Grid */}
-      {displayedProducts.length === 0 ? (
+      {isLoadingData && displayedProducts.length === 0 ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
+          <ProductGridSkeleton count={10} />
+        </div>
+      ) : displayedProducts.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200 p-8 space-y-3 shadow-xs">
           <ShoppingBag className="w-12 h-12 text-gray-300 mx-auto" />
           <h3 className="text-base font-bold text-gray-800">
@@ -254,7 +262,7 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
               >
                 {/* Thumbnail with object-cover and zero margin */}
                 <div className="relative aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
-                  <img
+                  <ImageWithSkeleton
                     src={product.images[0]}
                     alt={product.title}
                     className={`w-full h-full object-cover ${
@@ -262,7 +270,7 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
                     } transition-transform duration-300`}
                   />
                   {isOutOfStock && (
-                    <span className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-xs">
+                    <span className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-xs z-10">
                       Sin stock
                     </span>
                   )}
