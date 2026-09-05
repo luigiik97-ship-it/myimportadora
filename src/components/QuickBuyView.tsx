@@ -384,31 +384,31 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-white text-gray-900 pb-28">
+    <div className="min-h-screen bg-[#f8fafc] text-gray-900 pb-28">
       {/* Top Banner Header */}
-      <div className="bg-gradient-to-r from-[#004bb0] via-[#0058bb] to-[#006ee6] text-white py-4 md:py-6 px-3 sm:px-6 md:px-8 shadow-sm">
-        <div className="w-full flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="bg-gradient-to-r from-[#004bb0] via-[#0058bb] to-[#006ee6] text-white py-4 md:py-6 px-4 shadow-sm">
+        <div className="max-w-[1240px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="space-y-1">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black font-['Montserrat'] tracking-tight text-white flex items-center gap-2">
+            <h1 className="text-2xl md:text-3xl font-black font-['Montserrat'] tracking-tight text-white flex items-center gap-2">
               ⚡ Compra Rápida
             </h1>
-            <p className="text-xs sm:text-sm md:text-base text-blue-100 max-w-3xl">
+            <p className="text-xs md:text-sm text-blue-100 max-w-2xl">
               Agrega variantes, talles y modelos directamente con los botones <strong className="text-yellow-300">– / +</strong>. Precios actualizados en tiempo real según entrega y pago.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Main Container - Full-width without gray lateral borders */}
-      <div className="w-full px-2 sm:px-4 md:px-6 lg:px-8 py-3.5 sm:py-5 md:py-6 space-y-4 sm:space-y-5 md:space-y-6">
+      {/* Main Container */}
+      <div className="max-w-[1240px] mx-auto px-3 sm:px-4 py-4 md:py-6 space-y-4 md:space-y-6">
         {/* 1. Modalidad de Entrega & Forma de Pago (Interactive Selector Card) */}
-        <div className="bg-white rounded-2xl border border-gray-200/90 p-3 sm:p-4 md:p-6 shadow-xs space-y-2.5 sm:space-y-3 md:space-y-4">
-          <div className="flex items-center justify-between border-b border-gray-100 pb-2 sm:pb-3">
-            <span className="text-xs sm:text-sm md:text-base font-bold uppercase tracking-wide text-gray-800 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#0058bb]" />
+        <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-200/80 p-2.5 sm:p-4 md:p-5 shadow-xs space-y-2 sm:space-y-3 md:space-y-4">
+          <div className="flex items-center justify-between border-b border-gray-100 pb-1.5 sm:pb-2.5">
+            <span className="text-[11px] sm:text-xs md:text-sm font-bold uppercase tracking-wide sm:tracking-wider text-gray-700 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-[#0058bb]" />
               Selecciona Opciones de Entrega y Forma de Pago
             </span>
-            <span className="text-xs sm:text-sm text-gray-500 hidden sm:inline">
+            <span className="text-[11px] text-gray-500 hidden sm:inline">
               Ajusta los precios de la lista al instante
             </span>
           </div>
@@ -416,34 +416,34 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3 md:gap-4">
             {/* Modalidad de Entrega */}
             <div className="space-y-1 sm:space-y-1.5 md:space-y-2">
-              <label className="text-xs sm:text-sm font-bold text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
-                <Truck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0058bb]" />
+              <label className="text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-wide sm:tracking-wider flex items-center gap-1.5">
+                <Truck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#0058bb]" />
                 OPCIONES DE ENTREGA
               </label>
-              <div className="grid grid-cols-2 gap-1.5 sm:gap-2.5">
+              <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                 {/* Retiro en el local */}
                 <button
                   type="button"
                   id="quick-buy-pickup-btn"
                   onClick={() => onSelectDeliveryOption('pickup')}
-                  className={`h-full px-2.5 py-2 sm:px-4 sm:py-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                  className={`h-full px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
                     deliveryOption === 'pickup'
                       ? 'border-[#0058bb] bg-blue-50/70 ring-2 ring-[#0058bb]/20 shadow-xs'
                       : 'border-gray-200 hover:border-gray-300 bg-white'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-1">
-                    <div className="flex items-center gap-1.5 sm:gap-2 font-bold text-xs sm:text-sm md:text-base text-gray-900 leading-tight">
-                      <Store className={`w-4 h-4 sm:w-5 sm:h-5 ${deliveryOption === 'pickup' ? 'text-[#0058bb]' : 'text-gray-500'}`} />
+                    <div className="flex items-center gap-1 sm:gap-1.5 font-bold text-[11px] sm:text-xs md:text-sm text-gray-900 leading-tight">
+                      <Store className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${deliveryOption === 'pickup' ? 'text-[#0058bb]' : 'text-gray-500'}`} />
                       <span>Retiro en local</span>
                     </div>
                     {deliveryOption === 'pickup' && (
-                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#0058bb] shrink-0" />
+                      <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0058bb] shrink-0" />
                     )}
                   </div>
-                  <div className="mt-1 flex items-center justify-between gap-1">
-                    <span className="text-xs text-gray-500 truncate">Flores, CABA.</span>
-                    <span className="text-[10px] sm:text-xs font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded shrink-0">
+                  <div className="mt-0.5 flex items-center justify-between gap-1">
+                    <span className="text-[10px] sm:text-[11px] text-gray-500 truncate">Flores, CABA.</span>
+                    <span className="text-[9px] sm:text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1 sm:px-1.5 py-0.2 rounded shrink-0">
                       GRATIS
                     </span>
                   </div>
@@ -454,24 +454,24 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                   type="button"
                   id="quick-buy-delivery-btn"
                   onClick={() => onSelectDeliveryOption('delivery')}
-                  className={`h-full px-2.5 py-2 sm:px-4 sm:py-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                  className={`h-full px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
                     deliveryOption === 'delivery'
                       ? 'border-[#0058bb] bg-blue-50/70 ring-2 ring-[#0058bb]/20 shadow-xs'
                       : 'border-gray-200 hover:border-gray-300 bg-white'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-1">
-                    <div className="flex items-center gap-1.5 sm:gap-2 font-bold text-xs sm:text-sm md:text-base text-gray-900 leading-tight">
-                      <Truck className={`w-4 h-4 sm:w-5 sm:h-5 ${deliveryOption === 'delivery' ? 'text-[#0058bb]' : 'text-gray-500'}`} />
+                    <div className="flex items-center gap-1 sm:gap-1.5 font-bold text-[11px] sm:text-xs md:text-sm text-gray-900 leading-tight">
+                      <Truck className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${deliveryOption === 'delivery' ? 'text-[#0058bb]' : 'text-gray-500'}`} />
                       <span>Envió a domicilio</span>
                     </div>
                     {deliveryOption === 'delivery' && (
-                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#0058bb] shrink-0" />
+                      <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0058bb] shrink-0" />
                     )}
                   </div>
-                  <div className="mt-1 flex items-center justify-between gap-1">
-                    <span className="text-xs text-gray-500 truncate">Correo / Moto</span>
-                    <span className="text-[10px] sm:text-xs font-semibold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded shrink-0">
+                  <div className="mt-0.5 flex items-center justify-between gap-1">
+                    <span className="text-[10px] sm:text-[11px] text-gray-500 truncate">Correo / Moto</span>
+                    <span className="text-[9px] sm:text-[10px] font-semibold text-blue-700 bg-blue-100 px-1 sm:px-1.5 py-0.2 rounded shrink-0">
                       A todo el país
                     </span>
                   </div>
@@ -481,36 +481,36 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
 
             {/* Forma de Pago */}
             <div className="space-y-1 sm:space-y-1.5 md:space-y-2">
-              <label className="text-xs sm:text-sm font-bold text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
-                <Banknote className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
+              <label className="text-[10px] sm:text-xs font-bold text-gray-700 uppercase tracking-wide sm:tracking-wider flex items-center gap-1.5">
+                <Banknote className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-600" />
                 Forma de Pago
               </label>
 
               {deliveryOption === 'pickup' ? (
                 /* Retiro: Permite Efectivo o Transferencia */
-                <div className="grid grid-cols-2 gap-1.5 sm:gap-2.5">
+                <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                   {/* Efectivo */}
                   <button
                     type="button"
                     id="quick-buy-pay-cash-btn"
                     onClick={() => onSelectPaymentMethod('cash')}
-                    className={`h-full px-2.5 py-2 sm:px-4 sm:py-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                    className={`h-full px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
                       paymentMethod === 'cash'
                         ? 'border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-500/20 shadow-xs'
                         : 'border-gray-200 hover:border-gray-300 bg-white'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-1">
-                      <div className="flex items-center gap-1.5 sm:gap-2 font-bold text-xs sm:text-sm md:text-base text-gray-900 leading-tight">
-                        <Banknote className={`w-4 h-4 sm:w-5 sm:h-5 ${paymentMethod === 'cash' ? 'text-emerald-700' : 'text-gray-500'}`} />
+                      <div className="flex items-center gap-1 sm:gap-1.5 font-bold text-[11px] sm:text-xs md:text-sm text-gray-900 leading-tight">
+                        <Banknote className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${paymentMethod === 'cash' ? 'text-emerald-700' : 'text-gray-500'}`} />
                         <span>Efectivo</span>
                       </div>
                       {paymentMethod === 'cash' && (
-                        <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600 shrink-0" />
+                        <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 shrink-0" />
                       )}
                     </div>
-                    <div className="mt-1 flex items-center justify-between gap-1">
-                      <span className="text-[10px] sm:text-xs font-bold text-emerald-800 bg-emerald-200/80 px-1.5 py-0.5 rounded shrink-0">
+                    <div className="mt-0.5 flex items-center justify-between gap-1">
+                      <span className="text-[10px] sm:text-[11px] font-bold text-emerald-800 bg-emerald-200/80 px-1 sm:px-1.5 py-0.2 rounded shrink-0">
                         🏷️ Mejor precio
                       </span>
                     </div>
@@ -521,23 +521,23 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                     type="button"
                     id="quick-buy-pay-transfer-btn"
                     onClick={() => onSelectPaymentMethod('transfer')}
-                    className={`h-full px-2.5 py-2 sm:px-4 sm:py-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                    className={`h-full px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
                       paymentMethod === 'transfer'
                         ? 'border-[#0058bb] bg-blue-50/70 ring-2 ring-[#0058bb]/20 shadow-xs'
                         : 'border-gray-200 hover:border-gray-300 bg-white'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-1">
-                      <div className="flex items-center gap-1.5 sm:gap-2 font-bold text-xs sm:text-sm md:text-base text-gray-900 leading-tight">
-                        <CreditCard className={`w-4 h-4 sm:w-5 sm:h-5 ${paymentMethod === 'transfer' ? 'text-[#0058bb]' : 'text-gray-500'}`} />
+                      <div className="flex items-center gap-1 sm:gap-1.5 font-bold text-[11px] sm:text-xs md:text-sm text-gray-900 leading-tight">
+                        <CreditCard className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${paymentMethod === 'transfer' ? 'text-[#0058bb]' : 'text-gray-500'}`} />
                         <span>Transferencia</span>
                       </div>
                       {paymentMethod === 'transfer' && (
-                        <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#0058bb] shrink-0" />
+                        <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0058bb] shrink-0" />
                       )}
                     </div>
-                    <div className="mt-1 flex items-center justify-between gap-1">
-                      <span className="text-xs text-gray-500 truncate">
+                    <div className="mt-0.5 flex items-center justify-between gap-1">
+                      <span className="text-[10px] sm:text-[11px] text-gray-500 truncate">
                         Alias / CVU
                       </span>
                     </div>
@@ -545,19 +545,19 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                 </div>
               ) : (
                 /* Envío: Oculta efectivo y muestra solo Transferencia */
-                <div className="p-2.5 sm:p-3.5 rounded-xl border border-[#0058bb] bg-blue-50/70 ring-2 ring-[#0058bb]/20 flex items-center justify-between">
-                  <div className="flex items-center gap-2 sm:gap-2.5">
-                    <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 text-[#0058bb] shrink-0" />
+                <div className="p-2 sm:p-3 rounded-lg sm:rounded-xl border border-[#0058bb] bg-blue-50/70 ring-2 ring-[#0058bb]/20 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <CreditCard className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0058bb] shrink-0" />
                     <div>
-                      <span className="font-bold text-xs sm:text-sm md:text-base text-gray-900 block leading-tight">
+                      <span className="font-bold text-[11px] sm:text-xs md:text-sm text-gray-900 block leading-tight">
                         Transferencia Bancaria
                       </span>
-                      <span className="text-xs text-gray-500 block leading-tight mt-0.5">
+                      <span className="text-[10px] sm:text-[11px] text-gray-500 block leading-tight">
                         Pago por Alias / CVU
                       </span>
                     </div>
                   </div>
-                  <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#0058bb] shrink-0 ml-2" />
+                  <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0058bb] shrink-0 ml-1.5 sm:ml-2" />
                 </div>
               )}
             </div>
@@ -565,8 +565,8 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         </div>
 
         {/* 2. Barra Anclada Unificada: Logo + Categorías + Buscador (Lupa) en un solo renglón */}
-        <div className="sticky top-0 z-35 bg-white/95 backdrop-blur-md py-3 px-2 sm:px-4 md:px-6 lg:px-8 -mx-2 sm:-mx-4 md:-mx-6 lg:-mx-8 border-b border-gray-200 shadow-xs transition-all">
-          <div className="flex items-center gap-2 sm:gap-3 max-w-full">
+        <div className="sticky top-0 z-35 bg-white/95 backdrop-blur-md py-2.5 px-3 sm:px-4 -mx-3 sm:-mx-4 border-b border-gray-200 shadow-xs transition-all">
+          <div className="flex items-center gap-2 max-w-full">
             {/* Logo de marca al lado izquierdo de "Todas" */}
             <button
               type="button"
@@ -578,24 +578,24 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                   handleScrollToCategory('all');
                 }
               }}
-              className="p-1 sm:p-1.5 rounded-xl bg-white border border-gray-200 hover:border-blue-400 hover:shadow-xs transition-all shrink-0 flex items-center justify-center cursor-pointer group active:scale-95"
+              className="p-1 rounded-xl bg-white border border-gray-200 hover:border-blue-400 hover:shadow-xs transition-all shrink-0 flex items-center justify-center cursor-pointer group active:scale-95"
               title="Ir a la página de inicio"
             >
               <img
                 src="https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/lgo%20ps.png"
                 alt="Logo"
-                className="w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 object-contain transition-transform group-hover:scale-105"
+                className="w-7 h-7 sm:w-8 sm:h-8 object-contain transition-transform group-hover:scale-105"
                 referrerPolicy="no-referrer"
               />
             </button>
 
             {/* Recuadros de Categorías (Desplazamiento horizontal sin números) */}
-            <div className="flex-1 flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar text-xs sm:text-sm py-0.5 min-w-0">
+            <div className="flex-1 flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs py-0.5 min-w-0">
               <button
                 type="button"
                 id="quick-cat-tab-all"
                 onClick={() => handleScrollToCategory('all')}
-                className={`px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full font-bold whitespace-nowrap cursor-pointer transition-all shrink-0 ${
+                className={`px-3 py-1.5 rounded-full font-bold whitespace-nowrap cursor-pointer transition-all shrink-0 ${
                   selectedCategoryTab === 'all'
                     ? 'bg-[#0058bb] text-white shadow-xs'
                     : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
@@ -612,7 +612,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                     type="button"
                     id={`quick-cat-tab-${group.categoryName.replace(/\s+/g, '-')}`}
                     onClick={() => handleScrollToCategory(group.categoryName)}
-                    className={`px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full font-semibold whitespace-nowrap cursor-pointer transition-all shrink-0 ${
+                    className={`px-3 py-1.5 rounded-full font-semibold whitespace-nowrap cursor-pointer transition-all shrink-0 ${
                       isActive
                         ? 'bg-[#0058bb] text-white font-bold shadow-xs'
                         : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
@@ -628,7 +628,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
             <div className="shrink-0 flex items-center">
               {isSearchOpen || searchQuery ? (
                 <div className="relative flex items-center animate-in fade-in zoom-in-95 duration-150">
-                  <Search className="w-4 h-4 text-gray-400 absolute left-3 pointer-events-none" />
+                  <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 pointer-events-none" />
                   <input
                     ref={searchInputRef}
                     id="quick-buy-search-input"
@@ -636,7 +636,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Buscar producto o SKU..."
-                    className="w-36 sm:w-48 md:w-64 bg-white text-gray-900 placeholder-gray-400 text-xs sm:text-sm md:text-base rounded-full py-1.5 sm:py-2 pl-9 pr-8 border border-blue-400 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#0058bb] transition-all"
+                    className="w-36 sm:w-48 md:w-64 bg-white text-gray-900 placeholder-gray-400 text-xs sm:text-sm rounded-full py-1.5 pl-7 pr-7 border border-blue-400 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#0058bb] transition-all"
                     autoFocus
                   />
                   <button
@@ -646,7 +646,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                       setSearchQuery('');
                       setIsSearchOpen(false);
                     }}
-                    className="absolute right-2.5 text-xs text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-full w-4 h-4 flex items-center justify-center cursor-pointer transition-colors"
+                    className="absolute right-2 text-xs text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-full w-4 h-4 flex items-center justify-center cursor-pointer transition-colors"
                     title="Cerrar buscador"
                   >
                     ✕
@@ -660,10 +660,10 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                     setIsSearchOpen(true);
                     setTimeout(() => searchInputRef.current?.focus(), 50);
                   }}
-                  className="p-2 sm:px-3 sm:py-2 rounded-full bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 hover:border-gray-300 transition-all shrink-0 flex items-center justify-center cursor-pointer shadow-xs active:scale-95"
+                  className="p-2 sm:px-2.5 sm:py-1.5 rounded-full bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 hover:border-gray-300 transition-all shrink-0 flex items-center justify-center cursor-pointer shadow-xs active:scale-95"
                   title="Buscar productos"
                 >
-                  <Search className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
+                  <Search className="w-4 h-4 text-gray-700" />
                 </button>
               )}
             </div>
@@ -700,23 +700,23 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                 className="bg-white rounded-2xl border border-gray-200/90 shadow-xs overflow-hidden scroll-mt-36"
               >
                 {/* Category Header */}
-                <div className="bg-gradient-to-r from-gray-50 via-white to-gray-50 px-3.5 sm:px-5 md:px-6 py-2.5 sm:py-3.5 border-b border-gray-200 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#0058bb] shrink-0" />
-                    <h2 className="text-sm sm:text-base md:text-lg lg:text-xl font-black font-['Montserrat'] text-gray-900 uppercase tracking-tight leading-none">
+                <div className="bg-gradient-to-r from-gray-50 via-white to-gray-50 px-3 sm:px-3.5 py-1.5 sm:py-2 border-b border-gray-200 flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#0058bb] shrink-0" />
+                    <h2 className="text-xs sm:text-sm md:text-base font-black font-['Montserrat'] text-gray-900 uppercase tracking-tight leading-none">
                       {group.categoryName}
                     </h2>
                   </div>
 
                   {/* Wholesale Threshold Badge */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     {isCategoryWholesaleReached ? (
-                      <span className="inline-flex items-center text-xs sm:text-sm font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-3 py-1 rounded-full leading-tight">
+                      <span className="inline-flex items-center text-[10px] sm:text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full leading-tight">
                         <span>Precio mayorista alcanzado ({catQtyInCart} unidades)</span>
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-blue-900 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full leading-tight">
-                        <Sparkles className="w-3.5 h-3.5 text-[#0058bb] shrink-0" />
+                      <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-blue-900 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full leading-tight">
+                        <Sparkles className="w-3 h-3 text-[#0058bb] shrink-0" />
                         <span>
                           Mayorista desde <strong>{sampleMinQty}unids</strong>
                           {catQtyInCart > 0 && ` (tienes ${catQtyInCart}, faltan ${remainingToCategoryWholesale})`}
@@ -747,13 +747,13 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                       <div
                         key={item.itemId}
                         id={`quick-item-${item.itemId}`}
-                        className={`p-3 sm:p-4 md:p-5 transition-colors flex items-center justify-between gap-3 sm:gap-4 md:gap-6 ${
+                        className={`p-2 sm:p-2.5 md:p-3 transition-colors flex items-center justify-between gap-2.5 md:gap-4 ${
                           currentCartQty > 0 ? 'bg-blue-50/40' : 'hover:bg-gray-50/60'
                         }`}
                       >
                         {/* Left: Thumbnail & Details */}
-                        <div className="flex items-center gap-3 sm:gap-4 md:gap-5 flex-1 min-w-0">
-                          {/* Image Thumbnail - Enlarged for clearer viewing */}
+                        <div className="flex items-center gap-2.5 sm:gap-3 flex-1 min-w-0">
+                          {/* Image Thumbnail */}
                           <button
                             type="button"
                             onClick={(e) => {
@@ -764,7 +764,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                                 variantText: item.variantText
                               });
                             }}
-                            className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 bg-white rounded-xl border border-gray-200 p-0 shrink-0 overflow-hidden flex items-center justify-center cursor-pointer hover:border-blue-400 hover:shadow-xs transition-all group/img relative"
+                            className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-white rounded-lg border border-gray-200 p-0 shrink-0 overflow-hidden flex items-center justify-center cursor-pointer hover:border-blue-400 hover:shadow-xs transition-all group/img relative"
                             title={`Ampliar imagen de ${item.title}`}
                           >
                             <ImageWithSkeleton
@@ -775,18 +775,18 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                           </button>
 
                           {/* Info */}
-                          <div className="flex-1 min-w-0 space-y-1">
-                            <div className="flex items-center gap-2 min-w-0">
+                          <div className="flex-1 min-w-0 space-y-0.5">
+                            <div className="flex items-center gap-1.5 min-w-0">
                               <button
                                 type="button"
                                 onClick={() => onSelectProductDetail?.(item.product, item.selectedVariants, item.image)}
-                                className="font-bold text-sm sm:text-base md:text-lg lg:text-xl text-gray-900 hover:text-[#0058bb] text-left truncate transition-colors cursor-pointer leading-snug"
+                                className="font-semibold text-xs sm:text-sm md:text-base text-gray-900 hover:text-[#0058bb] text-left truncate transition-colors cursor-pointer"
                                 title={`Ver detalle de ${item.title}`}
                               >
                                 {item.title}
                               </button>
                               {item.sku && (
-                                <span className="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded shrink-0 hidden sm:inline">
+                                <span className="text-[10px] font-mono text-gray-400 bg-gray-100 px-1.5 py-0.2 rounded shrink-0 hidden sm:inline">
                                   Cód: {item.sku}
                                 </span>
                               )}
@@ -794,8 +794,8 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
 
                             {/* Variant chip */}
                             {item.variantText ? (
-                              <div className="flex items-center gap-1.5">
-                                <span className="inline-flex items-center font-bold text-xs sm:text-sm md:text-base text-[#0058bb] bg-blue-50 border border-blue-200/80 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md leading-tight">
+                              <div className="flex items-center gap-1">
+                                <span className="inline-flex items-center font-bold text-[11px] sm:text-xs text-[#0058bb] bg-blue-50 border border-blue-200/70 px-1.5 py-0.2 rounded leading-tight">
                                   {item.variantText}
                                 </span>
                               </div>
@@ -804,10 +804,10 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                         </div>
 
                         {/* Right: Price & Quantity Controller */}
-                        <div className="flex items-center gap-3 sm:gap-4 md:gap-6 shrink-0">
+                        <div className="flex items-center gap-2.5 sm:gap-4 md:gap-5 shrink-0">
                           {/* Clean Single Price Display */}
                           <div className="text-right">
-                            <span className="text-base sm:text-lg md:text-xl lg:text-2xl font-black text-gray-900 font-['Montserrat'] whitespace-nowrap">
+                            <span className="text-sm sm:text-base md:text-lg font-black text-gray-900 font-['Montserrat'] whitespace-nowrap">
                               $ {activeUnitPrice.toLocaleString('es-AR')}
                             </span>
                           </div>
@@ -815,7 +815,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                           {/* Quantity Controller */}
                           <div className="flex items-center">
                             {isOutOfStock ? (
-                              <span className="text-xs sm:text-sm font-semibold text-gray-400 px-3 py-1.5 bg-gray-100 rounded-xl">
+                              <span className="text-[11px] sm:text-xs font-semibold text-gray-400 px-2.5 py-1 bg-gray-100 rounded-lg">
                                 Agotado
                               </span>
                             ) : currentCartQty === 0 ? (
@@ -832,9 +832,9 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                                     item.selectedVariants
                                   )
                                 }
-                                className="bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold text-xs sm:text-sm md:text-base px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                                className="bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold text-xs sm:text-sm px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer active:scale-95"
                               >
-                                <Plus className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                                <Plus className="w-3.5 h-3.5" />
                                 <span>Agregar</span>
                               </button>
                             ) : (
@@ -843,10 +843,10 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                                   type="button"
                                   id={`quick-dec-${item.itemId}`}
                                   onClick={() => onUpdateCartQuantity(item.itemId, -1)}
-                                  className="w-8 h-8 sm:w-9 sm:h-9 md:w-11 md:h-11 flex items-center justify-center text-[#0058bb] hover:bg-blue-50 transition-colors cursor-pointer active:bg-blue-100"
+                                  className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 flex items-center justify-center text-[#0058bb] hover:bg-blue-50 transition-colors cursor-pointer active:bg-blue-100"
                                   title="Disminuir cantidad"
                                 >
-                                  <Minus className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5" />
+                                  <Minus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                                 </button>
 
                                 <input
@@ -863,7 +863,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                                       onSetCartItemQuantity(item.product, item.selectedVariants, item.image, clamped);
                                     }
                                   }}
-                                  className="w-10 sm:w-12 md:w-14 h-8 sm:h-9 md:h-11 text-center text-xs sm:text-sm md:text-base font-black text-gray-900 focus:outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                  className="w-8 sm:w-10 md:w-11 h-7 sm:h-8 md:h-9 text-center text-xs sm:text-sm font-black text-gray-900 focus:outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 />
 
                                 <button
@@ -871,7 +871,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                                   id={`quick-inc-${item.itemId}`}
                                   disabled={item.stock > 0 && currentCartQty >= item.stock}
                                   onClick={() => onUpdateCartQuantity(item.itemId, 1)}
-                                  className={`w-8 h-8 sm:w-9 sm:h-9 md:w-11 md:h-11 flex items-center justify-center text-[#0058bb] hover:bg-blue-50 transition-colors cursor-pointer active:bg-blue-100 ${
+                                  className={`w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 flex items-center justify-center text-[#0058bb] hover:bg-blue-50 transition-colors cursor-pointer active:bg-blue-100 ${
                                     item.stock > 0 && currentCartQty >= item.stock
                                       ? 'opacity-30 cursor-not-allowed'
                                       : ''
@@ -882,7 +882,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                                       : 'Aumentar cantidad'
                                   }
                                 >
-                                  <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5" />
+                                  <Plus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                                 </button>
                               </div>
                             )}
@@ -899,24 +899,24 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
       </div>
 
       {/* 4. Fixed Bottom Bar (Barra inferior fija con cantidad total, importe y botón Ver carrito) */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200/90 shadow-[0_-8px_25px_rgba(0,0,0,0.08)] px-3 sm:px-6 md:px-8 py-3 md:py-3.5 transition-transform">
-        <div className="w-full flex items-center justify-between gap-3">
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200/90 shadow-[0_-8px_25px_rgba(0,0,0,0.08)] px-3 sm:px-4 py-2.5 md:py-3 transition-transform">
+        <div className="max-w-[1240px] mx-auto flex items-center justify-between gap-3">
           {/* Left: Summary Info */}
           <div className="flex items-center min-w-0">
             {/* Total price and details */}
             <div className="min-w-0">
-              <div className="flex items-baseline gap-2">
-                <span className="text-xs sm:text-sm text-gray-500 font-medium hidden sm:inline">Total:</span>
-                <span id="quick-buy-total-amount" className="text-xl sm:text-2xl md:text-3xl font-black text-gray-900 font-['Montserrat'] tracking-tight">
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-xs text-gray-500 font-medium hidden sm:inline">Total:</span>
+                <span id="quick-buy-total-amount" className="text-lg md:text-2xl font-black text-gray-900 font-['Montserrat'] tracking-tight">
                   $ {cartCalculations.subtotal.toLocaleString('es-AR')}
                 </span>
-                <span className="text-xs sm:text-sm text-gray-500">
-                  ({totalCartCount} unids.)
+                <span className="text-[11px] text-gray-500">
+                  ({totalCartCount}unids.)
                 </span>
               </div>
 
               {/* Delivery / Payment mini tag */}
-              <div className="flex items-center gap-1.5 text-xs text-gray-500 truncate mt-0.5">
+              <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-gray-500 truncate">
                 <span className="font-semibold text-gray-700">
                   {deliveryOption === 'pickup' ? 'Retiro en local' : 'Envío nacional'}
                 </span>
@@ -929,14 +929,14 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
           </div>
 
           {/* Right: Ver Carrito & Finalizar Compra CTA */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               id="quick-buy-view-cart-btn"
               onClick={onOpenCart}
-              className="bg-white hover:bg-gray-100 text-gray-800 font-bold text-xs sm:text-sm md:text-base px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-xl border border-gray-300 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-95"
+              className="bg-white hover:bg-gray-100 text-gray-800 font-bold text-xs sm:text-sm px-3 sm:px-4 py-2.5 rounded-xl border border-gray-300 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
             >
-              <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 text-[#0058bb]" />
+              <ShoppingCart className="w-4 h-4 text-[#0058bb]" />
               <span>Carrito</span>
             </button>
 
@@ -945,14 +945,14 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
               id="quick-buy-checkout-btn"
               onClick={onProceedToCheckout}
               disabled={totalCartCount === 0}
-              className={`font-bold text-xs sm:text-sm md:text-base px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer ${
+              className={`font-bold text-xs sm:text-sm px-3 sm:px-4 py-2.5 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer ${
                 totalCartCount > 0
                   ? 'bg-[#0058bb] hover:bg-[#004bb0] text-white active:scale-95'
                   : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
               }`}
             >
               <span>Comprar</span>
-              <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>
