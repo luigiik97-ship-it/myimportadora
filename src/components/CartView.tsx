@@ -79,17 +79,17 @@ export const CartView: React.FC<CartViewProps> = ({
 
   if (cartItems.length === 0) {
     return (
-      <div className="max-w-[1240px] mx-auto px-4 py-16 text-center space-y-5">
-        <div className="w-20 h-20 bg-blue-50 text-[#0058bb] rounded-full flex items-center justify-center mx-auto shadow-inner">
-          <ShoppingBag className="w-10 h-10" />
+      <div className="max-w-[1240px] mx-auto px-2 sm:px-4 py-12 sm:py-16 text-center space-y-4 sm:space-y-5">
+        <div className="w-18 h-18 sm:w-20 sm:h-20 bg-blue-50 text-[#0058bb] rounded-full flex items-center justify-center mx-auto shadow-inner">
+          <ShoppingBag className="w-9 h-9 sm:w-10 sm:h-10" />
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 font-['Montserrat']">Tu carrito está vacío</h2>
-        <p className="text-sm text-gray-500 max-w-md mx-auto">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 font-['Montserrat']">Tu carrito está vacío</h2>
+        <p className="text-xs sm:text-sm text-gray-500 max-w-md mx-auto">
           Explora nuestro catálogo mayorista y añade productos para aprovechar los mejores precios directos de fábrica.
         </p>
         <button
           onClick={onContinueShopping}
-          className="bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold px-8 py-3 rounded-lg text-sm transition-colors cursor-pointer inline-flex items-center gap-2"
+          className="bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold px-6 sm:px-8 py-3 rounded-lg text-sm sm:text-base transition-colors cursor-pointer inline-flex items-center gap-2 min-h-[44px]"
         >
           Ver Catálogo Mayorista
         </button>
@@ -98,25 +98,25 @@ export const CartView: React.FC<CartViewProps> = ({
   }
 
   return (
-    <div className="max-w-[1240px] mx-auto px-4 py-6 space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <h1 id="cart-title" className="text-2xl md:text-3xl font-bold text-gray-900 font-['Montserrat']">
+    <div className="max-w-[1240px] mx-auto px-1 sm:px-4 py-2 sm:py-6 space-y-3 sm:space-y-6">
+      <div className="flex items-center justify-between gap-3 px-1 sm:px-0">
+        <h1 id="cart-title" className="text-xl sm:text-2xl md:text-3xl font-black text-gray-900 font-['Montserrat']">
           Carrito
         </h1>
         <button
           type="button"
           id="cart-continue-shopping-top-btn"
           onClick={onContinueShopping}
-          className="inline-flex items-center gap-2 text-xs md:text-sm font-bold text-[#0058bb] hover:text-[#004bb0] bg-blue-50 hover:bg-blue-100/80 px-3.5 py-2 rounded-xl transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-bold text-[#0058bb] hover:text-[#004bb0] bg-blue-50 hover:bg-blue-100/80 px-3 sm:px-3.5 py-2 rounded-xl transition-colors cursor-pointer min-h-[38px]"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Seguir comprando</span>
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left: Product List (Cols 8) */}
-        <div className="lg:col-span-8 space-y-2.5">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
+        {/* Left: Product List (Cols 8) - Flat native rows on mobile */}
+        <div className="lg:col-span-8 divide-y divide-gray-100 md:divide-y-0 md:space-y-2.5">
           {processedItems.map((item) => {
             const variantSummary = item.selectedVariants && Object.keys(item.selectedVariants).length > 0
               ? Object.entries(item.selectedVariants)
@@ -135,14 +135,14 @@ export const CartView: React.FC<CartViewProps> = ({
               <div
                 key={item.id}
                 id={`cart-item-${item.id}`}
-                className="bg-white rounded-xl border border-gray-200 p-2.5 md:p-3 shadow-xs space-y-1.5"
+                className="bg-transparent md:bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-200 p-1 py-3 md:p-3.5 shadow-none md:shadow-xs space-y-2"
               >
-                <div className="flex gap-3 md:gap-3.5">
-                  {/* Thumbnail */}
+                <div className="flex gap-3 sm:gap-3.5">
+                  {/* Thumbnail - Enlarged for mobile readability */}
                   <button
                     type="button"
                     onClick={() => onSelectProduct?.(item.product, item.selectedVariants, itemDisplayImage)}
-                    className="w-16 h-16 md:w-20 md:h-20 bg-gray-50 rounded-lg p-1.5 flex items-center justify-center shrink-0 border border-gray-100 cursor-pointer hover:border-blue-400 hover:shadow-xs transition-all focus:outline-none focus:ring-2 focus:ring-[#0058bb]/20 group/thumb self-center"
+                    className="w-20 h-20 sm:w-20 sm:h-20 bg-white md:bg-gray-50 rounded-xl p-1 flex items-center justify-center shrink-0 border border-gray-200/90 cursor-pointer hover:border-blue-400 transition-all focus:outline-none focus:ring-2 focus:ring-[#0058bb]/20 group/thumb self-center shadow-2xs"
                     title={`Ver detalle de ${item.product.title}`}
                   >
                     <img
@@ -157,7 +157,7 @@ export const CartView: React.FC<CartViewProps> = ({
                     <div className="flex items-start justify-between gap-2">
                       <h3
                         onClick={() => onSelectProduct?.(item.product, item.selectedVariants, itemDisplayImage)}
-                        className="text-sm md:text-base font-semibold text-gray-900 leading-snug cursor-pointer hover:text-[#0058bb] transition-colors truncate"
+                        className="text-sm sm:text-base font-bold text-gray-900 leading-snug cursor-pointer hover:text-[#0058bb] transition-colors line-clamp-2 sm:truncate"
                         title={`Ver detalle de ${item.product.title}`}
                       >
                         {item.product.title}
@@ -165,7 +165,7 @@ export const CartView: React.FC<CartViewProps> = ({
                       <button
                         id={`remove-item-${item.id}`}
                         onClick={() => onRemoveItem(item.id)}
-                        className="text-gray-400 hover:text-red-500 p-1 transition-colors cursor-pointer shrink-0"
+                        className="text-gray-400 hover:text-red-500 p-1.5 transition-colors cursor-pointer shrink-0"
                         title="Eliminar producto"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -179,22 +179,22 @@ export const CartView: React.FC<CartViewProps> = ({
                     )}
 
                     {/* Quantity Modifier, Wholesale Tag & Line Price */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 mt-1.5 md:mt-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
                       <div className="flex items-center gap-2">
-                        <div className="flex items-center border border-gray-300 rounded-lg bg-white">
+                        <div className="flex items-center border border-gray-300 rounded-xl bg-white overflow-hidden shadow-2xs">
                           <button
                             onClick={() => onUpdateQuantity(item.id, -1)}
-                            className="p-1.5 text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
+                            className="w-8 h-8 sm:w-8 sm:h-8 text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer flex items-center justify-center active:bg-gray-200"
                           >
                             <Minus className="w-3.5 h-3.5" />
                           </button>
-                          <span className="px-2.5 text-sm font-bold text-gray-800 min-w-[24px] text-center">
+                          <span className="px-2.5 text-sm sm:text-base font-black text-gray-900 min-w-[28px] text-center">
                             {item.quantity}
                           </span>
                           <button
                             onClick={() => onUpdateQuantity(item.id, 1)}
                             disabled={item.availableStock > 0 && item.quantity >= item.availableStock}
-                            className={`p-1.5 text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer ${
+                            className={`w-8 h-8 sm:w-8 sm:h-8 text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer flex items-center justify-center active:bg-gray-200 ${
                               item.availableStock > 0 && item.quantity >= item.availableStock
                                 ? 'opacity-40 cursor-not-allowed'
                                 : ''
@@ -210,14 +210,14 @@ export const CartView: React.FC<CartViewProps> = ({
                         </div>
 
                         {item.isWholesale && (
-                          <span className="inline-flex items-center justify-center text-[10px] md:text-[11px] font-bold text-[#065f46] bg-[#d1fae5] border border-[#a7f3d0] px-2 py-0.5 rounded text-center leading-none">
-                            Alcanzado
+                          <span className="inline-flex items-center justify-center text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full text-center leading-none">
+                            Mayorista
                           </span>
                         )}
                       </div>
 
                       <div className="text-right">
-                        <span className="text-base md:text-lg font-bold text-gray-900 font-['Montserrat']">
+                        <span className="text-base sm:text-lg font-black text-gray-900 font-['Montserrat']">
                           $ {item.totalPrice.toLocaleString('es-AR')}
                         </span>
                         <span className="text-xs text-gray-500 block">
@@ -230,20 +230,20 @@ export const CartView: React.FC<CartViewProps> = ({
 
                 {/* Status: Pending Units (only shown when wholesale not reached) */}
                 {!item.isWholesale && (
-                  <div className="bg-gray-50 text-gray-700 text-xs px-2.5 py-1.5 rounded-md flex items-center gap-1.5 border border-gray-200">
-                    <Info className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                  <div className="bg-blue-50/70 md:bg-gray-50 text-blue-950 md:text-gray-700 text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 border border-blue-100 md:border-gray-200/80">
+                    <Info className="w-3.5 h-3.5 text-[#0058bb] md:text-gray-500 shrink-0" />
                     <span className="leading-snug">
                       Te faltan <strong className="text-gray-900">{item.remainingToWholesale} unidades</strong> (dentro la{' '}
                       {onSelectCategory ? (
                         <button
                           type="button"
                           onClick={() => onSelectCategory(item.cat)}
-                          className="text-[#0058bb] hover:underline font-semibold cursor-pointer inline-block"
+                          className="text-[#0058bb] hover:underline font-bold cursor-pointer inline-block"
                         >
                           categoría {item.cat}
                         </button>
                       ) : (
-                        <span className="text-[#0058bb] font-semibold">categoría {item.cat}</span>
+                        <span className="text-[#0058bb] font-bold">categoría {item.cat}</span>
                       )}
                       ) para alcanzar el precio al por mayor.
                     </span>
@@ -254,9 +254,9 @@ export const CartView: React.FC<CartViewProps> = ({
           })}
         </div>
 
-        {/* Right: Resumen de compra (Cols 4) */}
-        <div className="lg:col-span-4 bg-white rounded-xl border border-gray-200 p-5 shadow-xs space-y-4 sticky top-28">
-          <h2 className="text-lg font-bold text-gray-900 font-['Montserrat'] border-b border-gray-100 pb-3">
+        {/* Right: Resumen de compra (Cols 4) - Native flat container on mobile */}
+        <div className="lg:col-span-4 bg-transparent md:bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-200 p-1 md:p-5 shadow-none md:shadow-xs space-y-4 lg:sticky lg:top-28 pt-3 md:pt-5 border-t border-gray-200 md:border-t-0">
+          <h2 className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat'] border-b border-gray-100 pb-2.5">
             Resumen de compra
           </h2>
 
@@ -266,7 +266,7 @@ export const CartView: React.FC<CartViewProps> = ({
             </div>
 
             {/* Itemized summary */}
-            <div className="space-y-2.5 pt-1 text-sm text-gray-600 border-b border-gray-100 pb-3">
+            <div className="space-y-2 pt-1 text-sm text-gray-600 border-b border-gray-100 pb-3">
               {processedItems.map((item) => {
                 const rawVariantList: string[] =
                   item.selectedVariants && Object.keys(item.selectedVariants).length > 0
@@ -314,11 +314,11 @@ export const CartView: React.FC<CartViewProps> = ({
             </div>
           </div>
 
-          {/* Action CTA Button */}
+          {/* Action CTA Button - Enlarged full touch target */}
           <button
             id="proceed-to-checkout-btn"
             onClick={onProceedToCheckout}
-            className="w-full bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold py-3.5 px-4 rounded-lg text-sm md:text-base uppercase tracking-wide transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold py-3.5 px-4 rounded-xl text-sm md:text-base uppercase tracking-wide transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer min-h-[48px]"
           >
             <span>REALIZAR ENVÍO Y PAGO</span>
             <ArrowRight className="w-4 h-4" />
@@ -329,14 +329,14 @@ export const CartView: React.FC<CartViewProps> = ({
             type="button"
             id="cart-continue-shopping-summary-btn"
             onClick={onContinueShopping}
-            className="w-full bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold py-2.5 px-4 rounded-lg text-xs md:text-sm border border-gray-200 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full bg-white md:bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold py-2.5 px-4 rounded-xl text-xs md:text-sm border border-gray-200 transition-colors flex items-center justify-center gap-2 cursor-pointer min-h-[42px]"
           >
             <ArrowLeft className="w-4 h-4 text-gray-500" />
             <span>Seguir comprando</span>
           </button>
 
           {/* Trust Guarantees */}
-          <div className="space-y-2 pt-2 border-t border-gray-100 text-sm text-gray-500">
+          <div className="space-y-2 pt-2 border-t border-gray-100 text-xs sm:text-sm text-gray-500">
             <div className="flex items-center gap-2">
               <Truck className="w-4 h-4 text-gray-400 shrink-0" />
               <span>Envíos a todo el país vía Correo Argentino.</span>

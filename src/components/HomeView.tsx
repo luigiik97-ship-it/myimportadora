@@ -201,17 +201,17 @@ export const HomeView: React.FC<HomeViewProps> = ({
   };
 
   return (
-    <div className="max-w-[1240px] mx-auto px-4 py-6 space-y-10">
+    <div className="max-w-[1240px] mx-auto px-2 sm:px-4 py-3 sm:py-6 space-y-6 sm:space-y-10">
       {/* 1. Hero Promo Carousel (3 Banners, sliding from right to left every 3s) */}
       <div
         id="hero-banner-carousel"
-        className="relative overflow-hidden rounded-2xl border border-gray-200 shadow-sm min-h-[260px] md:min-h-[300px] flex items-center group transition-all"
+        className="relative overflow-hidden rounded-xl sm:rounded-2xl border-0 sm:border border-gray-200 shadow-xs sm:shadow-sm min-h-[250px] sm:min-h-[280px] md:min-h-[300px] flex items-center group transition-all"
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
       >
         {/* Horizontal Slider Track */}
         <div
-          className={`flex w-full h-full min-h-[260px] md:min-h-[300px] ${
+          className={`flex w-full h-full min-h-[250px] sm:min-h-[280px] md:min-h-[300px] ${
             isTransitioning ? 'transition-transform duration-700 ease-in-out' : ''
           }`}
           style={{ transform: `translateX(-${currentIndex * 100}%)` }}
@@ -221,10 +221,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
             return (
               <div
                 key={`${banner.id}-slide-${index}`}
-                className={`w-full min-w-full h-full min-h-[260px] md:min-h-[300px] relative bg-gradient-to-r ${banner.bgGradient} flex items-center shrink-0`}
+                className={`w-full min-w-full h-full min-h-[250px] sm:min-h-[280px] md:min-h-[300px] relative bg-gradient-to-r ${banner.bgGradient} flex items-center shrink-0`}
               >
                 {/* Left Copy Info */}
-                <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/80 to-transparent z-10 p-6 md:p-10 flex flex-col justify-center max-w-xl">
+                <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/80 to-transparent z-10 p-4 sm:p-6 md:p-10 flex flex-col justify-center max-w-xl">
                   <div
                     className={`inline-block ${banner.badgeBg} text-white text-xs md:text-sm font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-2 w-max shadow-xs`}
                   >
@@ -240,10 +240,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   <p className="text-xs md:text-sm text-gray-600 mt-2 font-medium max-w-md">
                     {banner.description}
                   </p>
-                  <div className="mt-4 flex items-center gap-3">
+                  <div className="mt-3 sm:mt-4 flex items-center gap-3">
                     <button
                       onClick={() => onSelectCategory(banner.categoryTarget)}
-                      className="inline-flex items-center gap-2 bg-[#0058bb] hover:bg-[#004494] text-white text-xs md:text-sm font-bold px-5 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer"
+                      className="inline-flex items-center gap-2 bg-[#0058bb] hover:bg-[#004494] text-white text-xs md:text-sm font-bold px-4 sm:px-5 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer min-h-[40px]"
                     >
                       <span>{banner.ctaText}</span>
                       <ArrowRight className="w-4 h-4" />
@@ -295,7 +295,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       <section id="categorias-principales" className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl md:text-2xl font-bold text-gray-900 font-['Montserrat']">
+            <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 font-['Montserrat']">
               Categorías principales
             </h2>
           </div>
@@ -324,16 +324,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
         {/* Horizontal scrollable row */}
         <div
           ref={categoriesScrollRef}
-          className="flex items-stretch gap-3 sm:gap-4 overflow-x-auto pb-3 pt-1 no-scrollbar scroll-smooth snap-x touch-pan-x"
+          className="flex items-stretch gap-2.5 sm:gap-4 overflow-x-auto pb-2 sm:pb-3 pt-1 no-scrollbar scroll-smooth snap-x touch-pan-x"
         >
           {storefrontCategories.map((cat, idx) => (
             <button
               key={cat.id || `${cat.name}-${idx}`}
               id={`cat-tile-${idx}`}
               onClick={() => onSelectCategory(cat.name)}
-              className="snap-start shrink-0 w-[120px] sm:w-[140px] md:w-[150px] group flex flex-col items-center bg-white rounded-xl p-2.5 border border-gray-200/90 shadow-2xs hover:shadow-md hover:border-[#0058bb]/50 transition-all cursor-pointer text-center justify-between"
+              className="snap-start shrink-0 w-[110px] sm:w-[140px] md:w-[150px] group flex flex-col items-center bg-white rounded-xl p-2 sm:p-2.5 border border-gray-100 sm:border-gray-200/90 shadow-2xs hover:shadow-md hover:border-[#0058bb]/50 transition-all cursor-pointer text-center justify-between"
             >
-              <div className="w-full aspect-square rounded-lg overflow-hidden bg-gray-100 mb-2 flex items-center justify-center relative">
+              <div className="w-full aspect-square rounded-lg overflow-hidden bg-gray-100 mb-1.5 sm:mb-2 flex items-center justify-center relative">
                 <ImageWithSkeleton
                   src={cat.image}
                   alt={cat.name}
@@ -351,14 +351,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </section>
 
       {/* 3. Más vendidos */}
-      <section id="mas-vendidos" className="space-y-4">
+      <section id="mas-vendidos" className="space-y-3 sm:space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl md:text-2xl font-bold text-gray-900 font-['Montserrat']">
+          <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 font-['Montserrat']">
             Más vendidos
           </h2>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3.5 md:gap-5">
           {isLoadingData && bestSellers.length === 0 ? (
             <ProductGridSkeleton count={4} />
           ) : (
@@ -370,7 +370,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   key={product.id}
                   id={`product-card-${product.id}`}
                   onClick={() => onSelectProduct(product)}
-                  className="group bg-white rounded-xl border border-gray-200/90 overflow-hidden shadow-xs hover:shadow-lg hover:border-[#0058bb]/50 transition-all cursor-pointer flex flex-col"
+                  className="group bg-white rounded-xl border border-gray-100 sm:border-gray-200/90 overflow-hidden shadow-2xs hover:shadow-lg hover:border-[#0058bb]/50 transition-all cursor-pointer flex flex-col"
                 >
                   {/* Product Thumbnail */}
                   <div className="relative aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
@@ -389,29 +389,29 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   </div>
 
                   {/* Info */}
-                  <div className="p-3.5 flex-1 flex flex-col justify-between space-y-2">
-                    <h3 className="text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
+                  <div className="p-2.5 sm:p-3.5 flex-1 flex flex-col justify-between space-y-1.5 sm:space-y-2">
+                    <h3 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
                       {product.title}
                     </h3>
 
-                    <div className="pt-1">
+                    <div className="pt-0.5 sm:pt-1">
                       {/* Wholesale Price Highlight */}
-                      <div className="flex items-baseline gap-1.5 flex-wrap">
-                        <span className="text-lg md:text-xl font-bold text-gray-900 font-['Montserrat']">
+                      <div className="flex items-baseline gap-1 sm:gap-1.5 flex-wrap">
+                        <span className="text-base sm:text-lg md:text-xl font-bold text-gray-900 font-['Montserrat']">
                           ${product.wholesalePrice.toLocaleString('es-AR')}
                         </span>
                         {isOutOfStock ? (
-                          <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
+                          <span className="text-[10px] sm:text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
                             Sin stock
                           </span>
                         ) : (
-                          <span className="text-xs font-semibold text-[#00a650]">
+                          <span className="text-[11px] sm:text-xs font-semibold text-[#00a650]">
                             min. {product.minWholesaleQty} u.
                           </span>
                         )}
                       </div>
                       {/* Retail comparison */}
-                      <div className="text-xs text-gray-500 font-medium mt-0.5">
+                      <div className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5">
                         ${product.retailPrice.toLocaleString('es-AR')} x1 unidad
                       </div>
                     </div>
@@ -424,61 +424,61 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </section>
 
       {/* 4. Middle Promotional Banners */}
-      <section id="promo-banners-mid" className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="relative rounded-xl overflow-hidden shadow-sm h-48 md:h-56 bg-neutral-900 flex items-center justify-between p-6 text-white group cursor-pointer">
+      <section id="promo-banners-mid" className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+        <div className="relative rounded-xl overflow-hidden shadow-xs sm:shadow-sm h-44 sm:h-48 md:h-56 bg-neutral-900 flex items-center justify-between p-4 sm:p-6 text-white group cursor-pointer">
           <img
             src="https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800&auto=format&fit=crop&q=80"
             alt="Accessories"
             className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-500"
           />
-          <div className="relative z-10 space-y-2 max-w-xs">
-            <span className="text-xs font-bold uppercase tracking-widest text-yellow-400 bg-yellow-400/20 px-2.5 py-1 rounded">
+          <div className="relative z-10 space-y-1.5 sm:space-y-2 max-w-xs">
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-yellow-400 bg-yellow-400/20 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded">
               Accessories 欧美嘻哈饰品
             </span>
-            <h3 className="text-xl md:text-2xl font-black font-['Montserrat'] leading-tight">
+            <h3 className="text-lg sm:text-xl md:text-2xl font-black font-['Montserrat'] leading-tight">
               Mercado Mayorista
             </h3>
-            <p className="text-sm text-gray-200">Explora nuestra colección exclusiva de cadenas y dijes.</p>
-            <button className="text-sm font-bold text-yellow-300 flex items-center gap-1 group-hover:underline pt-1">
-              Ver Catálogo <ArrowRight className="w-4 h-4" />
+            <p className="text-xs sm:text-sm text-gray-200">Explora nuestra colección exclusiva de cadenas y dijes.</p>
+            <button className="text-xs sm:text-sm font-bold text-yellow-300 flex items-center gap-1 group-hover:underline pt-0.5">
+              Ver Catálogo <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
           </div>
         </div>
 
-        <div className="relative rounded-xl overflow-hidden shadow-sm h-48 md:h-56 bg-neutral-900 flex items-center justify-between p-6 text-white group cursor-pointer">
+        <div className="relative rounded-xl overflow-hidden shadow-xs sm:shadow-sm h-44 sm:h-48 md:h-56 bg-neutral-900 flex items-center justify-between p-4 sm:p-6 text-white group cursor-pointer">
           <img
             src="https://images.unsplash.com/photo-1611591475152-47eac9806830?w=800&auto=format&fit=crop&q=80"
             alt="Gothic Fantasy"
             className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-500"
           />
-          <div className="relative z-10 space-y-2 max-w-xs">
-            <span className="text-xs font-bold uppercase tracking-widest text-emerald-400 bg-emerald-400/20 px-2.5 py-1 rounded">
+          <div className="relative z-10 space-y-1.5 sm:space-y-2 max-w-xs">
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-emerald-400 bg-emerald-400/20 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded">
               Mercado Mayorista
             </span>
-            <h3 className="text-xl md:text-2xl font-black font-['Montserrat'] leading-tight text-white">
+            <h3 className="text-lg sm:text-xl md:text-2xl font-black font-['Montserrat'] leading-tight text-white">
               THE KEY TO A <span className="text-red-400">WORLD</span> OF GOTHIC FANTASY
             </h3>
-            <button className="text-sm font-bold text-emerald-300 flex items-center gap-1 group-hover:underline pt-1">
-              Descubrir Novedades <ArrowRight className="w-4 h-4" />
+            <button className="text-xs sm:text-sm font-bold text-emerald-300 flex items-center gap-1 group-hover:underline pt-0.5">
+              Descubrir Novedades <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
           </div>
         </div>
       </section>
 
       {/* 5. Catálogo Completo de Productos */}
-      <section id="todos-los-productos" className="space-y-4">
-        <div className="flex items-center justify-between border-b border-gray-200 pb-3">
-          <h2 className="text-xl md:text-2xl font-bold text-gray-900 font-['Montserrat']">
+      <section id="todos-los-productos" className="space-y-3 sm:space-y-4">
+        <div className="flex items-center justify-between border-b border-gray-200 pb-2 sm:pb-3">
+          <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 font-['Montserrat']">
             {currentCategory === 'Todo' ? 'Todos los Productos' : `Categoría: ${currentCategory}`}
           </h2>
         </div>
 
         {isLoadingData && filteredProducts.length === 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3.5 md:gap-4">
             <ProductGridSkeleton count={10} />
           </div>
         ) : filteredProducts.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-xl border border-gray-200 p-8 space-y-3">
+          <div className="text-center py-12 sm:py-16 bg-white rounded-xl border-0 sm:border border-gray-200 p-6 sm:p-8 space-y-3 shadow-xs">
             <p className="text-base text-gray-600 font-medium">
               No encontramos productos que coincidan con tu búsqueda o filtro.
             </p>
@@ -486,13 +486,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
               onClick={() => {
                 onSelectCategory('Todo');
               }}
-              className="text-sm font-semibold text-[#0058bb] hover:underline"
+              className="text-sm font-semibold text-[#0058bb] hover:underline cursor-pointer"
             >
               Ver todos los productos
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3.5 md:gap-4">
             {filteredProducts.map((product) => {
               const isOutOfStock = isProductCompletelyOutOfStock(product);
 
@@ -501,7 +501,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   key={product.id}
                   id={`catalog-product-${product.id}`}
                   onClick={() => onSelectProduct(product)}
-                  className="group bg-white rounded-xl border border-gray-200/90 overflow-hidden shadow-xs hover:shadow-lg hover:border-[#0058bb]/50 transition-all cursor-pointer flex flex-col"
+                  className="group bg-white rounded-xl border border-gray-100 sm:border-gray-200/90 overflow-hidden shadow-2xs hover:shadow-lg hover:border-[#0058bb]/50 transition-all cursor-pointer flex flex-col"
                 >
                   {/* Thumbnail */}
                   <div className="relative aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
@@ -513,34 +513,34 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       } transition-transform duration-300`}
                     />
                     {isOutOfStock && (
-                      <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded shadow-xs z-10">
+                      <span className="absolute top-2 right-2 bg-red-600 text-white text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded shadow-xs z-10">
                         Sin stock
                       </span>
                     )}
                   </div>
 
                   {/* Details */}
-                  <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
-                    <h3 className="text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
+                  <div className="p-2.5 sm:p-3 flex-1 flex flex-col justify-between space-y-1.5 sm:space-y-2">
+                    <h3 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
                       {product.title}
                     </h3>
 
-                    <div className="pt-1">
-                      <div className="flex items-baseline gap-1.5 flex-wrap">
-                        <span className="text-base md:text-lg font-bold text-gray-900 font-['Montserrat']">
+                    <div className="pt-0.5 sm:pt-1">
+                      <div className="flex items-baseline gap-1 sm:gap-1.5 flex-wrap">
+                        <span className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat']">
                           ${product.wholesalePrice.toLocaleString('es-AR')}
                         </span>
                         {isOutOfStock ? (
-                          <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
+                          <span className="text-[10px] sm:text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
                             Sin stock
                           </span>
                         ) : (
-                          <span className="text-xs font-semibold text-[#00a650]">
+                          <span className="text-[11px] sm:text-xs font-semibold text-[#00a650]">
                             min. {product.minWholesaleQty} u.
                           </span>
                         )}
                       </div>
-                      <div className="text-xs text-gray-500 font-medium mt-0.5">
+                      <div className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5">
                         ${product.retailPrice.toLocaleString('es-AR')} x1 unidad
                       </div>
                     </div>
@@ -553,7 +553,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </section>
 
       {/* 6. Formas de Envío, Medios de Pago y Direcciones (Matching Image 9 bottom tiles) */}
-      <section id="informacion-comercial" className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-4">
+      <section id="informacion-comercial" className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-5 pt-2 sm:pt-4">
         {/* Formas de envío */}
         <div className="space-y-3">
           <h3 className="text-base font-bold text-gray-900 font-['Montserrat']">

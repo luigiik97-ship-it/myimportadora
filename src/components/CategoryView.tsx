@@ -81,9 +81,9 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
   }, [categoryProducts, searchQuery, sortBy]);
 
   return (
-    <div className="max-w-[1240px] mx-auto px-4 py-6 space-y-8 animate-fadeIn">
+    <div className="max-w-[1240px] mx-auto px-2 sm:px-4 py-3 sm:py-6 space-y-4 sm:space-y-8 animate-fadeIn">
       {/* Breadcrumb Navigation & Back button */}
-      <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+      <div className="flex items-center justify-between border-b border-gray-200/80 pb-2.5 sm:pb-3">
         <div className="flex items-center gap-2 text-xs md:text-sm text-gray-500">
           <button
             onClick={onBack}
@@ -100,7 +100,7 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
       </div>
 
       {/* Category Hero Header with Full Background Category Image */}
-      <div className="bg-gray-950 rounded-2xl p-6 md:p-8 text-white shadow-md relative overflow-hidden flex flex-col justify-center min-h-[160px] md:min-h-[180px]">
+      <div className="bg-gray-950 rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 text-white shadow-xs sm:shadow-md relative overflow-hidden flex flex-col justify-center min-h-[140px] sm:min-h-[160px] md:min-h-[180px]">
         {/* Full Background Category Image with 50% opacity */}
         {(currentCatObj?.image || categoryProducts[0]?.images?.[0]) && (
           <div className="absolute inset-0 pointer-events-none">
@@ -136,10 +136,10 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
         <div className="flex items-center justify-between text-xs font-semibold text-gray-600">
           <span>Otras categorías</span>
         </div>
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1.5 sm:pb-2 no-scrollbar">
           <button
             onClick={() => onSelectCategory('Todo')}
-            className={`px-3.5 py-1.5 text-xs font-medium rounded-full transition-all whitespace-nowrap cursor-pointer border ${
+            className={`px-3 sm:px-3.5 py-1.5 text-xs font-medium rounded-full transition-all whitespace-nowrap cursor-pointer border ${
               categoryName.toLowerCase() === 'todo'
                 ? 'bg-[#0058bb] text-white border-[#0058bb] shadow-xs font-semibold'
                 : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
@@ -156,7 +156,7 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
               <button
                 key={cat.id || cat.name}
                 onClick={() => onSelectCategory(cat.name)}
-                className={`px-3.5 py-1.5 text-xs font-medium rounded-full transition-all whitespace-nowrap cursor-pointer border flex items-center gap-2 ${
+                className={`px-3 sm:px-3.5 py-1.5 text-xs font-medium rounded-full transition-all whitespace-nowrap cursor-pointer border flex items-center gap-1.5 sm:gap-2 ${
                   isSelected
                     ? 'bg-[#0058bb] text-white border-[#0058bb] shadow-xs font-semibold'
                     : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:border-[#0058bb]/40'
@@ -177,7 +177,7 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
       </div>
 
       {/* Search & Sort Toolbar */}
-      <div className="bg-white rounded-xl border border-gray-200 p-3.5 shadow-xs flex flex-col sm:flex-row gap-3 items-center justify-between">
+      <div className="bg-white rounded-xl border border-gray-100 sm:border-gray-200 p-2.5 sm:p-3.5 shadow-2xs sm:shadow-xs flex flex-col sm:flex-row gap-2.5 sm:gap-3 items-center justify-between">
         {/* Search inside category */}
         <div className="relative w-full sm:w-72 md:w-80">
           <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -186,7 +186,7 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={`Buscar en ${categoryName}...`}
-            className="w-full pl-9 pr-3 py-1.5 text-xs md:text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0058bb] focus:bg-white transition-all"
+            className="w-full pl-9 pr-3 py-2 sm:py-1.5 text-xs md:text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0058bb] focus:bg-white transition-all"
           />
           {searchQuery && (
             <button
@@ -217,11 +217,11 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
 
       {/* Products Grid */}
       {isLoadingData && displayedProducts.length === 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3.5 md:gap-4">
           <ProductGridSkeleton count={10} />
         </div>
       ) : displayedProducts.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-xl border border-gray-200 p-8 space-y-3 shadow-xs">
+        <div className="text-center py-12 sm:py-16 bg-white rounded-xl border-0 sm:border border-gray-200 p-6 sm:p-8 space-y-3 shadow-xs">
           <ShoppingBag className="w-12 h-12 text-gray-300 mx-auto" />
           <h3 className="text-base font-bold text-gray-800">
             No se encontraron productos en &ldquo;{categoryName}&rdquo;
@@ -249,7 +249,7 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3.5 md:gap-4">
           {displayedProducts.map((product) => {
             const isOutOfStock = isProductCompletelyOutOfStock(product);
 
@@ -258,7 +258,7 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
                 key={product.id}
                 id={`category-product-${product.id}`}
                 onClick={() => onSelectProduct(product)}
-                className="group bg-white rounded-xl border border-gray-200/90 overflow-hidden shadow-xs hover:shadow-lg hover:border-[#0058bb]/50 transition-all cursor-pointer flex flex-col"
+                className="group bg-white rounded-xl border border-gray-100 sm:border-gray-200/90 overflow-hidden shadow-2xs hover:shadow-lg hover:border-[#0058bb]/50 transition-all cursor-pointer flex flex-col"
               >
                 {/* Thumbnail with object-cover and zero margin */}
                 <div className="relative aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
@@ -277,29 +277,29 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
                 </div>
 
                 {/* Info */}
-                <div className="p-3.5 flex-1 flex flex-col justify-between space-y-2">
-                  <h3 className="text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
+                <div className="p-2.5 sm:p-3.5 flex-1 flex flex-col justify-between space-y-1.5 sm:space-y-2">
+                  <h3 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
                     {product.title}
                   </h3>
 
-                  <div className="pt-1">
+                  <div className="pt-0.5 sm:pt-1">
                     {/* Wholesale Price Highlight */}
-                    <div className="flex items-baseline gap-1.5 flex-wrap">
-                      <span className="text-lg md:text-xl font-bold text-gray-900 font-['Montserrat']">
+                    <div className="flex items-baseline gap-1 sm:gap-1.5 flex-wrap">
+                      <span className="text-base sm:text-lg md:text-xl font-bold text-gray-900 font-['Montserrat']">
                         ${product.wholesalePrice.toLocaleString('es-AR')}
                       </span>
                       {isOutOfStock ? (
-                        <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
+                        <span className="text-[10px] sm:text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
                           Sin stock
                         </span>
                       ) : (
-                        <span className="text-xs font-semibold text-[#00a650]">
+                        <span className="text-[11px] sm:text-xs font-semibold text-[#00a650]">
                           min. {product.minWholesaleQty} u.
                         </span>
                       )}
                     </div>
                     {/* Retail comparison */}
-                    <div className="text-xs text-gray-500 font-medium mt-0.5">
+                    <div className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5">
                       ${product.retailPrice.toLocaleString('es-AR')} x1 unidad
                     </div>
                   </div>

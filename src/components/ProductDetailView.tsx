@@ -353,7 +353,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     .slice(0, 4);
 
   return (
-    <div className="max-w-[1240px] mx-auto px-4 py-4 md:py-6 space-y-8">
+    <div className="max-w-[1240px] mx-auto px-2 sm:px-4 py-1 sm:py-6 space-y-3 sm:space-y-8">
       {/* Breadcrumbs (Hidden on mobile, visible on desktop) */}
       <nav id="breadcrumbs" className="hidden md:flex items-center gap-2 text-sm text-gray-500 flex-wrap">
         <button
@@ -374,8 +374,8 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
         <span className="text-gray-800 font-semibold truncate max-w-[200px] md:max-w-xs">{product.title}</span>
       </nav>
 
-      {/* Main Product Container */}
-      <div className="bg-white rounded-2xl border border-gray-200/90 shadow-sm p-4 md:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+      {/* Main Product Container - Flat native look on mobile, refined card on desktop */}
+      <div className="bg-transparent md:bg-white rounded-none md:rounded-2xl border-0 md:border md:border-gray-200/90 shadow-none md:shadow-sm p-0 md:p-8 grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-6 lg:gap-8">
         {/* Left Column: Vertical Thumbnails (Desktop only) + Big Showcase Image (Lg: cols 7) */}
         <div className="lg:col-span-7 flex flex-col md:flex-row gap-4">
           {/* Thumbnails (Hidden on mobile, visible on desktop) */}
@@ -396,9 +396,9 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             ))}
           </div>
 
-          {/* Main Large Image with touch swipe support */}
+          {/* Main Large Image with touch swipe support and full-width presence */}
           <div
-            className="flex-1 bg-white -mx-4 -mt-4 md:mx-0 md:mt-0 rounded-t-2xl md:rounded-xl border-b md:border border-gray-100 flex items-center justify-center p-2 md:p-4 min-h-[360px] sm:min-h-[400px] md:min-h-[480px] max-h-[520px] overflow-hidden relative group select-none touch-pan-y"
+            className="flex-1 bg-white -mx-2 sm:mx-0 rounded-none sm:rounded-xl border-b border-gray-100 sm:border flex items-center justify-center p-2 sm:p-4 min-h-[330px] sm:min-h-[380px] md:min-h-[480px] max-h-[520px] overflow-hidden relative group select-none touch-pan-y"
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
           >
@@ -406,8 +406,25 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               id="main-product-image"
               src={activeImages[activeImageIndex] || activeImages[0] || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'}
               alt={product.title}
-              className="max-h-[350px] sm:max-h-[380px] md:max-h-[440px] w-full object-contain transition-transform duration-300 group-hover:scale-105"
+              className="max-h-[330px] sm:max-h-[380px] md:max-h-[440px] w-full object-contain transition-transform duration-300 group-hover:scale-105"
             />
+
+            {/* Mobile image dots indicator */}
+            {activeImages.length > 1 && (
+              <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 md:hidden z-10 bg-black/20 backdrop-blur-xs px-2.5 py-1 rounded-full">
+                {activeImages.map((_, dotIdx) => (
+                  <button
+                    key={dotIdx}
+                    type="button"
+                    onClick={() => setActiveImageIndex(dotIdx)}
+                    className={`h-1.5 rounded-full transition-all ${
+                      activeImageIndex === dotIdx ? 'w-4 bg-white' : 'w-1.5 bg-white/50'
+                    }`}
+                    aria-label={`Ver imagen ${dotIdx + 1}`}
+                  />
+                ))}
+              </div>
+            )}
 
             {/* Navigation arrows if multiple images exist */}
             {activeImages.length > 1 && (
@@ -442,7 +459,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
         </div>
 
         {/* Right Column: Pricing, Variants & Purchase Actions (Lg: cols 5) */}
-        <div className="lg:col-span-5 flex flex-col justify-between space-y-3.5">
+        <div className="lg:col-span-5 flex flex-col justify-between space-y-3">
           <div className="flex flex-col space-y-2.5">
             {/* Condition & Rating */}
             <div className="order-1 flex items-center justify-between text-xs md:text-sm text-gray-500">
@@ -464,30 +481,30 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               </div>
             </div>
 
-            {/* Product Title */}
-            <h1 id="product-detail-title" className="order-2 text-lg md:text-xl font-bold text-gray-900 leading-snug font-['Montserrat']">
+            {/* Product Title - Enlarged for readability */}
+            <h1 id="product-detail-title" className="order-2 text-xl sm:text-xl md:text-2xl font-bold text-gray-900 leading-snug font-['Montserrat']">
               {product.title}
             </h1>
 
-            {/* Pricing Section */}
-            <div className="order-3 p-2.5 md:p-3 bg-gray-50/70 rounded-xl border border-gray-200/80 space-y-1.5">
+            {/* Pricing Section - Direct on canvas on mobile, subtle dividers instead of gray box */}
+            <div className="order-3 p-0 md:p-3 bg-transparent md:bg-gray-50/80 rounded-none md:rounded-xl border-0 md:border md:border-gray-200/70 space-y-1.5 py-2 border-y border-gray-100 md:border-y-0">
               {/* Wholesale Price Display */}
               <div className="space-y-0.5">
                 <div className="flex items-baseline gap-2 flex-wrap">
-                  <span id="wholesale-price-display" className="text-2xl md:text-3xl font-extrabold text-gray-900 font-['Montserrat'] tracking-tight">
+                  <span id="wholesale-price-display" className="text-3xl sm:text-3xl font-black text-gray-900 font-['Montserrat'] tracking-tight">
                     $ {currentWholesalePrice.toLocaleString('es-AR')}
                   </span>
-                  <span className="text-xs md:text-sm font-semibold text-[#00a650]">c/u Mayorista</span>
+                  <span className="text-xs sm:text-sm font-bold text-[#00a650]">c/u Mayorista</span>
                 </div>
 
                 {/* Minimum buy badge & category rule info */}
-                <p className="text-xs md:text-sm text-[#00a650] font-medium leading-tight">
+                <p className="text-xs sm:text-sm text-[#00a650] font-medium leading-tight">
                   ({product.minWholesaleQty} unids. acumulables dentro de la categoría {product.category})
                 </p>
               </div>
 
-              <div className="border-t border-gray-200/80 pt-1.5 flex items-baseline gap-2">
-                <span id="retail-price-display" className="text-sm md:text-base font-bold text-gray-700">
+              <div className="border-t border-gray-100 md:border-gray-200/80 pt-1.5 flex items-baseline gap-2">
+                <span id="retail-price-display" className="text-base sm:text-base font-bold text-gray-700">
                   $ {currentRetailPrice.toLocaleString('es-AR')}
                 </span>
                 <span className="text-xs text-gray-500 font-medium">Precio minorista 1 unidad</span>
@@ -610,10 +627,10 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             </div>
 
             {/* Action Buttons & Quantity (order 5 on mobile, order 7 on desktop) */}
-            <div className="order-5 lg:order-7 space-y-2 pt-2 border-t border-gray-200">
+            <div className="order-5 lg:order-7 space-y-2.5 pt-2 border-t border-gray-100 md:border-gray-200">
               {/* Stock status indicator */}
               {isCurrentSelectionOutOfStock ? (
-                <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-xs md:text-sm text-red-700 font-bold">
+                <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-xs md:text-sm text-red-700 font-bold">
                   <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
                   <span>
                     {variantTypes.length > 0
@@ -622,7 +639,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   </span>
                 </div>
               ) : currentSelectionStock === 1 ? (
-                <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2 text-xs md:text-sm text-amber-800 font-bold">
+                <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-xs md:text-sm text-amber-800 font-bold">
                   <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                   <span>Última unidad disponible</span>
                 </div>
@@ -630,19 +647,19 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
               {/* Quantity Controller */}
               <div className="flex items-center justify-between">
-                <span className="text-xs md:text-sm font-bold text-gray-700">Cantidad:</span>
-                <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white">
+                <span className="text-sm font-bold text-gray-800">Cantidad:</span>
+                <div className="flex items-center border border-gray-300 rounded-xl overflow-hidden bg-white shadow-2xs">
                   <button
                     id="qty-minus-btn"
                     disabled={quantity <= 1 || isCurrentSelectionOutOfStock}
                     onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                    className={`px-3 py-1.5 text-gray-600 transition-colors ${
+                    className={`px-3.5 py-2 text-gray-600 transition-colors min-h-[42px] min-w-[42px] flex items-center justify-center ${
                       quantity <= 1 || isCurrentSelectionOutOfStock
                         ? 'opacity-40 cursor-not-allowed bg-gray-50'
                         : 'hover:bg-gray-100 cursor-pointer'
                     }`}
                   >
-                    <Minus className="w-3.5 h-3.5" />
+                    <Minus className="w-4 h-4" />
                   </button>
                   <input
                     id="qty-count-display"
@@ -683,7 +700,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                         (e.target as HTMLInputElement).blur();
                       }
                     }}
-                    className={`w-12 py-1.5 text-sm md:text-base font-bold text-gray-900 text-center bg-transparent border-none outline-none focus:bg-blue-50/60 focus:text-[#0058bb] transition-colors ${
+                    className={`w-14 py-1.5 text-base font-bold text-gray-900 text-center bg-transparent border-none outline-none focus:bg-blue-50/60 focus:text-[#0058bb] transition-colors ${
                       isCurrentSelectionOutOfStock ? 'cursor-not-allowed opacity-40' : 'cursor-text'
                     }`}
                   />
@@ -691,27 +708,27 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     id="qty-plus-btn"
                     disabled={isCurrentSelectionOutOfStock || quantity >= currentSelectionStock}
                     onClick={() => setQuantity((q) => q + 1)}
-                    className={`px-3 py-1.5 text-gray-600 transition-colors ${
+                    className={`px-3.5 py-2 text-gray-600 transition-colors min-h-[42px] min-w-[42px] flex items-center justify-center ${
                       isCurrentSelectionOutOfStock || quantity >= currentSelectionStock
                         ? 'opacity-40 cursor-not-allowed bg-gray-50'
                         : 'hover:bg-gray-100 cursor-pointer'
                     }`}
                   >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Plus className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
-              {/* Buttons */}
-              <div className="space-y-2">
+              {/* Action Buttons */}
+              <div className="space-y-2 pt-1">
                 <button
                   id="buy-now-btn"
                   disabled={isCurrentSelectionOutOfStock}
                   onClick={handleBuy}
-                  className={`w-full font-bold py-2.5 md:py-3 px-6 rounded-lg text-sm md:text-base transition-colors shadow-sm ${
+                  className={`w-full font-bold py-3.5 sm:py-2.5 md:py-3 px-6 rounded-xl text-base transition-colors shadow-xs min-h-[48px] ${
                     isCurrentSelectionOutOfStock
                       ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
-                      : 'bg-[#0058bb] hover:bg-[#004bb0] text-white cursor-pointer'
+                      : 'bg-[#0058bb] hover:bg-[#004bb0] text-white cursor-pointer active:scale-[0.99]'
                   }`}
                 >
                   {isCurrentSelectionOutOfStock ? 'Sin stock disponible' : 'Comprar ahora'}
@@ -721,10 +738,10 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   id="add-to-cart-btn"
                   disabled={isCurrentSelectionOutOfStock}
                   onClick={handleAdd}
-                  className={`w-full font-bold py-2 md:py-2.5 px-6 rounded-lg text-sm md:text-base transition-colors flex items-center justify-center gap-2 ${
+                  className={`w-full font-bold py-3 sm:py-2 md:py-2.5 px-6 rounded-xl text-base transition-colors flex items-center justify-center gap-2 min-h-[48px] ${
                     isCurrentSelectionOutOfStock
                       ? 'bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed'
-                      : 'bg-white hover:bg-blue-50/50 text-[#0058bb] border-2 border-[#0058bb] cursor-pointer'
+                      : 'bg-white hover:bg-blue-50/50 text-[#0058bb] border-2 border-[#0058bb] cursor-pointer active:scale-[0.99]'
                   }`}
                 >
                   {isCurrentSelectionOutOfStock ? (
@@ -745,11 +762,11 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     type="button"
                     id="view-cart-link-btn"
                     onClick={onGoToCart}
-                    className="w-full py-2 px-3 text-center text-xs md:text-sm font-semibold text-[#0058bb] hover:text-[#004bb0] hover:bg-blue-50/60 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer group animate-in fade-in duration-200"
+                    className="w-full py-2.5 px-3 text-center text-xs md:text-sm font-semibold text-[#0058bb] hover:text-[#004bb0] hover:bg-blue-50/60 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer group animate-in fade-in duration-200"
                   >
-                    <ShoppingBag className="w-3.5 h-3.5 text-[#0058bb] group-hover:scale-110 transition-transform" />
+                    <ShoppingBag className="w-4 h-4 text-[#0058bb] group-hover:scale-110 transition-transform" />
                     <span className="underline underline-offset-4">Ver carrito</span>
-                    <ArrowRightIcon className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+                    <ArrowRightIcon className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
                   </button>
                 )}
               </div>
@@ -763,20 +780,20 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
         </div>
       </div>
 
-      {/* Product Description, Lifestyle Media & Reviews */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Product Description, Lifestyle Media & Reviews - Flat seamless flow on mobile */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-0 md:gap-6 divide-y divide-gray-100 md:divide-y-0 pt-2 md:pt-0">
         {/* Description */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3 shadow-xs">
-          <h3 className="text-base font-bold text-gray-900 font-['Montserrat'] border-b border-gray-100 pb-2">
+        <div className="bg-transparent md:bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-100 sm:border-gray-200 p-1 md:p-5 space-y-2.5 shadow-none md:shadow-xs py-4">
+          <h3 className="text-lg font-bold text-gray-900 font-['Montserrat'] border-b border-gray-100 pb-2">
             Descripción del Producto
           </h3>
-          <div className="text-sm text-gray-600 space-y-2 whitespace-pre-line leading-relaxed">
+          <div className="text-sm text-gray-700 space-y-2 whitespace-pre-line leading-relaxed">
             {product.description}
           </div>
         </div>
 
         {/* Center Lifestyle Banner */}
-        <div className="relative rounded-xl overflow-hidden shadow-xs min-h-[260px] bg-gray-100 flex items-center justify-center group">
+        <div className="relative rounded-none sm:rounded-xl overflow-hidden shadow-none md:shadow-xs min-h-[220px] sm:min-h-[260px] bg-gray-100 flex items-center justify-center group my-3 md:my-0 -mx-2 sm:mx-0">
           <img
             src={
               product.additionalImage ||
@@ -788,8 +805,8 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
         </div>
 
         {/* Rating and Reviews */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3 shadow-xs">
-          <h3 className="text-base font-bold text-gray-900 font-['Montserrat'] border-b border-gray-100 pb-2">
+        <div className="bg-transparent md:bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-100 sm:border-gray-200 p-1 md:p-5 space-y-3 shadow-none md:shadow-xs py-4">
+          <h3 className="text-lg font-bold text-gray-900 font-['Montserrat'] border-b border-gray-100 pb-2">
             Clasificación y Opiniones
           </h3>
           <div className="flex items-center gap-3">
@@ -858,27 +875,27 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
       </div>
 
       {/* Related Products */}
-      <section id="productos-relacionados" className="space-y-4 pt-4">
-        <h3 className="text-xl font-bold text-gray-900 font-['Montserrat']">
+      <section id="productos-relacionados" className="space-y-3 sm:space-y-4 pt-2 sm:pt-4">
+        <h3 className="text-lg sm:text-xl font-bold text-gray-900 font-['Montserrat']">
           Productos Relacionados
         </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
           {relatedProducts.map((rel) => (
             <div
               key={rel.id}
               onClick={() => onSelectRelated(rel)}
-              className="bg-white rounded-xl border border-gray-200 p-3.5 shadow-xs hover:shadow-md hover:border-[#0058bb]/40 transition-all cursor-pointer flex flex-col justify-between"
+              className="bg-white rounded-xl border border-gray-100 sm:border-gray-200 p-2.5 sm:p-3.5 shadow-2xs sm:shadow-xs hover:shadow-md hover:border-[#0058bb]/40 transition-all cursor-pointer flex flex-col justify-between"
             >
-              <div className="aspect-square w-full bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center mb-2">
+              <div className="aspect-square w-full bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center mb-1.5 sm:mb-2">
                 <ImageWithSkeleton src={rel.images[0]} alt={rel.title} className="w-full h-full object-cover" />
               </div>
               <div>
-                <h4 className="text-sm font-semibold text-gray-800 line-clamp-2 mb-1">{rel.title}</h4>
-                <div className="flex items-baseline gap-1.5 flex-wrap">
-                  <span className="text-base font-bold text-gray-900">${rel.wholesalePrice.toLocaleString('es-AR')}</span>
-                  <span className="text-xs text-[#00a650] font-semibold">min. {rel.minWholesaleQty} u.</span>
+                <h4 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 mb-1">{rel.title}</h4>
+                <div className="flex items-baseline gap-1 sm:gap-1.5 flex-wrap">
+                  <span className="text-sm sm:text-base font-bold text-gray-900">${rel.wholesalePrice.toLocaleString('es-AR')}</span>
+                  <span className="text-[11px] sm:text-xs text-[#00a650] font-semibold">min. {rel.minWholesaleQty} u.</span>
                 </div>
-                <span className="text-xs text-gray-500">${rel.retailPrice.toLocaleString('es-AR')} x1 unidad</span>
+                <span className="text-[11px] sm:text-xs text-gray-500">${rel.retailPrice.toLocaleString('es-AR')} x1 unidad</span>
               </div>
             </div>
           ))}

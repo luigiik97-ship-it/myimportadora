@@ -158,7 +158,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Main Royal Blue Navigation */}
       <div className="bg-[#0058bb] text-white">
-        <div className="max-w-[1240px] mx-auto px-4 py-3 flex items-center justify-between gap-4 md:gap-8">
+        <div className="max-w-[1240px] mx-auto px-2 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-2.5 sm:gap-4 md:gap-8">
           {isMobileSearchOpen ? (
             /* Active Search Bar for Mobile */
             <div className="md:hidden flex items-center gap-2 w-full animate-in fade-in duration-200">
@@ -170,7 +170,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onSearchChange('');
                 }}
                 aria-label="Cerrar buscador"
-                className="p-1.5 text-white/90 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer"
+                className="p-2 text-white/90 hover:text-white hover:bg-white/10 rounded-full transition-colors cursor-pointer shrink-0"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
@@ -182,7 +182,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   value={searchQuery}
                   onChange={(e) => onSearchChange(e.target.value)}
                   placeholder="Buscar productos, marcas y más..."
-                  className="w-full bg-white text-gray-800 placeholder-gray-400 text-sm rounded-full py-2 pl-9 pr-9 shadow-inner focus:outline-none focus:ring-2 focus:ring-yellow-300 transition-all"
+                  className="w-full bg-white text-gray-800 placeholder-gray-400 text-sm rounded-full py-2.5 pl-9 pr-9 shadow-inner focus:outline-none focus:ring-2 focus:ring-yellow-300 transition-all"
                 />
                 <Search className="w-4 h-4 text-gray-400 absolute left-3 pointer-events-none" />
                 {searchQuery ? (
@@ -218,7 +218,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="button"
                 id="header-quick-buy-btn"
                 onClick={onOpenQuickBuy}
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 md:py-2 rounded-full font-black text-xs md:text-sm transition-all cursor-pointer select-none shrink-0 shadow-sm border border-yellow-300/40 ${
+                className={`flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 md:py-2 rounded-full font-black text-xs md:text-sm transition-all cursor-pointer select-none shrink-0 shadow-sm border border-yellow-300/40 min-h-[38px] ${
                   isQuickBuyActive
                     ? 'bg-yellow-400 text-gray-950 ring-2 ring-white shadow-md'
                     : 'bg-yellow-400 hover:bg-yellow-300 text-gray-950 hover:shadow-md active:scale-95'
@@ -256,7 +256,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
 
               {/* Right Actions: Search Icon (Mobile Only) + Auth / Account + Cart */}
-              <div className="flex items-center gap-1.5 sm:gap-3">
+              <div className="flex items-center gap-1 sm:gap-3">
                 {/* Mobile Search Icon Button */}
                 <button
                   type="button"
@@ -264,9 +264,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => setIsMobileSearchOpen(true)}
                   aria-label="Abrir buscador"
                   title="Buscar productos"
-                  className="md:hidden p-2 text-white hover:bg-white/10 rounded-full transition-colors flex items-center cursor-pointer"
+                  className="md:hidden p-2 min-w-[40px] min-h-[40px] justify-center text-white hover:bg-white/10 rounded-full transition-colors flex items-center cursor-pointer"
                 >
-                  <Search className="w-6 h-6 stroke-[2.2]" />
+                  <Search className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2]" />
                 </button>
 
                 {/* Iniciar sesión / Mi cuenta Button */}
@@ -274,7 +274,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <button
                     id="header-account-btn"
                     onClick={onOpenAccount}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/10 hover:bg-white/20 border border-white/25 rounded-full transition-all text-xs md:text-sm font-semibold cursor-pointer"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 min-h-[38px] bg-white/10 hover:bg-white/20 border border-white/25 rounded-full transition-all text-xs md:text-sm font-semibold cursor-pointer"
                     title="Mi Cuenta"
                   >
                     <div className="w-6 h-6 rounded-full bg-white text-[#0058bb] flex items-center justify-center font-bold text-xs">
@@ -288,7 +288,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <button
                     id="header-login-btn"
                     onClick={onOpenAuth}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 border border-white/25 rounded-full transition-all text-xs md:text-sm font-medium cursor-pointer"
+                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 min-h-[38px] bg-white/10 hover:bg-white/20 border border-white/25 rounded-full transition-all text-xs md:text-sm font-medium cursor-pointer"
                     title="Iniciar Sesión"
                   >
                     <User className="w-4 h-4 md:w-4.5 md:h-4.5" />
@@ -300,10 +300,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="header-cart-btn"
                   onClick={onOpenCart}
-                  className="relative p-2 text-white hover:bg-white/10 rounded-full transition-colors flex items-center cursor-pointer"
+                  className="relative p-2 min-w-[40px] min-h-[40px] justify-center text-white hover:bg-white/10 rounded-full transition-colors flex items-center cursor-pointer"
                   title="Ver Carrito de Compras"
                 >
-                  <ShoppingCart className="w-6 h-6 md:w-7 md:h-7 stroke-[2.2]" />
+                  <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 stroke-[2.2]" />
                   {totalCartCount > 0 && (
                     <span className="absolute -top-1 -right-1 bg-red-600 text-white font-bold text-xs rounded-full min-w-[20px] h-[20px] flex items-center justify-center px-1 shadow-md border-2 border-[#0058bb] animate-in zoom-in">
                       {totalCartCount}
@@ -316,7 +316,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Sub-bar Category Pills */}
-        <div className="max-w-[1240px] mx-auto px-4 pb-2.5 pt-0.5 flex items-center gap-2 overflow-x-auto no-scrollbar">
+        <div className="max-w-[1240px] mx-auto px-2 sm:px-4 pb-2 pt-0.5 flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar">
           {/* Todo */}
           <button
             id="category-tab-todo"
@@ -324,7 +324,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               setIsCategoriesOpen(false);
               onSelectCategory('Todo');
             }}
-            className={`px-3.5 py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer ${
+            className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer ${
               currentCategory === 'Todo'
                 ? 'bg-white text-[#0058bb] shadow-sm font-semibold'
                 : 'text-white/90 hover:bg-white/15'
@@ -340,7 +340,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={handleCategoriesToggle}
             aria-expanded={isCategoriesOpen}
             aria-haspopup="true"
-            className={`px-3.5 py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
               isCategoriesOpen
                 ? 'bg-white text-[#0058bb] shadow-sm font-semibold'
                 : 'text-white/90 hover:bg-white/15'
@@ -365,7 +365,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setIsCategoriesOpen(false);
                   onSelectCategory(cat);
                 }}
-                className={`px-3.5 py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer ${
+                className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer ${
                   isSelected
                     ? 'bg-white text-[#0058bb] shadow-sm font-semibold'
                     : 'text-white/90 hover:bg-white/15'

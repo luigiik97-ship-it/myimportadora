@@ -71,26 +71,26 @@ export const InfoPageView: React.FC<InfoPageViewProps> = ({
     <div className="min-h-screen bg-gray-50/70 pb-20">
       {/* Top Header Banner */}
       <div className="bg-white border-b border-gray-200">
-        <div className="max-w-[1240px] mx-auto px-4 py-4 md:py-6">
+        <div className="max-w-[1240px] mx-auto px-2 sm:px-4 py-3 sm:py-6">
           {/* Breadcrumbs & Return Button */}
-          <div className="flex items-center justify-between gap-4 mb-3">
+          <div className="flex items-center justify-between gap-2 sm:gap-4 mb-2.5 sm:mb-3">
             <button
               type="button"
               id="info-back-to-store-btn"
               onClick={onGoHome}
-              className="inline-flex items-center gap-2 text-xs md:text-sm font-semibold text-[#0058bb] hover:text-blue-800 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 sm:gap-2 text-xs md:text-sm font-semibold text-[#0058bb] hover:text-blue-800 transition-colors cursor-pointer min-h-[32px]"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Volver a la tienda</span>
             </button>
-            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+            <div className="flex items-center gap-1 sm:gap-1.5 text-xs text-gray-500">
               <span className="hover:text-gray-900 cursor-pointer" onClick={onGoHome}>Inicio</span>
-              <ChevronRight className="w-3.5 h-3.5" />
+              <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               <span className="text-gray-900 font-medium">Información institucional</span>
             </div>
           </div>
 
-          <h1 className="text-2xl md:text-3xl font-black font-['Montserrat'] text-gray-900 tracking-tight">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black font-['Montserrat'] text-gray-900 tracking-tight">
             Centro de Información y Servicios
           </h1>
           <p className="mt-1 text-xs md:text-sm text-gray-600 max-w-2xl">
@@ -101,7 +101,7 @@ export const InfoPageView: React.FC<InfoPageViewProps> = ({
 
       {/* Sticky Tab Navigation Bar */}
       <div className="sticky top-[52px] md:top-[60px] z-20 bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-xs">
-        <div className="max-w-[1240px] mx-auto px-4">
+        <div className="max-w-[1240px] mx-auto px-2 sm:px-4">
           <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto py-2.5 no-scrollbar scroll-smooth">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -112,7 +112,7 @@ export const InfoPageView: React.FC<InfoPageViewProps> = ({
                   id={`nav-tab-${item.id}`}
                   type="button"
                   onClick={() => scrollToSection(item.id)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer min-h-[34px] ${
                     isActive
                       ? 'bg-[#0058bb] text-white shadow-xs'
                       : 'bg-gray-100/90 text-gray-700 hover:bg-gray-200/90 hover:text-gray-900'
@@ -128,7 +128,7 @@ export const InfoPageView: React.FC<InfoPageViewProps> = ({
       </div>
 
       {/* Content Container */}
-      <div className="max-w-[1040px] mx-auto px-4 py-8 space-y-8 md:space-y-10">
+      <div className="max-w-[1040px] mx-auto px-2 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-8 md:space-y-10">
 
         {/* 1. TRABAJÁ CON NOSOTROS */}
         <section

@@ -376,24 +376,24 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   };
 
   return (
-    <div className="max-w-[1240px] mx-auto px-4 py-6 space-y-6">
-      <h1 id="checkout-title" className="text-2xl md:text-3xl font-bold text-gray-900 font-['Montserrat']">
+    <div className="max-w-[1240px] mx-auto px-1 sm:px-4 py-2 sm:py-6 space-y-3 sm:space-y-6">
+      <h1 id="checkout-title" className="text-xl sm:text-2xl md:text-3xl font-black text-gray-900 font-['Montserrat'] px-1 sm:px-0">
         Finalizar Compra
       </h1>
 
       {errorMessage && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center gap-3 text-sm">
-          <AlertCircle className="w-5 h-5 shrink-0" />
+        <div className="bg-red-50 border border-red-200 text-red-700 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl flex items-center gap-2.5 text-xs sm:text-sm">
+          <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-red-600" />
           <span>{errorMessage}</span>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8 items-start">
         {/* Left Column: Form Details (Cols 8) */}
-        <div className="lg:col-span-8 space-y-3.5">
+        <div className="lg:col-span-8 space-y-3 sm:space-y-3.5">
           {/* Prompt to login or session active indicator */}
           {!currentUser ? (
-            <div className="bg-blue-50/70 border border-blue-200/80 rounded-xl p-2.5 px-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-sm text-gray-800">
+            <div className="bg-blue-50/70 border border-blue-200/80 rounded-xl p-2.5 px-3 sm:px-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-sm text-gray-800">
               <p className="text-xs text-gray-700">
                 ¿Ya tienes una cuenta?{' '}
                 <span className="font-medium text-gray-900">
@@ -404,13 +404,13 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                 type="button"
                 id="checkout-login-btn"
                 onClick={() => setIsAuthModalOpen(true)}
-                className="shrink-0 bg-[#0058bb] hover:bg-[#004799] text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                className="shrink-0 bg-[#0058bb] hover:bg-[#004799] text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors cursor-pointer min-h-[34px]"
               >
                 Iniciar sesión
               </button>
             </div>
           ) : (
-            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-2.5 px-3.5 flex items-center justify-between gap-2 text-xs md:text-sm text-emerald-900">
+            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-2.5 px-3 sm:px-3.5 flex items-center justify-between gap-2 text-xs md:text-sm text-emerald-900">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                 <span>
@@ -420,9 +420,9 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             </div>
           )}
 
-          {/* 1. Tus Datos */}
-          <div className="bg-white rounded-xl border border-gray-200 p-3.5 md:p-4 shadow-xs space-y-2.5">
-            <h2 className="text-base md:text-lg font-bold text-gray-900 font-['Montserrat']">
+          {/* 1. Tus Datos - Native flat layout on mobile */}
+          <div className="bg-transparent md:bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-200 p-1 md:p-4 shadow-none md:shadow-xs space-y-2.5 pb-4 border-b border-gray-100 md:border-b-0">
+            <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 font-['Montserrat']">
               Tus Datos
             </h2>
 
@@ -438,7 +438,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   value={customerWhatsapp}
                   onChange={(e) => setCustomerWhatsapp(e.target.value)}
                   placeholder="Ej: 1123456789"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all"
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all min-h-[42px] bg-white"
                 />
               </div>
 
@@ -453,7 +453,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   value={customerEmail}
                   onChange={(e) => setCustomerEmail(e.target.value)}
                   placeholder="correo@gmail.com"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all"
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all min-h-[42px] bg-white"
                 />
               </div>
 
@@ -468,7 +468,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   placeholder="Ej: Alejandro Yugar"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all"
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all min-h-[42px] bg-white"
                 />
               </div>
             </div>
@@ -481,8 +481,8 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             className="space-y-2"
           >
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <h2 className="text-base md:text-lg font-bold text-gray-900 font-['Montserrat'] flex items-center gap-2">
-                <Truck className="w-5 h-5 text-[#0058bb]" />
+              <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 font-['Montserrat'] flex items-center gap-2">
+                <Truck className="w-4 h-4 sm:w-5 sm:h-5 text-[#0058bb]" />
                 Opciones de Entrega
               </h2>
             </div>
@@ -490,7 +490,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             <div className="space-y-2">
               {/* Option: Retiro en local */}
               <label
-                className={`flex items-start justify-between bg-white p-2.5 md:p-3 rounded-xl border-2 transition-all cursor-pointer ${
+                className={`flex items-start justify-between bg-white p-2.5 sm:p-3 rounded-xl border-2 transition-all cursor-pointer ${
                   deliveryOption === 'pickup'
                     ? 'border-[#0058bb] bg-blue-50/20 shadow-xs'
                     : deliveryOptionError && !deliveryOption
@@ -507,8 +507,8 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     className="mt-0.5 text-[#0058bb] focus:ring-[#0058bb]"
                   />
                   <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs md:text-sm font-bold text-gray-900">Retiro en local</span>
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                      <span className="text-xs sm:text-sm font-bold text-gray-900">Retiro en local</span>
                       <span className="bg-[#a3e635] text-gray-900 text-[11px] font-bold px-1.5 py-0.5 rounded">
                         Descuento disponible
                       </span>
@@ -518,12 +518,12 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     </p>
                   </div>
                 </div>
-                <span className="text-xs md:text-sm font-bold text-[#00a650] shrink-0 pl-2">Gratis</span>
+                <span className="text-xs sm:text-sm font-bold text-[#00a650] shrink-0 pl-2">Gratis</span>
               </label>
 
               {/* Option: Envío a domicilio */}
               <div
-                className={`bg-white p-2.5 md:p-3 rounded-xl border-2 transition-all ${
+                className={`bg-white p-2.5 sm:p-3 rounded-xl border-2 transition-all ${
                   deliveryOption === 'delivery'
                     ? 'border-[#0058bb] bg-blue-50/20 shadow-xs'
                     : deliveryOptionError && !deliveryOption
@@ -544,13 +544,13 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       className="mt-0.5 text-[#0058bb] focus:ring-[#0058bb]"
                     />
                     <div>
-                      <span className="text-xs md:text-sm font-bold text-gray-900">Envío a domicilio</span>
+                      <span className="text-xs sm:text-sm font-bold text-gray-900">Envío a domicilio</span>
                       <p className="text-xs text-gray-500 mt-0.5 leading-snug">
                         Entrega a la puerta de tu casa o comercio (Uber Moto, Flex o Correo Argentino).
                       </p>
                     </div>
                   </div>
-                  <span className="text-xs md:text-sm font-bold text-gray-900 shrink-0 pl-2 text-right leading-tight">
+                  <span className="text-xs sm:text-sm font-bold text-gray-900 shrink-0 pl-2 text-right leading-tight">
                     {selectedShippingOption ? (
                       `$ ${selectedShippingOption.price.toLocaleString('es-AR')}`
                     ) : (
@@ -575,7 +575,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                           value={street}
                           onChange={(e) => setStreet(e.target.value)}
                           placeholder="Ej: Av. Corrientes"
-                          className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs md:text-sm focus:ring-1 focus:ring-[#0058bb] bg-white"
+                          className="w-full border border-gray-300 rounded-lg px-2.5 py-2 sm:py-1.5 text-xs sm:text-sm focus:ring-1 focus:ring-[#0058bb] bg-white min-h-[38px]"
                         />
                       </div>
 
@@ -587,7 +587,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                           value={number}
                           onChange={(e) => setNumber(e.target.value)}
                           placeholder="1234"
-                          className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs md:text-sm focus:ring-1 focus:ring-[#0058bb] bg-white"
+                          className="w-full border border-gray-300 rounded-lg px-2.5 py-2 sm:py-1.5 text-xs sm:text-sm focus:ring-1 focus:ring-[#0058bb] bg-white min-h-[38px]"
                         />
                       </div>
 
@@ -598,7 +598,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                           value={floor}
                           onChange={(e) => setFloor(e.target.value)}
                           placeholder="Piso 5, Dpto B"
-                          className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs md:text-sm focus:ring-1 focus:ring-[#0058bb] bg-white"
+                          className="w-full border border-gray-300 rounded-lg px-2.5 py-2 sm:py-1.5 text-xs sm:text-sm focus:ring-1 focus:ring-[#0058bb] bg-white min-h-[38px]"
                         />
                       </div>
 
@@ -610,7 +610,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                           value={city}
                           onChange={(e) => setCity(e.target.value)}
                           placeholder="Ej: CABA, Lanús..."
-                          className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs md:text-sm focus:ring-1 focus:ring-[#0058bb] bg-white"
+                          className="w-full border border-gray-300 rounded-lg px-2.5 py-2 sm:py-1.5 text-xs sm:text-sm focus:ring-1 focus:ring-[#0058bb] bg-white min-h-[38px]"
                         />
                       </div>
 
@@ -624,7 +624,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                           value={postalCode}
                           onChange={(e) => setPostalCode(e.target.value)}
                           placeholder="Ej: 1406, 1602..."
-                          className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs md:text-sm focus:ring-1 focus:ring-[#0058bb] bg-white font-semibold"
+                          className="w-full border border-gray-300 rounded-lg px-2.5 py-2 sm:py-1.5 text-xs sm:text-sm focus:ring-1 focus:ring-[#0058bb] bg-white font-semibold min-h-[38px]"
                         />
                       </div>
                     </div>
@@ -632,7 +632,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     {/* Dynamic Postal Code Options Section */}
                     <div className="pt-2 border-t border-blue-200/50 space-y-2">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs md:text-sm font-bold text-gray-800 flex items-center gap-1.5">
+                        <label className="text-xs sm:text-sm font-bold text-gray-800 flex items-center gap-1.5">
                           <MapPin className="w-3.5 h-3.5 text-[#0058bb]" />
                           Opciones de envío disponibles para tu zona:
                         </label>
@@ -644,7 +644,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       </div>
 
                       {deliveryOptionError && (
-                        <div className="text-xs md:text-sm font-semibold text-red-600 flex items-center gap-2 bg-red-50 p-2 rounded-lg border border-red-200 animate-pulse">
+                        <div className="text-xs sm:text-sm font-semibold text-red-600 flex items-center gap-2 bg-red-50 p-2 rounded-lg border border-red-200 animate-pulse">
                           <AlertCircle className="w-3.5 h-3.5 text-red-600 shrink-0" />
                           <span>elija una opción de envió</span>
                         </div>
@@ -674,7 +674,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                                   />
                                   <div>
                                     <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="text-xs md:text-sm font-bold text-gray-900">
+                                      <span className="text-xs sm:text-sm font-bold text-gray-900">
                                         {option.name}
                                       </span>
                                     </div>
@@ -683,7 +683,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                                     </p>
                                   </div>
                                 </div>
-                                <span className="text-sm md:text-base font-black text-gray-900 font-['Montserrat'] shrink-0 pl-2">
+                                <span className="text-sm sm:text-base font-black text-gray-900 font-['Montserrat'] shrink-0 pl-2">
                                   $ {option.price.toLocaleString('es-AR')}
                                 </span>
                               </label>
@@ -706,16 +706,16 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           </div>
 
           {/* 3. Medio de Pago */}
-          <div className="space-y-2">
-            <h2 className="text-base md:text-lg font-bold text-gray-900 font-['Montserrat'] flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-[#0058bb]" />
+          <div className="space-y-2 px-1 sm:px-0">
+            <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 font-['Montserrat'] flex items-center gap-2">
+              <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 text-[#0058bb]" />
               Medio de Pago
             </h2>
 
             <div className="space-y-2">
               {/* Transferencia */}
               <label
-                className={`flex items-start justify-between bg-white p-2.5 md:p-3 rounded-xl border-2 transition-all cursor-pointer ${
+                className={`flex items-start justify-between bg-white p-3 rounded-xl border-2 transition-all cursor-pointer min-h-[48px] ${
                   paymentMethod === 'transfer'
                     ? 'border-[#0058bb] bg-blue-50/20 shadow-xs'
                     : 'border-gray-200 hover:border-gray-300'
@@ -727,11 +727,11 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     name="payment"
                     checked={paymentMethod === 'transfer'}
                     onChange={() => setPaymentMethod('transfer')}
-                    className="mt-0.5 text-[#0058bb] focus:ring-[#0058bb]"
+                    className="mt-1 text-[#0058bb] focus:ring-[#0058bb]"
                   />
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs md:text-sm font-bold text-gray-900">Transferencia Bancaria</span>
+                      <span className="text-sm font-bold text-gray-900">Transferencia Bancaria</span>
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5 leading-snug">
                       Al finalizar la compra le pasaremos los datos (Alias y CVU) para realizar la transferencia.
@@ -739,7 +739,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   </div>
                 </div>
                 <div className="text-right shrink-0 pl-2">
-                  <span className="text-sm md:text-base font-bold text-gray-900 font-['Montserrat'] block">
+                  <span className="text-sm sm:text-base font-bold text-gray-900 font-['Montserrat'] block">
                     $ {transferTotal.toLocaleString('es-AR')}
                   </span>
                 </div>
@@ -748,7 +748,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
               {/* Efectivo (Solo disponible para retiro en local) */}
               {deliveryOption === 'pickup' && (
                 <label
-                  className={`flex items-start justify-between bg-white p-2.5 md:p-3 rounded-xl border-2 transition-all cursor-pointer ${
+                  className={`flex items-start justify-between bg-white p-3 rounded-xl border-2 transition-all cursor-pointer min-h-[48px] ${
                     paymentMethod === 'cash'
                       ? 'border-[#0058bb] bg-blue-50/20 shadow-xs'
                       : 'border-gray-200 hover:border-gray-300'
@@ -760,11 +760,11 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       name="payment"
                       checked={paymentMethod === 'cash'}
                       onChange={() => setPaymentMethod('cash')}
-                      className="mt-0.5 text-[#0058bb] focus:ring-[#0058bb]"
+                      className="mt-1 text-[#0058bb] focus:ring-[#0058bb]"
                     />
                     <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs md:text-sm font-bold text-gray-900">Efectivo</span>
+                      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                        <span className="text-sm font-bold text-gray-900">Efectivo</span>
                         <span className="bg-[#a3e635] text-gray-900 text-[11px] font-bold px-1.5 py-0.5 rounded">
                           Precio en efectivo
                         </span>
@@ -778,7 +778,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     </div>
                   </div>
                   <div className="text-right shrink-0 pl-2">
-                    <span className="text-sm md:text-base font-black text-[#00a650] font-['Montserrat'] block">
+                    <span className="text-sm sm:text-base font-black text-[#00a650] font-['Montserrat'] block">
                       $ {cashTotal.toLocaleString('es-AR')}
                     </span>
                     {cashTotal < transferTotal && (
@@ -796,9 +796,9 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           </div>
         </div>
 
-        {/* Right Column: Resumen de Compra (Cols 4) */}
-        <div className="lg:col-span-4 bg-white rounded-xl border border-gray-200 p-5 shadow-xs space-y-4 sticky top-28">
-          <h2 className="text-lg font-bold text-gray-900 font-['Montserrat'] border-b border-gray-100 pb-3">
+        {/* Right Column: Resumen de Compra (Cols 4) - Native flat on mobile */}
+        <div className="lg:col-span-4 bg-transparent md:bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-200 p-1 md:p-5 shadow-none md:shadow-xs space-y-4 lg:sticky lg:top-28 pt-4 md:pt-5 border-t border-gray-200 md:border-t-0">
+          <h2 className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat'] border-b border-gray-100 pb-2.5">
             Resumen de compra
           </h2>
 
@@ -810,14 +810,14 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
               } (${item.isWholesale ? 'mayorista' : 'minorista'})`;
 
               return (
-                <div key={item.id} className="flex items-start gap-3">
+                <div key={item.id} className="flex items-start gap-2.5 sm:gap-3">
                   <img
                     src={item.selectedImage || item.product.images[0] || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=200'}
                     alt={item.product.title}
-                    className="w-12 h-12 object-contain rounded-lg border border-gray-200 p-0.5 shrink-0 bg-gray-50 mt-0.5"
+                    className="w-12 h-12 sm:w-12 sm:h-12 object-contain rounded-xl border border-gray-200 p-0.5 shrink-0 bg-white mt-0.5 shadow-2xs"
                   />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 leading-snug break-words">
+                    <p className="text-xs sm:text-sm font-semibold text-gray-800 leading-snug break-words">
                       {itemLabel}
                     </p>
                     <p className={`text-xs mt-0.5 font-medium ${
@@ -826,7 +826,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       ($ {item.unitPrice.toLocaleString('es-AR')} c/u)
                     </p>
                   </div>
-                  <span className="text-sm md:text-base font-bold text-gray-900 shrink-0 pt-0.5">
+                  <span className="text-sm sm:text-base font-bold text-gray-900 shrink-0 pt-0.5">
                     ${item.totalPrice.toLocaleString('es-AR')}
                   </span>
                 </div>
@@ -834,7 +834,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             })}
           </div>
 
-          <div className="space-y-2.5 text-sm">
+          <div className="space-y-2.5 text-xs sm:text-sm">
             <div className="flex justify-between text-gray-600">
               <span>Productos ({totalQuantity} u.)</span>
               <span className="font-semibold text-gray-900">${productsSubtotal.toLocaleString('es-AR')}</span>
@@ -866,16 +866,16 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             </span>
           </div>
 
-          {/* Confirm Button */}
+          {/* Confirm Button - Enlarged full width */}
           <button
             id="checkout-confirm-btn"
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold py-3.5 px-4 rounded-lg text-sm md:text-base uppercase tracking-wide transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+            className="w-full bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold py-4 px-4 rounded-xl text-base uppercase tracking-wide transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 min-h-[50px]"
           >
             {isSubmitting ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-5 h-5 animate-spin" />
                 <span>PROCESANDO PEDIDO...</span>
               </>
             ) : (
@@ -883,7 +883,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             )}
           </button>
 
-          <div className="text-center pt-2 space-y-2 text-sm">
+          <div className="text-center pt-2 space-y-2 text-xs sm:text-sm">
             <div className="flex items-center justify-center gap-1.5 text-gray-500">
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
               <span>Pago seguro y protegido</span>
@@ -892,7 +892,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             <button
               type="button"
               onClick={onBackToCart}
-              className="text-[#0058bb] hover:underline font-medium cursor-pointer block mx-auto pt-1"
+              className="text-[#0058bb] hover:underline font-bold cursor-pointer block mx-auto pt-1"
             >
               ← Volver al carrito
             </button>
