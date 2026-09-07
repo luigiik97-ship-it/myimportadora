@@ -366,7 +366,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                                   <p className="font-medium text-gray-800 line-clamp-1 max-w-[150px]">
                                     {item.title}
                                   </p>
-                                  <p className="text-gray-500 text-[11px]">
+                                  <p className="text-xs text-gray-500">
                                     Cant: <span className="font-semibold text-gray-700">{item.quantity}</span>
                                     {item.variantText ? ` • ${item.variantText}` : ''}
                                   </p>

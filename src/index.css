@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+/* Escala tipográfica estándar y cómoda para lectura en dispositivos móviles y de escritorio */
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar {
     display: none;

@@ -140,7 +140,7 @@ export const InfoPageView: React.FC<InfoPageViewProps> = ({
               <Briefcase className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#0058bb]">Alianzas Comerciales y Distribución</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-[#0058bb]">Alianzas Comerciales y Distribución</span>
               <h2 className="text-xl md:text-2xl font-black font-['Montserrat'] text-gray-900 tracking-tight">
                 Trabajá con nosotros
               </h2>
@@ -217,7 +217,7 @@ export const InfoPageView: React.FC<InfoPageViewProps> = ({
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">Marco Legal y Políticas</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-700">Marco Legal y Políticas</span>
               <h2 className="text-xl md:text-2xl font-black font-['Montserrat'] text-gray-900 tracking-tight">
                 Términos y condiciones
               </h2>
@@ -271,7 +271,7 @@ export const InfoPageView: React.FC<InfoPageViewProps> = ({
               <TrendingUp className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Comercios y Distribuidores</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Comercios y Distribuidores</span>
               <h2 className="text-xl md:text-2xl font-black font-['Montserrat'] text-gray-900 tracking-tight">
                 Venta al por mayor
               </h2>
@@ -350,7 +350,7 @@ export const InfoPageView: React.FC<InfoPageViewProps> = ({
               <Factory className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-purple-700">Producción e Importación</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-purple-700">Producción e Importación</span>
               <h2 className="text-xl md:text-2xl font-black font-['Montserrat'] text-gray-900 tracking-tight">
                 Fábrica
               </h2>
@@ -418,7 +418,7 @@ export const InfoPageView: React.FC<InfoPageViewProps> = ({
               <Truck className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#0058bb]">Distribución y Entregas</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-[#0058bb]">Distribución y Entregas</span>
               <h2 className="text-xl md:text-2xl font-black font-['Montserrat'] text-gray-900 tracking-tight">
                 Logística de envío
               </h2>
@@ -481,7 +481,7 @@ export const InfoPageView: React.FC<InfoPageViewProps> = ({
               <ShoppingBag className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-rose-600">Consumidor Final</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-rose-600">Consumidor Final</span>
               <h2 className="text-xl md:text-2xl font-black font-['Montserrat'] text-gray-900 tracking-tight">
                 Minorista
               </h2>

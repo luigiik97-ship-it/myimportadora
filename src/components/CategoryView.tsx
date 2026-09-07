@@ -120,11 +120,11 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
             <span>Categoría de Productos</span>
           </div>
 
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black font-['Montserrat'] tracking-tight capitalize text-white drop-shadow-xs">
+          <h1 className="text-2xl sm:text-3xl font-black font-['Montserrat'] tracking-tight capitalize text-white drop-shadow-xs">
             {categoryName}
           </h1>
 
-          <p className="text-sm md:text-base text-gray-100 font-medium max-w-xl drop-shadow-xs">
+          <p className="text-xs sm:text-sm md:text-base text-gray-100 font-normal max-w-xl drop-shadow-xs leading-relaxed">
             {currentCatObj?.description ||
               `Mostrando todos los productos disponibles en ${categoryName} con precios mayoristas directos de fábrica.`}
           </p>
@@ -270,7 +270,7 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
                     } transition-transform duration-300`}
                   />
                   {isOutOfStock && (
-                    <span className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-xs z-10">
+                    <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded shadow-xs z-10">
                       Sin stock
                     </span>
                   )}
@@ -285,21 +285,21 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
                   <div className="pt-0.5 sm:pt-1">
                     {/* Wholesale Price Highlight */}
                     <div className="flex items-baseline gap-1 sm:gap-1.5 flex-wrap">
-                      <span className="text-base sm:text-lg md:text-xl font-bold text-gray-900 font-['Montserrat']">
+                      <span className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat']">
                         ${product.wholesalePrice.toLocaleString('es-AR')}
                       </span>
                       {isOutOfStock ? (
-                        <span className="text-[10px] sm:text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
+                        <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
                           Sin stock
                         </span>
                       ) : (
-                        <span className="text-[11px] sm:text-xs font-semibold text-[#00a650]">
+                        <span className="text-xs font-semibold text-[#00a650]">
                           min. {product.minWholesaleQty} u.
                         </span>
                       )}
                     </div>
                     {/* Retail comparison */}
-                    <div className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5">
+                    <div className="text-xs text-gray-500 font-medium mt-0.5">
                       ${product.retailPrice.toLocaleString('es-AR')} x1 unidad
                     </div>
                   </div>

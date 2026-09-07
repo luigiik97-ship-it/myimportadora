@@ -73,7 +73,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateToInfo }) => {
         </div>
 
         {/* Copyright & Legal info */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-2 sm:gap-4 pt-3 sm:pt-4 border-t border-gray-300/60 text-gray-500 text-[11px] sm:text-xs text-center md:text-left">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-2 sm:gap-4 pt-3 sm:pt-4 border-t border-gray-300/60 text-gray-500 text-xs sm:text-sm text-center md:text-left">
           <p>Copyright © 1997-2026 MYImportadora S.R.L. Argentina.</p>
           <p>Av. Corrientes 1675, Piso 7, CABA, Argentina</p>
         </div>

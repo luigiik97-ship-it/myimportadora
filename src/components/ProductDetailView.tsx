@@ -481,17 +481,17 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               </div>
             </div>
 
-            {/* Product Title - Enlarged for readability */}
-            <h1 id="product-detail-title" className="order-2 text-xl sm:text-xl md:text-2xl font-bold text-gray-900 leading-snug font-['Montserrat']">
+            {/* Product Title - Prominent and balanced */}
+            <h1 id="product-detail-title" className="order-2 text-xl sm:text-2xl font-bold text-gray-900 leading-snug font-['Montserrat'] tracking-tight">
               {product.title}
             </h1>
 
             {/* Pricing Section - Direct on canvas on mobile, subtle dividers instead of gray box */}
             <div className="order-3 p-0 md:p-3 bg-transparent md:bg-gray-50/80 rounded-none md:rounded-xl border-0 md:border md:border-gray-200/70 space-y-1.5 py-2 border-y border-gray-100 md:border-y-0">
-              {/* Wholesale Price Display */}
+              {/* Wholesale Price Display - Clear primary emphasis */}
               <div className="space-y-0.5">
                 <div className="flex items-baseline gap-2 flex-wrap">
-                  <span id="wholesale-price-display" className="text-3xl sm:text-3xl font-black text-gray-900 font-['Montserrat'] tracking-tight">
+                  <span id="wholesale-price-display" className="text-3xl sm:text-4xl font-black text-gray-900 font-['Montserrat'] tracking-tight">
                     $ {currentWholesalePrice.toLocaleString('es-AR')}
                   </span>
                   <span className="text-xs sm:text-sm font-bold text-[#00a650]">c/u Mayorista</span>
@@ -504,7 +504,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               </div>
 
               <div className="border-t border-gray-100 md:border-gray-200/80 pt-1.5 flex items-baseline gap-2">
-                <span id="retail-price-display" className="text-base sm:text-base font-bold text-gray-700">
+                <span id="retail-price-display" className="text-sm sm:text-base font-semibold text-gray-700">
                   $ {currentRetailPrice.toLocaleString('es-AR')}
                 </span>
                 <span className="text-xs text-gray-500 font-medium">Precio minorista 1 unidad</span>
@@ -522,7 +522,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   return (
                     <div key={vt.id || vtIdx} className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs md:text-sm font-bold text-gray-700 block">
+                        <label className="text-sm font-bold text-gray-700 block">
                           {formatVariantTypeName(vt.name)}: <span className="text-gray-900 font-semibold">{currentSelectedName}</span>
                         </label>
                       </div>
@@ -542,7 +542,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                               type="button"
                               disabled={isOptOutOfStock}
                               onClick={() => handleSelectOption(vt, option)}
-                              className={`px-2.5 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-all flex items-center gap-1.5 ${
+                              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
                                 isOptOutOfStock
                                   ? 'border border-dashed border-gray-300 bg-gray-100/80 text-gray-400 opacity-60 cursor-not-allowed select-none'
                                   : isSelected
@@ -555,21 +555,16 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                 <img
                                   src={optionThumb}
                                   alt={option.name}
-                                  className={`w-5 h-5 rounded object-cover border border-gray-200 shrink-0 ${
+                                  className={`w-5.5 h-5.5 rounded object-cover border border-gray-200 shrink-0 ${
                                     isOptOutOfStock ? 'grayscale opacity-40' : ''
                                   }`}
                                 />
                               )}
 
                               <div className="flex flex-col items-start leading-tight">
-                                <span className={isOptOutOfStock ? 'line-through text-gray-400' : ''}>
+                                <span className={`text-sm ${isOptOutOfStock ? 'line-through text-gray-400' : ''}`}>
                                   {option.name}
                                 </span>
-                                {isOptOutOfStock && (
-                                  <span className="text-[10px] text-red-600 font-bold bg-red-50 border border-red-200 px-1 py-0.2 rounded mt-0.5">
-                                    Sin stock
-                                  </span>
-                                )}
                               </div>
                             </button>
                           );
@@ -588,17 +583,17 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="font-bold text-[#00a650]">Descuento pagando en efectivo</span>
                   {currentWholesaleCashPrice < currentWholesalePrice && (
-                    <span className="bg-[#00a650] text-white font-bold px-1.5 py-0.5 rounded text-[11px]">
+                    <span className="bg-[#00a650] text-white font-bold px-1.5 py-0.5 rounded text-xs">
                       ${currentWholesaleCashPrice.toLocaleString('es-AR')} mayorista
                     </span>
                   )}
                   {currentRetailCashPrice < currentRetailPrice && (
-                    <span className="bg-emerald-100 text-emerald-800 font-semibold px-1.5 py-0.5 rounded text-[11px]">
+                    <span className="bg-emerald-100 text-emerald-800 font-semibold px-1.5 py-0.5 rounded text-xs">
                       ${currentRetailCashPrice.toLocaleString('es-AR')} minorista
                     </span>
                   )}
                 </div>
-                <p className="text-gray-600 text-[11px] md:text-xs mt-0.5 leading-tight">
+                <p className="text-gray-600 text-xs mt-0.5 leading-tight">
                   Aplicable cuando confirme el carrito y seleccione Retiro en el local en efectivo
                 </p>
               </div>
@@ -611,9 +606,9 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 <div>
                   <span className="font-bold text-gray-900 block">Envío a domicilio</span>
                   <div className="flex items-center gap-1 mt-0.5">
-                    <span className="bg-[#a3e635] text-[11px] font-bold px-1.5 py-0.5 rounded text-gray-900">Envíos Flex</span>
-                    <span className="bg-[#facc15] text-[11px] font-bold px-1.5 py-0.5 rounded text-gray-900">Correo Argentino</span>
-                    <span className="bg-black text-[11px] font-bold px-1.5 py-0.5 rounded text-white">Uber moto</span>
+                    <span className="bg-[#a3e635] text-xs font-bold px-1.5 py-0.5 rounded text-gray-900">Envíos Flex</span>
+                    <span className="bg-[#facc15] text-xs font-bold px-1.5 py-0.5 rounded text-gray-900">Correo Argentino</span>
+                    <span className="bg-black text-xs font-bold px-1.5 py-0.5 rounded text-white">Uber moto</span>
                   </div>
                 </div>
               </div>
@@ -653,13 +648,13 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     id="qty-minus-btn"
                     disabled={quantity <= 1 || isCurrentSelectionOutOfStock}
                     onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                    className={`px-3.5 py-2 text-gray-600 transition-colors min-h-[42px] min-w-[42px] flex items-center justify-center ${
+                    className={`px-3.5 py-2 text-gray-600 transition-colors min-h-[40px] min-w-[38px] flex items-center justify-center ${
                       quantity <= 1 || isCurrentSelectionOutOfStock
                         ? 'opacity-40 cursor-not-allowed bg-gray-50'
                         : 'hover:bg-gray-100 cursor-pointer'
                     }`}
                   >
-                    <Minus className="w-4 h-4" />
+                    <Minus className="w-3.5 h-3.5" />
                   </button>
                   <input
                     id="qty-count-display"
@@ -700,7 +695,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                         (e.target as HTMLInputElement).blur();
                       }
                     }}
-                    className={`w-14 py-1.5 text-base font-bold text-gray-900 text-center bg-transparent border-none outline-none focus:bg-blue-50/60 focus:text-[#0058bb] transition-colors ${
+                    className={`w-12 py-2 text-sm font-bold text-gray-900 text-center bg-transparent border-none outline-none focus:bg-blue-50/60 focus:text-[#0058bb] transition-colors ${
                       isCurrentSelectionOutOfStock ? 'cursor-not-allowed opacity-40' : 'cursor-text'
                     }`}
                   />
@@ -708,13 +703,13 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     id="qty-plus-btn"
                     disabled={isCurrentSelectionOutOfStock || quantity >= currentSelectionStock}
                     onClick={() => setQuantity((q) => q + 1)}
-                    className={`px-3.5 py-2 text-gray-600 transition-colors min-h-[42px] min-w-[42px] flex items-center justify-center ${
+                    className={`px-3.5 py-2 text-gray-600 transition-colors min-h-[40px] min-w-[38px] flex items-center justify-center ${
                       isCurrentSelectionOutOfStock || quantity >= currentSelectionStock
                         ? 'opacity-40 cursor-not-allowed bg-gray-50'
                         : 'hover:bg-gray-100 cursor-pointer'
                     }`}
                   >
-                    <Plus className="w-4 h-4" />
+                    <Plus className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -725,7 +720,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   id="buy-now-btn"
                   disabled={isCurrentSelectionOutOfStock}
                   onClick={handleBuy}
-                  className={`w-full font-bold py-3.5 sm:py-2.5 md:py-3 px-6 rounded-xl text-base transition-colors shadow-xs min-h-[48px] ${
+                  className={`w-full font-bold py-2.5 px-5 rounded-xl text-sm transition-colors shadow-xs min-h-[42px] flex items-center justify-center ${
                     isCurrentSelectionOutOfStock
                       ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
                       : 'bg-[#0058bb] hover:bg-[#004bb0] text-white cursor-pointer active:scale-[0.99]'
@@ -738,7 +733,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   id="add-to-cart-btn"
                   disabled={isCurrentSelectionOutOfStock}
                   onClick={handleAdd}
-                  className={`w-full font-bold py-3 sm:py-2 md:py-2.5 px-6 rounded-xl text-base transition-colors flex items-center justify-center gap-2 min-h-[48px] ${
+                  className={`w-full font-bold py-2.5 px-5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2 min-h-[42px] ${
                     isCurrentSelectionOutOfStock
                       ? 'bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed'
                       : 'bg-white hover:bg-blue-50/50 text-[#0058bb] border-2 border-[#0058bb] cursor-pointer active:scale-[0.99]'
@@ -784,16 +779,16 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-0 md:gap-6 divide-y divide-gray-100 md:divide-y-0 pt-2 md:pt-0">
         {/* Description */}
         <div className="bg-transparent md:bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-100 sm:border-gray-200 p-1 md:p-5 space-y-2.5 shadow-none md:shadow-xs py-4">
-          <h3 className="text-lg font-bold text-gray-900 font-['Montserrat'] border-b border-gray-100 pb-2">
+          <h3 className="text-base sm:text-lg font-bold text-gray-800 font-['Montserrat'] border-b border-gray-100 pb-2">
             Descripción del Producto
           </h3>
-          <div className="text-sm text-gray-700 space-y-2 whitespace-pre-line leading-relaxed">
+          <div className="text-xs sm:text-sm text-gray-600 space-y-2 whitespace-pre-line leading-relaxed font-normal">
             {product.description}
           </div>
         </div>
 
         {/* Center Lifestyle Banner */}
-        <div className="relative rounded-none sm:rounded-xl overflow-hidden shadow-none md:shadow-xs min-h-[220px] sm:min-h-[260px] bg-gray-100 flex items-center justify-center group my-3 md:my-0 -mx-2 sm:mx-0">
+        <div className="relative rounded-none sm:rounded-xl overflow-hidden shadow-none md:shadow-xs min-h-[200px] sm:min-h-[240px] bg-gray-100 flex items-center justify-center group my-3 md:my-0">
           <img
             src={
               product.additionalImage ||
@@ -806,11 +801,11 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
         {/* Rating and Reviews */}
         <div className="bg-transparent md:bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-100 sm:border-gray-200 p-1 md:p-5 space-y-3 shadow-none md:shadow-xs py-4">
-          <h3 className="text-lg font-bold text-gray-900 font-['Montserrat'] border-b border-gray-100 pb-2">
+          <h3 className="text-base sm:text-lg font-bold text-gray-800 font-['Montserrat'] border-b border-gray-100 pb-2">
             Clasificación y Opiniones
           </h3>
           <div className="flex items-center gap-3">
-            <span className="text-3xl font-extrabold text-gray-900">
+            <span className="text-2xl font-bold text-gray-800">
               {(product.rating ?? 5.0).toFixed(1)}
             </span>
             <div>
@@ -826,7 +821,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   />
                 ))}
               </div>
-              <span className="text-sm text-gray-500">
+              <span className="text-xs sm:text-sm text-gray-500">
                 {product.reviewsCount ?? (product.reviews?.length || 128)} clasificaciones
               </span>
             </div>
@@ -850,7 +845,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             ).map((rev, idx) => (
               <div
                 key={rev.id || idx}
-                className="text-sm text-gray-600 border-b border-gray-100 pb-2.5 space-y-1 last:border-0 last:pb-0"
+                className="text-xs sm:text-sm text-gray-600 border-b border-gray-100 pb-2.5 space-y-1 last:border-0 last:pb-0"
               >
                 <div className="flex text-[#0058bb]">
                   {[...Array(5)].map((_, i) => (
@@ -864,9 +859,9 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     />
                   ))}
                 </div>
-                <p className="font-medium text-gray-800">"{rev.text}"</p>
+                <p className="font-normal text-gray-600 leading-snug">"{rev.text}"</p>
                 {rev.author && (
-                  <span className="text-xs text-gray-400 block">{rev.author}</span>
+                  <span className="text-xs sm:text-sm text-gray-500 block">{rev.author}</span>
                 )}
               </div>
             ))}
@@ -876,7 +871,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
       {/* Related Products */}
       <section id="productos-relacionados" className="space-y-3 sm:space-y-4 pt-2 sm:pt-4">
-        <h3 className="text-lg sm:text-xl font-bold text-gray-900 font-['Montserrat']">
+        <h3 className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat']">
           Productos Relacionados
         </h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
@@ -893,9 +888,9 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 <h4 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 mb-1">{rel.title}</h4>
                 <div className="flex items-baseline gap-1 sm:gap-1.5 flex-wrap">
                   <span className="text-sm sm:text-base font-bold text-gray-900">${rel.wholesalePrice.toLocaleString('es-AR')}</span>
-                  <span className="text-[11px] sm:text-xs text-[#00a650] font-semibold">min. {rel.minWholesaleQty} u.</span>
+                  <span className="text-xs text-[#00a650] font-semibold">min. {rel.minWholesaleQty} u.</span>
                 </div>
-                <span className="text-[11px] sm:text-xs text-gray-500">${rel.retailPrice.toLocaleString('es-AR')} x1 unidad</span>
+                <span className="text-xs text-gray-500">${rel.retailPrice.toLocaleString('es-AR')} x1 unidad</span>
               </div>
             </div>
           ))}

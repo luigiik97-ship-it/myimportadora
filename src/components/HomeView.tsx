@@ -230,25 +230,25 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   >
                     {banner.badge}
                   </div>
-                  <h1 className="text-2xl sm:text-3xl md:text-5xl font-black text-gray-900 leading-tight font-['Montserrat']">
+                  <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 leading-tight font-['Montserrat']">
                     {banner.title}
                   </h1>
-                  <p className="text-lg sm:text-xl md:text-2xl font-bold text-gray-700 mt-1">
+                  <p className="text-base sm:text-lg md:text-xl font-bold text-gray-700 mt-1">
                     {banner.subtitleText}{' '}
                     <span className="text-[#0058bb]">{banner.subtitleHighlight}</span>
                   </p>
-                  <p className="text-xs md:text-sm text-gray-600 mt-2 font-medium max-w-md">
+                  <p className="text-xs md:text-sm text-gray-600 mt-1.5 sm:mt-2 font-medium max-w-md">
                     {banner.description}
                   </p>
                   <div className="mt-3 sm:mt-4 flex items-center gap-3">
                     <button
                       onClick={() => onSelectCategory(banner.categoryTarget)}
-                      className="inline-flex items-center gap-2 bg-[#0058bb] hover:bg-[#004494] text-white text-xs md:text-sm font-bold px-4 sm:px-5 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer min-h-[40px]"
+                      className="inline-flex items-center gap-2 bg-[#0058bb] hover:bg-[#004494] text-white text-xs md:text-sm font-bold px-4 sm:px-5 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer min-h-[42px]"
                     >
                       <span>{banner.ctaText}</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
-                    <span className="text-[11px] text-gray-400 font-semibold uppercase tracking-wider hidden sm:inline-block">
+                    <span className="text-xs text-gray-400 font-medium uppercase tracking-wider hidden sm:inline-block">
                       Cambio cada 3s
                     </span>
                   </div>
@@ -382,7 +382,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       } transition-transform duration-300`}
                     />
                     {isOutOfStock && (
-                      <span className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-xs z-10">
+                      <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded shadow-xs z-10">
                         Sin stock
                       </span>
                     )}
@@ -397,21 +397,21 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     <div className="pt-0.5 sm:pt-1">
                       {/* Wholesale Price Highlight */}
                       <div className="flex items-baseline gap-1 sm:gap-1.5 flex-wrap">
-                        <span className="text-base sm:text-lg md:text-xl font-bold text-gray-900 font-['Montserrat']">
+                        <span className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat']">
                           ${product.wholesalePrice.toLocaleString('es-AR')}
                         </span>
                         {isOutOfStock ? (
-                          <span className="text-[10px] sm:text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
+                          <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
                             Sin stock
                           </span>
                         ) : (
-                          <span className="text-[11px] sm:text-xs font-semibold text-[#00a650]">
+                          <span className="text-xs font-semibold text-[#00a650]">
                             min. {product.minWholesaleQty} u.
                           </span>
                         )}
                       </div>
                       {/* Retail comparison */}
-                      <div className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5">
+                      <div className="text-xs text-gray-500 font-medium mt-0.5">
                         ${product.retailPrice.toLocaleString('es-AR')} x1 unidad
                       </div>
                     </div>
@@ -432,7 +432,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-500"
           />
           <div className="relative z-10 space-y-1.5 sm:space-y-2 max-w-xs">
-            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-yellow-400 bg-yellow-400/20 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded">
+            <span className="text-xs font-bold uppercase tracking-wider text-yellow-400 bg-yellow-400/20 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded">
               Accessories 欧美嘻哈饰品
             </span>
             <h3 className="text-lg sm:text-xl md:text-2xl font-black font-['Montserrat'] leading-tight">
@@ -452,7 +452,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-500"
           />
           <div className="relative z-10 space-y-1.5 sm:space-y-2 max-w-xs">
-            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-emerald-400 bg-emerald-400/20 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 bg-emerald-400/20 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded">
               Mercado Mayorista
             </span>
             <h3 className="text-lg sm:text-xl md:text-2xl font-black font-['Montserrat'] leading-tight text-white">
@@ -513,7 +513,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       } transition-transform duration-300`}
                     />
                     {isOutOfStock && (
-                      <span className="absolute top-2 right-2 bg-red-600 text-white text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded shadow-xs z-10">
+                      <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded shadow-xs z-10">
                         Sin stock
                       </span>
                     )}
@@ -531,16 +531,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
                           ${product.wholesalePrice.toLocaleString('es-AR')}
                         </span>
                         {isOutOfStock ? (
-                          <span className="text-[10px] sm:text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
+                          <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
                             Sin stock
                           </span>
                         ) : (
-                          <span className="text-[11px] sm:text-xs font-semibold text-[#00a650]">
+                          <span className="text-xs font-semibold text-[#00a650]">
                             min. {product.minWholesaleQty} u.
                           </span>
                         )}
                       </div>
-                      <div className="text-[11px] sm:text-xs text-gray-500 font-medium mt-0.5">
+                      <div className="text-xs text-gray-500 font-medium mt-0.5">
                         ${product.retailPrice.toLocaleString('es-AR')} x1 unidad
                       </div>
                     </div>

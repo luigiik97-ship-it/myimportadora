@@ -149,7 +149,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     >
       {/* Top micro announcement bar */}
       {showTopBar && (
-        <div className="bg-black text-white text-xs py-1.5 px-4 text-center font-medium tracking-wide flex items-center justify-center gap-2">
+        <div className="bg-black text-white text-xs sm:text-sm py-2 px-4 text-center font-medium tracking-wide flex items-center justify-center gap-2">
           <span>Envíos a todo el país</span>
           <span className="opacity-60">|</span>
           <span className="font-semibold text-white">Precio mayorista</span>
@@ -392,7 +392,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between bg-gray-50/70">
             <div className="flex items-center gap-1.5 text-[#0058bb]">
               <Layers className="w-3.5 h-3.5" />
-              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-700">
+              <span className="text-xs font-bold uppercase tracking-wider text-gray-700">
                 Todas las categorías
               </span>
             </div>
@@ -409,7 +409,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     onSelectCategory(cat.name);
                     setIsCategoriesOpen(false);
                   }}
-                  className={`w-full min-h-[44px] px-4 py-2.5 text-left text-xs md:text-sm flex items-center justify-between gap-3 transition-colors cursor-pointer group ${
+                  className={`w-full min-h-[44px] px-4 py-2.5 text-left text-sm flex items-center justify-between gap-3 transition-colors cursor-pointer group ${
                     isSelected
                       ? 'bg-blue-50/90 text-[#0058bb] font-bold'
                       : 'text-gray-700 hover:bg-blue-50/50 hover:text-[#0058bb]'
@@ -431,7 +431,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             : 'bg-gray-100 text-gray-500 group-hover:bg-blue-100 group-hover:text-[#0058bb]'
                         }`}
                       >
-                        <span className="text-[10px] font-bold">
+                        <span className="text-xs font-bold">
                           {cat.name.charAt(0).toUpperCase()}
                         </span>
                       </div>

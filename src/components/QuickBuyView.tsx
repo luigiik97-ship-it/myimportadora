@@ -442,8 +442,8 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                     )}
                   </div>
                   <div className="mt-1 flex items-center justify-between gap-1">
-                    <span className="text-[11px] text-gray-500 truncate">Flores, CABA.</span>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded shrink-0">
+                    <span className="text-xs text-gray-500 truncate">Flores, CABA.</span>
+                    <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded shrink-0">
                       GRATIS
                     </span>
                   </div>
@@ -470,8 +470,8 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                     )}
                   </div>
                   <div className="mt-1 flex items-center justify-between gap-1">
-                    <span className="text-[11px] text-gray-500 truncate">Correo / Moto</span>
-                    <span className="text-[10px] font-semibold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded shrink-0">
+                    <span className="text-xs text-gray-500 truncate">Correo / Moto</span>
+                    <span className="text-xs font-semibold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded shrink-0">
                       A todo el país
                     </span>
                   </div>
@@ -510,7 +510,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                       )}
                     </div>
                     <div className="mt-1 flex items-center justify-between gap-1">
-                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-200/80 px-1.5 py-0.5 rounded shrink-0">
+                      <span className="text-xs font-bold text-emerald-800 bg-emerald-200/80 px-1.5 py-0.5 rounded shrink-0">
                         🏷️ Mejor precio
                       </span>
                     </div>
@@ -537,7 +537,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                       )}
                     </div>
                     <div className="mt-1 flex items-center justify-between gap-1">
-                      <span className="text-[11px] text-gray-500 truncate">
+                      <span className="text-xs text-gray-500 truncate">
                         Alias / CVU
                       </span>
                     </div>
@@ -552,7 +552,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                       <span className="font-bold text-xs sm:text-sm text-gray-900 block leading-tight">
                         Transferencia Bancaria
                       </span>
-                      <span className="text-[11px] text-gray-500 block leading-tight">
+                      <span className="text-xs text-gray-500 block leading-tight">
                         Pago por Alias / CVU
                       </span>
                     </div>
@@ -565,7 +565,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         </div>
 
         {/* 2. Barra Anclada Unificada: Logo + Categorías + Buscador (Lupa) en un solo renglón */}
-        <div className="sticky top-0 z-35 bg-white/95 backdrop-blur-md py-2.5 px-3 sm:px-4 -mx-3 sm:-mx-4 border-b border-gray-200 shadow-xs transition-all">
+        <div className="sticky top-0 z-35 bg-white/95 backdrop-blur-md py-2.5 px-2.5 sm:px-4 -mx-1 sm:-mx-4 border-b border-gray-200 shadow-xs transition-all">
           <div className="flex items-center gap-2 max-w-full">
             {/* Logo de marca al lado izquierdo de "Todas" */}
             <button
@@ -711,11 +711,11 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                   {/* Wholesale Threshold Badge */}
                   <div className="flex items-center gap-1.5">
                     {isCategoryWholesaleReached ? (
-                      <span className="inline-flex items-center text-[11px] sm:text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full leading-tight">
+                      <span className="inline-flex items-center text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2.5 py-0.5 rounded-full leading-tight">
                         <span>Mayorista alcanzado ({catQtyInCart} unids.)</span>
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-[11px] sm:text-[11px] font-medium text-blue-900 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full leading-tight">
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-900 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full leading-tight">
                         <Sparkles className="w-3.5 h-3.5 text-[#0058bb] shrink-0" />
                         <span>
                           Mayorista desde <strong>{sampleMinQty} u.</strong>
@@ -747,7 +747,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                       <div
                         key={item.itemId}
                         id={`quick-item-${item.itemId}`}
-                        className={`p-0 pr-2.5 sm:p-2.5 md:p-3 transition-colors flex items-center justify-between gap-2 sm:gap-3 md:gap-4 h-20 sm:h-auto overflow-hidden ${
+                        className={`p-0 pr-1.5 sm:pr-2.5 md:p-3 transition-colors flex items-center justify-between gap-1.5 sm:gap-3 md:gap-4 h-20 sm:h-auto overflow-hidden ${
                           currentCartQty > 0 ? 'bg-blue-50/40' : 'hover:bg-gray-50/60'
                         }`}
                       >
@@ -790,7 +790,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                             {/* Variant chip */}
                             {item.variantText ? (
                               <div className="flex items-center gap-1 pt-0.5">
-                                <span className="inline-flex items-center font-bold text-[11px] sm:text-xs text-[#0058bb] bg-blue-50 border border-blue-200/70 px-1.5 sm:px-2 py-0.5 rounded-md leading-none truncate max-w-full">
+                                <span className="inline-flex items-center font-bold text-xs text-[#0058bb] bg-blue-50 border border-blue-200/70 px-1.5 sm:px-2 py-0.5 rounded-md leading-none truncate max-w-full">
                                   {item.variantText}
                                 </span>
                               </div>
@@ -799,10 +799,10 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                         </div>
 
                         {/* Right: Price & Quantity Controller - Price placed above quantity selector on mobile */}
-                        <div className="flex flex-col items-end justify-center gap-1 sm:flex-row sm:items-center sm:gap-4 md:gap-5 shrink-0">
+                        <div className="flex flex-col items-end justify-center gap-1 sm:flex-row sm:items-center sm:gap-4 md:gap-5 shrink-0 ml-auto pl-1">
                           {/* Clean Single Price Display */}
-                          <div className="text-right">
-                            <span className="text-sm sm:text-base md:text-lg font-black text-gray-900 font-['Montserrat'] whitespace-nowrap leading-tight block">
+                          <div className="text-right w-full flex justify-end">
+                            <span className="text-base sm:text-lg md:text-xl font-black text-gray-900 font-['Montserrat'] whitespace-nowrap leading-none block text-right">
                               $ {activeUnitPrice.toLocaleString('es-AR')}
                             </span>
                           </div>
@@ -827,7 +827,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                                     item.selectedVariants
                                   )
                                 }
-                                className="bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold text-xs sm:text-sm px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer active:scale-95 min-h-[30px] sm:min-h-[38px]"
+                                className="bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold text-xs sm:text-sm rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer active:scale-95 w-[88px] sm:w-[108px] md:w-[120px] h-[39px] sm:h-[36px] md:h-[40px] shrink-0"
                               >
                                 <Plus className="w-3.5 h-3.5" />
                                 <span>Agregar</span>
@@ -838,7 +838,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                                   type="button"
                                   id={`quick-dec-${item.itemId}`}
                                   onClick={() => onUpdateCartQuantity(item.itemId, -1)}
-                                  className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 flex items-center justify-center text-[#0058bb] hover:bg-blue-50 transition-colors cursor-pointer active:bg-blue-100"
+                                  className="w-7 h-[35px] sm:w-8 sm:h-8 md:w-9 md:h-9 flex items-center justify-center text-[#0058bb] hover:bg-blue-50 transition-colors cursor-pointer active:bg-blue-100"
                                   title="Disminuir cantidad"
                                 >
                                   <Minus className="w-3.5 h-3.5" />
@@ -858,7 +858,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                                       onSetCartItemQuantity(item.product, item.selectedVariants, item.image, clamped);
                                     }
                                   }}
-                                  className="w-7 sm:w-10 md:w-11 h-7 sm:h-8 md:h-9 text-center text-xs sm:text-sm font-black text-gray-900 focus:outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                  className="w-7 sm:w-10 md:w-11 h-[35px] sm:h-8 md:h-9 text-center text-xs sm:text-sm font-black text-gray-900 focus:outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 />
 
                                 <button
@@ -866,7 +866,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                                   id={`quick-inc-${item.itemId}`}
                                   disabled={item.stock > 0 && currentCartQty >= item.stock}
                                   onClick={() => onUpdateCartQuantity(item.itemId, 1)}
-                                  className={`w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 flex items-center justify-center text-[#0058bb] hover:bg-blue-50 transition-colors cursor-pointer active:bg-blue-100 ${
+                                  className={`w-7 h-[35px] sm:w-8 sm:h-8 md:w-9 md:h-9 flex items-center justify-center text-[#0058bb] hover:bg-blue-50 transition-colors cursor-pointer active:bg-blue-100 ${
                                     item.stock > 0 && currentCartQty >= item.stock
                                       ? 'opacity-30 cursor-not-allowed'
                                       : ''
@@ -905,13 +905,13 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                 <span id="quick-buy-total-amount" className="text-lg md:text-2xl font-black text-gray-900 font-['Montserrat'] tracking-tight shrink-0">
                   $ {cartCalculations.subtotal.toLocaleString('es-AR')}
                 </span>
-                <span className="text-[11px] text-gray-500 overflow-hidden whitespace-nowrap [text-overflow:clip] min-w-0 shrink">
+                <span className="text-xs text-gray-500 overflow-hidden whitespace-nowrap [text-overflow:clip] min-w-0 shrink">
                   ({totalCartCount}unids.)
                 </span>
               </div>
 
               {/* Delivery / Payment mini tag */}
-              <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-gray-500 truncate">
+              <div className="flex items-center gap-1.5 text-xs text-gray-500 truncate">
                 <span className="font-semibold text-gray-700">
                   {deliveryOption === 'pickup' ? 'Retiro en local' : 'Envió a domicilio'}
                 </span>
@@ -929,7 +929,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
               type="button"
               id="quick-buy-view-cart-btn"
               onClick={onOpenCart}
-              className="bg-white hover:bg-gray-100 text-gray-800 font-bold text-xs sm:text-sm px-3 sm:px-4 py-2.5 rounded-xl border border-gray-300 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+              className="bg-white hover:bg-gray-100 text-gray-800 font-bold text-xs sm:text-sm px-3 sm:px-4 py-3 sm:py-2.5 min-h-[42px] sm:min-h-[38px] rounded-xl border border-gray-300 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
             >
               <ShoppingCart className="w-4 h-4 text-[#0058bb]" />
               <span>Carrito</span>
@@ -940,7 +940,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
               id="quick-buy-checkout-btn"
               onClick={onProceedToCheckout}
               disabled={totalCartCount === 0}
-              className={`font-bold text-xs sm:text-sm px-3 sm:px-4 py-2.5 rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer ${
+              className={`font-bold text-xs sm:text-sm px-3 sm:px-4 py-3 sm:py-2.5 min-h-[42px] sm:min-h-[38px] rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer ${
                 totalCartCount > 0
                   ? 'bg-[#0058bb] hover:bg-[#004bb0] text-white active:scale-95'
                   : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
@@ -1032,7 +1032,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                   </span>
                 )}
               </div>
-              <span className="text-[11px] text-gray-400 font-medium shrink-0">
+              <span className="text-xs text-gray-400 font-medium shrink-0">
                 Desliza o toca la ✕ para cerrar
               </span>
             </div>
