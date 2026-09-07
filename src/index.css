@@ -1,5 +1,34 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  /* Escala tipográfica global unificada - Referencia de legibilidad Mercado Libre Mobile */
+  --text-xs: 0.8125rem; /* ~13px - microetiquetas, badges, códigos SKU y textos secundarios */
+  --text-xs--line-height: calc(1.2 / 0.8125);
+
+  --text-sm: 0.9375rem; /* ~15px - opciones de variantes, cantidades, selectores, metadatos */
+  --text-sm--line-height: calc(1.35 / 0.9375);
+
+  --text-base: 1.0625rem; /* ~17px - lectura estándar, botones principales, campos de formulario */
+  --text-base--line-height: calc(1.55 / 1.0625);
+
+  --text-lg: 1.2rem; /* ~19.2px - precios medianos, subtítulos destacados */
+  --text-lg--line-height: calc(1.65 / 1.2);
+
+  --text-xl: 1.35rem; /* ~21.6px - encabezados de sección y precios principales */
+  --text-xl--line-height: calc(1.8 / 1.35);
+
+  --text-2xl: 1.625rem; /* ~26px - nombres de producto y títulos de categoría */
+  --text-2xl--line-height: calc(2.1 / 1.625);
+
+  --text-3xl: 2rem; /* ~32px - títulos principales y cabeceras */
+  --text-3xl--line-height: calc(2.4 / 2);
+
+  --text-4xl: 2.5rem; /* ~40px - títulos hero y banners */
+  --text-4xl--line-height: calc(2.9 / 2.5);
+}
+
 /* Escala tipográfica estándar y cómoda para lectura en dispositivos móviles y de escritorio */
 html {
   font-size: 16px;
@@ -7,6 +36,8 @@ html {
 }
 
 body {
+  font-size: 1.0625rem;
+  line-height: 1.5;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
