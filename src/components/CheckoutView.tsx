@@ -683,7 +683,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                                     </p>
                                   </div>
                                 </div>
-                                <span className="text-sm sm:text-base font-black text-gray-900 font-['Montserrat'] shrink-0 pl-2">
+                                <span className="text-sm sm:text-base font-bold text-gray-900 font-['Montserrat'] shrink-0 pl-2">
                                   $ {option.price.toLocaleString('es-AR')}
                                 </span>
                               </label>
@@ -778,7 +778,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     </div>
                   </div>
                   <div className="text-right shrink-0 pl-2">
-                    <span className="text-sm sm:text-base font-black text-[#00a650] font-['Montserrat'] block">
+                    <span className="text-sm sm:text-base font-bold text-[#00a650] font-['Montserrat'] block">
                       $ {cashTotal.toLocaleString('es-AR')}
                     </span>
                     {cashTotal < transferTotal && (
@@ -837,7 +837,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           <div className="space-y-2.5 text-xs sm:text-sm">
             <div className="flex justify-between text-gray-600">
               <span>Productos ({totalQuantity} u.)</span>
-              <span className="font-semibold text-gray-900">${productsSubtotal.toLocaleString('es-AR')}</span>
+              <span className="font-normal text-gray-900">${productsSubtotal.toLocaleString('es-AR')}</span>
             </div>
 
             <div className="flex justify-between items-start text-gray-600">
@@ -849,7 +849,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   </p>
                 )}
               </div>
-              <span className={shippingCost === 0 && deliveryOption === 'pickup' ? 'text-[#00a650] font-bold' : 'font-semibold text-gray-900'}>
+              <span className={shippingCost === 0 && deliveryOption === 'pickup' ? 'text-[#00a650] font-bold' : 'font-normal text-gray-900'}>
                 {deliveryOption === 'pickup'
                   ? 'Gratis'
                   : selectedShippingOption
@@ -861,7 +861,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
 
           <div className="border-t border-gray-200 pt-3 flex items-baseline justify-between">
             <span className="text-base font-bold text-gray-900">Total</span>
-            <span id="checkout-total-display" className="text-2xl font-black text-gray-900 font-['Montserrat']">
+            <span id="checkout-total-display" className="text-2xl font-bold text-gray-900 font-['Montserrat']">
               $ {totalFinal.toLocaleString('es-AR')}
             </span>
           </div>

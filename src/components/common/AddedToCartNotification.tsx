@@ -92,7 +92,7 @@ export const AddedToCartNotification: React.FC<AddedToCartNotificationProps> = (
             <span className="text-[11px] md:text-xs text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded font-semibold">
               {data.quantity} {data.quantity === 1 ? 'unidad' : 'unidades'}
             </span>
-            <span className="text-xs md:text-sm font-black text-gray-900">
+            <span className="text-xs md:text-sm font-bold text-gray-900">
               ${data.totalPrice.toLocaleString('es-AR')}
             </span>
             {data.quantity > 1 && (

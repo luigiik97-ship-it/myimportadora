@@ -411,7 +411,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         )}
                       </div>
                       {/* Retail comparison */}
-                      <div className="text-xs text-gray-500 font-medium mt-0.5">
+                      <div className="text-xs text-gray-500 font-normal mt-0.5">
                         ${product.retailPrice.toLocaleString('es-AR')} x1 unidad
                       </div>
                     </div>
@@ -540,7 +540,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                           </span>
                         )}
                       </div>
-                      <div className="text-xs text-gray-500 font-medium mt-0.5">
+                      <div className="text-xs text-gray-500 font-normal mt-0.5">
                         ${product.retailPrice.toLocaleString('es-AR')} x1 unidad
                       </div>
                     </div>

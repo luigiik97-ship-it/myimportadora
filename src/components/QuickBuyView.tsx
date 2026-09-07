@@ -386,16 +386,27 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
   return (
     <div className="min-h-screen bg-[#f8fafc] text-gray-900 pb-28">
       {/* Top Banner Header */}
-      <div className="bg-gradient-to-r from-[#004bb0] via-[#0058bb] to-[#006ee6] text-white py-4 md:py-6 px-4 shadow-sm">
-        <div className="max-w-[1240px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="space-y-1">
-            <h1 className="text-2xl md:text-3xl font-black font-['Montserrat'] tracking-tight text-white flex items-center gap-2">
-              ⚡ Compra Rápida
-            </h1>
-            <p className="text-xs md:text-sm text-blue-100 max-w-2xl">
-              Agrega variantes, talles y modelos directamente con los botones <strong className="text-yellow-300">– / +</strong>. Precios actualizados en tiempo real según entrega y pago.
-            </p>
-          </div>
+      <div
+        className="text-white py-3.5 sm:py-4.5 md:py-5 px-3.5 sm:px-6 shadow-sm relative overflow-hidden border-b border-gray-800"
+        style={{
+          background: 'radial-gradient(ellipse 85% 90% at 50% 50%, #262c36 0%, #15181f 55%, #08090c 100%)'
+        }}
+      >
+        <div
+          className="absolute inset-0 opacity-15 pointer-events-none"
+          style={{
+            backgroundImage: 'repeating-linear-gradient(65deg, rgba(255, 255, 255, 0.03) 0px, rgba(255, 255, 255, 0.03) 1px, transparent 1px, transparent 6px)'
+          }}
+        />
+        <div className="max-w-[1240px] mx-auto w-full relative z-10">
+          <h1 className="sr-only">Compra Rápida</h1>
+          <p className="text-xs sm:text-sm md:text-[14.5px] text-gray-100 w-full leading-relaxed tracking-normal">
+            <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full border-2 border-yellow-400 bg-black text-white font-bold text-xs sm:text-sm mr-2 align-middle shadow-xs">
+              <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 fill-amber-400 shrink-0" />
+              <span>Compra rápida</span>
+            </span>
+            Agrega decenas de productos en segundos, ideal para compras mayoristas. Los precios se actualizan en tiempo real según entrega y pago.
+          </p>
         </div>
       </div>
 
@@ -403,8 +414,8 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
       <div className="max-w-[1240px] mx-auto px-1 sm:px-4 py-2 sm:py-6 space-y-3 sm:space-y-6">
         {/* 1. Modalidad de Entrega & Forma de Pago (Flat native selectors on mobile, card on desktop) */}
         <div className="bg-transparent md:bg-white rounded-none md:rounded-2xl border-0 md:border md:border-gray-200/80 p-1 md:p-5 shadow-none md:shadow-xs space-y-2.5 sm:space-y-3 md:space-y-4 pb-3 border-b border-gray-100 md:border-b-0">
-          <div className="flex items-center justify-between border-b border-gray-100 pb-1.5 sm:pb-2.5">
-            <span className="text-xs sm:text-xs md:text-sm font-bold uppercase tracking-wide sm:tracking-wider text-gray-800 flex items-center gap-1.5">
+          <div className="hidden items-center justify-between border-b border-gray-100 pb-1.5 sm:pb-2.5">
+            <span className="hidden text-xs sm:text-xs md:text-sm font-bold uppercase tracking-wide sm:tracking-wider text-gray-800 items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-[#0058bb]" />
               Entrega y Forma de Pago
             </span>
@@ -802,7 +813,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                         <div className="flex flex-col items-end justify-center gap-1 sm:flex-row sm:items-center sm:gap-4 md:gap-5 shrink-0 ml-auto pl-1">
                           {/* Clean Single Price Display */}
                           <div className="text-right w-full flex justify-end">
-                            <span className="text-base sm:text-lg md:text-xl font-black text-gray-900 font-['Montserrat'] whitespace-nowrap leading-none block text-right">
+                            <span className="text-base sm:text-lg md:text-xl font-bold text-gray-900 font-['Montserrat'] whitespace-nowrap leading-none block text-right">
                               $ {activeUnitPrice.toLocaleString('es-AR')}
                             </span>
                           </div>
@@ -858,7 +869,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                                       onSetCartItemQuantity(item.product, item.selectedVariants, item.image, clamped);
                                     }
                                   }}
-                                  className="w-7 sm:w-10 md:w-11 h-[35px] sm:h-8 md:h-9 text-center text-xs sm:text-sm font-black text-gray-900 focus:outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                  className="w-7 sm:w-10 md:w-11 h-[35px] sm:h-8 md:h-9 text-center text-xs sm:text-sm font-bold text-gray-900 focus:outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 />
 
                                 <button
@@ -902,7 +913,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline gap-1.5 min-w-0 overflow-hidden whitespace-nowrap">
                 <span className="text-xs text-gray-500 font-medium hidden sm:inline shrink-0">Total:</span>
-                <span id="quick-buy-total-amount" className="text-lg md:text-2xl font-black text-gray-900 font-['Montserrat'] tracking-tight shrink-0">
+                <span id="quick-buy-total-amount" className="text-lg md:text-2xl font-bold text-gray-900 font-['Montserrat'] tracking-tight shrink-0">
                   $ {cartCalculations.subtotal.toLocaleString('es-AR')}
                 </span>
                 <span className="text-xs text-gray-500 overflow-hidden whitespace-nowrap [text-overflow:clip] min-w-0 shrink">

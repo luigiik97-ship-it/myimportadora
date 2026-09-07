@@ -177,7 +177,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
                 </p>
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 space-y-1 text-xs sm:text-sm">
                   <span className="text-xs text-emerald-800 font-semibold block">Total correspondiente al pago en efectivo:</span>
-                  <span className="text-2xl font-black text-[#00a650] font-['Montserrat'] block">
+                  <span className="text-2xl font-bold text-[#00a650] font-['Montserrat'] block">
                     ${order.total.toLocaleString('es-AR')}
                   </span>
                 </div>
@@ -187,7 +187,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
 
           <div className="pt-2 border-t border-gray-100 font-bold text-sm text-gray-900 flex justify-between items-center">
             <span>Total:</span>
-            <span className="text-xl font-black text-gray-900 font-['Montserrat']">${order.total.toLocaleString('es-AR')}</span>
+            <span className="text-xl font-bold text-gray-900 font-['Montserrat']">${order.total.toLocaleString('es-AR')}</span>
           </div>
         </div>
 
@@ -201,7 +201,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
             <div className="space-y-2.5 text-sm text-gray-600">
               <div className="flex justify-between">
                 <span>Productos</span>
-                <span className="font-semibold text-gray-800">${order.subtotal.toLocaleString('es-AR')}</span>
+                <span className="font-normal text-gray-800">${order.subtotal.toLocaleString('es-AR')}</span>
               </div>
 
               <div className="flex justify-between items-start">
@@ -211,7 +211,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
                     <p className="text-xs text-gray-500 font-normal">{order.shippingMethodName}</p>
                   )}
                 </div>
-                <span className={order.shippingCost === 0 ? 'text-[#00a650] font-bold' : 'font-semibold text-gray-800'}>
+                <span className={order.shippingCost === 0 ? 'text-[#00a650] font-bold' : 'font-normal text-gray-800'}>
                   {order.shippingCost === 0 ? 'Gratis' : `$${order.shippingCost.toLocaleString('es-AR')}`}
                 </span>
               </div>
@@ -225,7 +225,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
 
               <div className="pt-2 border-t border-gray-200 flex justify-between items-baseline">
                 <span className="text-base font-bold text-gray-900">Total</span>
-                <span className="text-2xl font-black text-gray-900 font-['Montserrat']">
+                <span className="text-2xl font-bold text-gray-900 font-['Montserrat']">
                   ${order.total.toLocaleString('es-AR')}
                 </span>
               </div>

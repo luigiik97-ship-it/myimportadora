@@ -491,7 +491,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               {/* Wholesale Price Display - Clear primary emphasis */}
               <div className="space-y-0.5">
                 <div className="flex items-baseline gap-2 flex-wrap">
-                  <span id="wholesale-price-display" className="text-3xl sm:text-4xl font-black text-gray-900 font-['Montserrat'] tracking-tight">
+                  <span id="wholesale-price-display" className="text-3xl sm:text-4xl font-bold text-gray-900 font-['Montserrat'] tracking-tight">
                     $ {currentWholesalePrice.toLocaleString('es-AR')}
                   </span>
                   <span className="text-xs sm:text-sm font-bold text-[#00a650]">c/u Mayorista</span>
@@ -504,7 +504,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               </div>
 
               <div className="border-t border-gray-100 md:border-gray-200/80 pt-1.5 flex items-baseline gap-2">
-                <span id="retail-price-display" className="text-sm sm:text-base font-semibold text-gray-700">
+                <span id="retail-price-display" className="text-sm sm:text-base font-normal text-gray-700">
                   $ {currentRetailPrice.toLocaleString('es-AR')}
                 </span>
                 <span className="text-xs text-gray-500 font-medium">Precio minorista 1 unidad</span>

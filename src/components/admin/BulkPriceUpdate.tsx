@@ -662,7 +662,7 @@ export const BulkPriceUpdate: React.FC<BulkPriceUpdateProps> = ({
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2.5 text-xs text-gray-700">
               <div className="flex justify-between pb-2 border-b border-gray-200">
                 <span className="font-semibold text-gray-500">Porcentaje:</span>
-                <strong className="text-sm font-black text-[#0058bb]">
+                <strong className="text-sm font-bold text-[#0058bb]">
                   {typeof percentage === 'number' && percentage > 0 ? `+${percentage}%` : `${percentage}%`}
                 </strong>
               </div>

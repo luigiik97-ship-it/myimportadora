@@ -179,16 +179,16 @@ export const CartView: React.FC<CartViewProps> = ({
                     )}
 
                     {/* Quantity Modifier, Wholesale Tag & Line Price */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center border border-gray-300 rounded-xl bg-white overflow-hidden shadow-2xs">
+                    <div className="flex items-center justify-between gap-1.5 sm:gap-2 mt-2 min-w-0">
+                      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                        <div className="flex items-center border border-gray-300 rounded-xl bg-white overflow-hidden shadow-2xs shrink-0">
                           <button
                             onClick={() => onUpdateQuantity(item.id, -1)}
                             className="w-8 h-8 sm:w-8 sm:h-8 text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer flex items-center justify-center active:bg-gray-200"
                           >
                             <Minus className="w-3.5 h-3.5" />
                           </button>
-                          <span className="px-2.5 text-sm sm:text-base font-black text-gray-900 min-w-[28px] text-center">
+                          <span className="px-2.5 text-sm sm:text-base font-bold text-gray-900 min-w-[28px] text-center">
                             {item.quantity}
                           </span>
                           <button
@@ -210,17 +210,17 @@ export const CartView: React.FC<CartViewProps> = ({
                         </div>
 
                         {item.isWholesale && (
-                          <span className="inline-flex items-center justify-center text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full text-center leading-none">
+                          <span className="inline-flex items-center justify-center text-[10px] sm:text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-1.5 py-0.5 rounded-full text-center leading-none overflow-hidden whitespace-nowrap [text-overflow:clip] shrink">
                             Mayorista
                           </span>
                         )}
                       </div>
 
-                      <div className="text-right">
-                        <span className="text-base sm:text-lg font-black text-gray-900 font-['Montserrat']">
+                      <div className="text-right shrink-0">
+                        <span className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat'] whitespace-nowrap block">
                           $ {item.totalPrice.toLocaleString('es-AR')}
                         </span>
-                        <span className="text-xs text-gray-500 block">
+                        <span className="text-xs text-gray-500 block whitespace-nowrap">
                           ($ {item.unitPrice.toLocaleString('es-AR')} c/u)
                         </span>
                       </div>
@@ -285,7 +285,7 @@ export const CartView: React.FC<CartViewProps> = ({
                     <span className="text-gray-700 leading-snug break-words">
                       {itemLabel}
                     </span>
-                    <span className="font-semibold text-gray-900 shrink-0">
+                    <span className="font-normal text-gray-900 shrink-0">
                       ${item.totalPrice.toLocaleString('es-AR')}
                     </span>
                   </div>
@@ -306,7 +306,7 @@ export const CartView: React.FC<CartViewProps> = ({
             <div className="flex items-baseline justify-between">
               <span className="text-base font-bold text-gray-900">Total</span>
               <div className="text-right">
-                <span id="cart-total-amount" className="text-2xl font-black text-gray-900 font-['Montserrat']">
+                <span id="cart-total-amount" className="text-2xl font-bold text-gray-900 font-['Montserrat']">
                   $ {subtotalProducts.toLocaleString('es-AR')}
                 </span>
                 <span className="text-xs text-gray-400 block">* sin envío</span>
