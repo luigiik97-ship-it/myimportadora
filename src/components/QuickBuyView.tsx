@@ -401,7 +401,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         <div className="max-w-[1240px] mx-auto w-full relative z-10">
           <h1 className="sr-only">Compra Rápida</h1>
           <p className="text-xs sm:text-sm md:text-[14.5px] text-gray-100 w-full leading-relaxed tracking-normal">
-            <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full border-2 border-yellow-400 bg-black text-white font-bold text-xs sm:text-sm mr-2 align-middle shadow-xs">
+            <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full border-2 border-yellow-400 bg-black text-white font-bold text-xs sm:text-sm mr-1.5 sm:mr-2 align-middle shadow-xs">
               <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 fill-amber-400 shrink-0" />
               <span>Compra rápida</span>
             </span>
@@ -472,9 +472,9 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                   }`}
                 >
                   <div className="flex items-start justify-between gap-1">
-                    <div className="flex items-center gap-1.5 font-bold text-xs sm:text-xs md:text-sm text-gray-900 leading-tight">
-                      <Truck className={`w-4 h-4 ${deliveryOption === 'delivery' ? 'text-[#0058bb]' : 'text-gray-500'}`} />
-                      <span>Envió a domicilio</span>
+                    <div className="flex items-center gap-1.5 font-bold text-xs sm:text-xs md:text-sm text-gray-900 leading-tight min-w-0 overflow-hidden">
+                      <Truck className={`w-4 h-4 shrink-0 ${deliveryOption === 'delivery' ? 'text-[#0058bb]' : 'text-gray-500'}`} />
+                      <span className="whitespace-nowrap overflow-hidden [text-overflow:clip]">Envió a domicilio</span>
                     </div>
                     {deliveryOption === 'delivery' && (
                       <CheckCircle2 className="w-4 h-4 text-[#0058bb] shrink-0" />
@@ -505,7 +505,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                     type="button"
                     id="quick-buy-pay-cash-btn"
                     onClick={() => onSelectPaymentMethod('cash')}
-                    className={`h-full px-2.5 py-2 sm:px-3 sm:py-2 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between min-h-[46px] ${
+                    className={`h-full px-2.5 py-2 sm:px-3 sm:py-2 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between min-h-[58px] md:min-h-[62px] ${
                       paymentMethod === 'cash'
                         ? 'border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-500/20 shadow-xs'
                         : 'border-gray-200 hover:border-gray-300 bg-white'
@@ -520,7 +520,8 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                         <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                       )}
                     </div>
-                    <div className="mt-1 flex items-center justify-between gap-1">
+                    <div className="mt-1 flex items-center justify-between gap-1 min-h-[20px]">
+                      <span className="text-xs text-gray-500 truncate">En local</span>
                       <span className="text-xs font-bold text-emerald-800 bg-emerald-200/80 px-1.5 py-0.5 rounded shrink-0">
                         🏷️ Mejor precio
                       </span>
@@ -532,43 +533,51 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                     type="button"
                     id="quick-buy-pay-transfer-btn"
                     onClick={() => onSelectPaymentMethod('transfer')}
-                    className={`h-full px-2.5 py-2 sm:px-3 sm:py-2 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between min-h-[46px] ${
+                    className={`h-full px-2.5 py-2 sm:px-3 sm:py-2 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between min-h-[58px] md:min-h-[62px] ${
                       paymentMethod === 'transfer'
                         ? 'border-[#0058bb] bg-blue-50/70 ring-2 ring-[#0058bb]/20 shadow-xs'
                         : 'border-gray-200 hover:border-gray-300 bg-white'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-1">
-                      <div className="flex items-center gap-1.5 font-bold text-xs sm:text-xs md:text-sm text-gray-900 leading-tight">
-                        <CreditCard className={`w-4 h-4 ${paymentMethod === 'transfer' ? 'text-[#0058bb]' : 'text-gray-500'}`} />
-                        <span>Transferencia</span>
+                      <div className="flex items-center gap-1.5 font-bold text-xs sm:text-xs md:text-sm text-gray-900 leading-tight min-w-0 overflow-hidden">
+                        <CreditCard className={`w-4 h-4 shrink-0 ${paymentMethod === 'transfer' ? 'text-[#0058bb]' : 'text-gray-500'}`} />
+                        <span className="whitespace-nowrap overflow-hidden [text-overflow:clip]">Transferencia</span>
                       </div>
                       {paymentMethod === 'transfer' && (
                         <CheckCircle2 className="w-4 h-4 text-[#0058bb] shrink-0" />
                       )}
                     </div>
-                    <div className="mt-1 flex items-center justify-between gap-1">
+                    <div className="mt-1 flex items-center justify-between gap-1 min-h-[20px]">
                       <span className="text-xs text-gray-500 truncate">
                         Alias / CVU
+                      </span>
+                      <span className="text-xs font-semibold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded shrink-0">
+                        Directo
                       </span>
                     </div>
                   </button>
                 </div>
               ) : (
                 /* Envío: Oculta efectivo y muestra solo Transferencia */
-                <div className="p-2 sm:p-3 rounded-xl border border-[#0058bb] bg-blue-50/70 ring-2 ring-[#0058bb]/20 flex items-center justify-between min-h-[46px]">
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <CreditCard className="w-4 h-4 text-[#0058bb] shrink-0" />
-                    <div>
-                      <span className="font-bold text-xs sm:text-sm text-gray-900 block leading-tight">
-                        Transferencia Bancaria
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="h-full px-2.5 py-2 sm:px-3 sm:py-2 rounded-xl border border-[#0058bb] bg-blue-50/70 ring-2 ring-[#0058bb]/20 text-left flex flex-col justify-between min-h-[58px] md:min-h-[62px] shadow-xs">
+                    <div className="flex items-start justify-between gap-1">
+                      <div className="flex items-center gap-1.5 font-bold text-xs sm:text-xs md:text-sm text-gray-900 leading-tight min-w-0 overflow-hidden">
+                        <CreditCard className="w-4 h-4 text-[#0058bb] shrink-0" />
+                        <span className="whitespace-nowrap overflow-hidden [text-overflow:clip]">Transferencia</span>
+                      </div>
+                      <CheckCircle2 className="w-4 h-4 text-[#0058bb] shrink-0" />
+                    </div>
+                    <div className="mt-1 flex items-center justify-between gap-1 min-h-[20px]">
+                      <span className="text-xs text-gray-500 truncate">
+                        Alias / CVU
                       </span>
-                      <span className="text-xs text-gray-500 block leading-tight">
-                        Pago por Alias / CVU
+                      <span className="text-xs font-semibold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded shrink-0">
+                        Directo
                       </span>
                     </div>
                   </div>
-                  <CheckCircle2 className="w-4 h-4 text-[#0058bb] shrink-0 ml-1.5 sm:ml-2" />
                 </div>
               )}
             </div>
@@ -722,12 +731,12 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                   {/* Wholesale Threshold Badge */}
                   <div className="flex items-center gap-1.5">
                     {isCategoryWholesaleReached ? (
-                      <span className="inline-flex items-center text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2.5 py-0.5 rounded-full leading-tight">
+                      <span className="inline-flex items-center text-[10px] sm:text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full leading-tight">
                         <span>Mayorista alcanzado ({catQtyInCart} unids.)</span>
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-900 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full leading-tight">
-                        <Sparkles className="w-3.5 h-3.5 text-[#0058bb] shrink-0" />
+                      <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-blue-900 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full leading-tight">
+                        <Sparkles className="w-3 h-3 text-[#0058bb] shrink-0" />
                         <span>
                           Mayorista desde <strong>{sampleMinQty} u.</strong>
                           {catQtyInCart > 0 && ` (${catQtyInCart}/${sampleMinQty})`}
@@ -821,7 +830,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                           {/* Quantity Controller */}
                           <div className="flex items-center">
                             {isOutOfStock ? (
-                              <span className="text-xs font-semibold text-gray-400 px-2 py-1 bg-gray-100 rounded-lg">
+                              <span className="inline-flex items-center justify-center text-xs sm:text-sm font-semibold text-gray-400 bg-gray-100 border border-gray-200/80 rounded-xl w-[88px] sm:w-[108px] md:w-[120px] h-[39px] sm:h-[36px] md:h-[40px] shrink-0 select-none">
                                 Agotado
                               </span>
                             ) : currentCartQty === 0 ? (
@@ -905,24 +914,24 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
       </div>
 
       {/* 4. Fixed Bottom Bar (Barra inferior fija con cantidad total, importe y botón Ver carrito) */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200/90 shadow-[0_-8px_25px_rgba(0,0,0,0.08)] px-3 sm:px-4 py-2.5 md:py-3 transition-transform">
-        <div className="max-w-[1240px] mx-auto flex items-center justify-between gap-3">
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200/90 shadow-[0_-8px_25px_rgba(0,0,0,0.08)] pl-1.5 sm:pl-2.5 pr-3 sm:pr-4 py-2.5 md:py-3 transition-transform">
+        <div className="max-w-[1240px] mx-auto flex items-center justify-between gap-1.5 sm:gap-3">
           {/* Left: Summary Info */}
           <div className="flex items-center min-w-0 flex-1">
             {/* Total price and details */}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline gap-1.5 min-w-0 overflow-hidden whitespace-nowrap">
+            <div className="min-w-0 flex-1 text-left">
+              <div className="flex items-baseline gap-1 sm:gap-1.5 min-w-0 overflow-visible sm:overflow-hidden whitespace-nowrap justify-start text-left -ml-0.5 sm:-ml-1">
                 <span className="text-xs text-gray-500 font-medium hidden sm:inline shrink-0">Total:</span>
                 <span id="quick-buy-total-amount" className="text-lg md:text-2xl font-bold text-gray-900 font-['Montserrat'] tracking-tight shrink-0">
                   $ {cartCalculations.subtotal.toLocaleString('es-AR')}
                 </span>
-                <span className="text-xs text-gray-500 overflow-hidden whitespace-nowrap [text-overflow:clip] min-w-0 shrink">
-                  ({totalCartCount}unids.)
+                <span className="text-xs text-gray-500 whitespace-nowrap shrink-0">
+                  ({totalCartCount} unids.)
                 </span>
               </div>
 
               {/* Delivery / Payment mini tag */}
-              <div className="flex items-center gap-1.5 text-xs text-gray-500 truncate">
+              <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-gray-500 truncate justify-start text-left -ml-0.5 sm:-ml-1">
                 <span className="font-semibold text-gray-700">
                   {deliveryOption === 'pickup' ? 'Retiro en local' : 'Envió a domicilio'}
                 </span>
