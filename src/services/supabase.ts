@@ -9,6 +9,7 @@ import {
   syncLegacyFields,
   SPECS_VARIANT_TYPES_KEY,
 } from '../utils/variantHelpers';
+import { reconcileCategoriesWithProducts } from '../utils/categoryHelpers';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -101,28 +102,36 @@ export const invalidateCategoriesCache = () => {
 
 // Initial loader for local storage categories
 export const getLocalCategories = (): Category[] => {
-  if (cachedCategories && cachedCategories.length > 0) return cachedCategories;
+  if (cachedCategories && cachedCategories.length > 0) {
+    const reconciled = reconcileCategoriesWithProducts(cachedCategories, cachedProducts || undefined);
+    cachedCategories = reconciled;
+    return reconciled;
+  }
   try {
     const saved = localStorage.getItem(LOCAL_CATEGORIES_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        cachedCategories = parsed;
-        return parsed;
+        const reconciled = reconcileCategoriesWithProducts(parsed, cachedProducts || undefined);
+        cachedCategories = reconciled;
+        safeLocalStorageSet(LOCAL_CATEGORIES_KEY, JSON.stringify(reconciled));
+        return reconciled;
       }
     }
   } catch (e) {
     console.error('Error reading local categories', e);
   }
-  safeLocalStorageSet(LOCAL_CATEGORIES_KEY, JSON.stringify(INITIAL_CATEGORIES));
-  cachedCategories = INITIAL_CATEGORIES;
-  return INITIAL_CATEGORIES;
+  const initialReconciled = reconcileCategoriesWithProducts(INITIAL_CATEGORIES, cachedProducts || undefined);
+  safeLocalStorageSet(LOCAL_CATEGORIES_KEY, JSON.stringify(initialReconciled));
+  cachedCategories = initialReconciled;
+  return initialReconciled;
 };
 
 export const saveLocalCategories = (categories: Category[]) => {
-  cachedCategories = categories;
+  const reconciled = reconcileCategoriesWithProducts(categories, cachedProducts || undefined);
+  cachedCategories = reconciled;
   categoriesCacheTimestamp = Date.now();
-  safeLocalStorageSet(LOCAL_CATEGORIES_KEY, JSON.stringify(categories));
+  safeLocalStorageSet(LOCAL_CATEGORIES_KEY, JSON.stringify(reconciled));
 };
 
 // Initial loader for local storage
@@ -1064,10 +1073,76 @@ export const uploadProductImages = async (
 
 // ---------------- ORDERS API ---------------- //
 
-export const saveOrder = async (orderData: Omit<Order, 'id' | 'orderNumber' | 'createdAt'>): Promise<Order> => {
-  const randomNum = Math.floor(10000 + Math.random() * 90000);
-  const orderNumber = `M${randomNum}`;
-  const orderId = `ord-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+export const getNextCorrelativeOrderNumber = async (): Promise<string> => {
+  let maxSeq = 1000;
+
+  // 1. Revisar secuencia guardada en localStorage
+  try {
+    const savedSeq = localStorage.getItem('my_commerce_correlative_order_seq');
+    if (savedSeq) {
+      const parsed = parseInt(savedSeq, 10);
+      if (!isNaN(parsed) && parsed >= maxSeq) {
+        maxSeq = parsed;
+      }
+    }
+  } catch (e) {}
+
+  // 2. Escanear todos los pedidos locales existentes
+  try {
+    const localOrders = getLocalOrders();
+    localOrders.forEach((o) => {
+      if (o.orderNumber) {
+        const digits = o.orderNumber.replace(/\D/g, '');
+        if (digits) {
+          const val = parseInt(digits, 10);
+          if (!isNaN(val) && val >= maxSeq && val < 1000000) {
+            maxSeq = val;
+          }
+        }
+      }
+    });
+  } catch (e) {}
+
+  // 3. Escanear pedidos en Supabase si está disponible
+  if (isSupabaseConfigured() && supabaseInstance) {
+    try {
+      const { data } = await supabaseInstance
+        .from('orders')
+        .select('order_number')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (data && Array.isArray(data)) {
+        data.forEach((row: any) => {
+          if (row.order_number) {
+            const digits = String(row.order_number).replace(/\D/g, '');
+            if (digits) {
+              const val = parseInt(digits, 10);
+              if (!isNaN(val) && val >= maxSeq && val < 1000000) {
+                maxSeq = val;
+              }
+            }
+          }
+        });
+      }
+    } catch (e) {}
+  }
+
+  const nextSeq = maxSeq + 1;
+  try {
+    localStorage.setItem('my_commerce_correlative_order_seq', nextSeq.toString());
+  } catch (e) {}
+
+  return String(nextSeq);
+};
+
+export const saveOrder = async (
+  orderData: Omit<Order, 'id' | 'createdAt'> & { orderNumber?: string; id?: string }
+): Promise<Order> => {
+  let orderNumber = orderData.orderNumber;
+  if (!orderNumber) {
+    orderNumber = await getNextCorrelativeOrderNumber();
+  }
+  const orderId = orderData.id || `ord-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
   const createdAt = new Date().toISOString();
 
   const newOrder: Order = {
@@ -1393,8 +1468,9 @@ export const fetchCategories = async (options?: { force?: boolean }): Promise<Ca
               description: item.description || '',
               createdAt: item.created_at || item.createdAt,
             }));
-            saveLocalCategories(mapped);
-            return mapped;
+            const reconciled = reconcileCategoriesWithProducts(mapped, cachedProducts || undefined);
+            saveLocalCategories(reconciled);
+            return reconciled;
           }
         } catch (e) {
           console.warn('Error fetching categories from Supabase, using local categories:', e);
@@ -1880,7 +1956,26 @@ DROP POLICY IF EXISTS "Eliminación de imágenes" ON storage.objects;
 CREATE POLICY "Lectura pública de imágenes" ON storage.objects FOR SELECT USING (bucket_id = 'product-images');
 CREATE POLICY "Subida de imágenes" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'product-images');
 CREATE POLICY "Modificación de imágenes" ON storage.objects FOR UPDATE USING (bucket_id = 'product-images');
-CREATE POLICY "Eliminación de imágenes" ON storage.objects FOR DELETE USING (bucket_id = 'product-images');
+-- 8. Tabla de Registro de Visitas y Analítica
+CREATE TABLE IF NOT EXISTS public.site_visits (
+  id TEXT PRIMARY KEY,
+  visitor_id TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  path TEXT NOT NULL,
+  page_title TEXT,
+  referrer TEXT,
+  source TEXT NOT NULL,
+  device TEXT NOT NULL,
+  is_new_visitor BOOLEAN DEFAULT true,
+  is_new_session BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.site_visits ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Lectura pública de visitas" ON public.site_visits;
+DROP POLICY IF EXISTS "Inserción de visitas" ON public.site_visits;
+CREATE POLICY "Lectura pública de visitas" ON public.site_visits FOR SELECT USING (true);
+CREATE POLICY "Inserción de visitas" ON public.site_visits FOR ALL USING (true);
 `;
 
 /**

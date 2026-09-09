@@ -396,7 +396,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
 
                   return (
                     <tr
-                      key={cat.id}
+                      key={cat.id ? `${cat.id}-${index}` : `cat-${index}`}
                       className={`hover:bg-gray-50/80 transition-colors ${
                         !isVisible ? 'bg-gray-50/50 opacity-75' : ''
                       }`}

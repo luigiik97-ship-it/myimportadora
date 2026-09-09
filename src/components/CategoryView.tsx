@@ -38,13 +38,21 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
   const currentCatObj = useMemo(() => {
     const targetClean = categoryName.trim().toLowerCase();
     const targetSlug = slugifyCategory(categoryName);
-    return categories.find(
-      (c) =>
-        c.name.toLowerCase() === targetClean ||
-        c.slug.toLowerCase() === targetSlug ||
-        slugifyCategory(c.name) === targetSlug
+    return (
+      storefrontCategories.find(
+        (c) =>
+          c.name.toLowerCase() === targetClean ||
+          c.slug.toLowerCase() === targetSlug ||
+          slugifyCategory(c.name) === targetSlug
+      ) ||
+      categories.find(
+        (c) =>
+          c.name.toLowerCase() === targetClean ||
+          c.slug.toLowerCase() === targetSlug ||
+          slugifyCategory(c.name) === targetSlug
+      )
     );
-  }, [categories, categoryName]);
+  }, [storefrontCategories, categories, categoryName]);
 
   // 1. Filter products belonging dynamically to this category or subcategory from database
   const categoryProducts = useMemo(() => {
@@ -147,14 +155,14 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
           >
             Ver Todo
           </button>
-          {storefrontCategories.map((cat) => {
+          {storefrontCategories.map((cat, idx) => {
             const isSelected =
               cat.name.toLowerCase() === categoryName.toLowerCase() ||
               cat.slug.toLowerCase() === slugifyCategory(categoryName);
 
             return (
               <button
-                key={cat.id || cat.name}
+                key={cat.id ? `${cat.id}-${idx}` : `${cat.name}-${idx}`}
                 onClick={() => onSelectCategory(cat.name)}
                 className={`px-3 sm:px-3.5 py-1.5 text-xs font-medium rounded-full transition-all whitespace-nowrap cursor-pointer border flex items-center gap-1.5 sm:gap-2 ${
                   isSelected

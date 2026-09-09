@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Product, CartItem, Category, SizeVariant } from '../types';
+import { Product, CartItem, Category, SizeVariant, Order } from '../types';
 import {
   Search,
   Zap,
@@ -19,7 +19,9 @@ import {
   Filter,
   Layers,
   ArrowUp,
-  X
+  X,
+  ExternalLink,
+  ShieldCheck
 } from 'lucide-react';
 import {
   normalizeVariantTypes,
@@ -29,6 +31,14 @@ import {
   ResolvedProductPrices
 } from '../utils/variantHelpers';
 import { ImageWithSkeleton } from './common/ImageWithSkeleton';
+import {
+  isQuickBuyCustomLinkActive,
+  getQuickBuyLinkConfig,
+  recordQuickBuyOrderPlaced,
+  buildQuickBuyWhatsAppMessage
+} from '../services/quickBuyLink';
+import { getNextCorrelativeOrderNumber, saveOrder } from '../services/supabase';
+import { OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
 
 export interface QuickBuyItem {
   itemId: string;
@@ -73,6 +83,8 @@ interface QuickBuyViewProps {
   onProceedToCheckout: () => void;
   onGoToHome?: () => void;
   onSelectProductDetail?: (product: Product, selectedVariants?: Record<string, string>, selectedImage?: string) => void;
+  onSaveOrder?: (orderPayload: any) => Promise<Order>;
+  onClearCart?: () => void;
 }
 
 export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
@@ -91,7 +103,34 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
   onProceedToCheckout,
   onGoToHome,
   onSelectProductDetail,
+  onSaveOrder,
+  onClearCart,
 }) => {
+  const [isCustomLinkMode, setIsCustomLinkMode] = useState<boolean>(() => {
+    return isQuickBuyCustomLinkActive(typeof window !== 'undefined' ? window.location.search : '');
+  });
+  const [isSubmittingWhatsAppOrder, setIsSubmittingWhatsAppOrder] = useState(false);
+  const [whatsAppSuccessModal, setWhatsAppSuccessModal] = useState<{
+    orderNumber: string;
+    waUrl: string;
+    itemsCount: number;
+    total: number;
+  } | null>(null);
+
+  // Mantener actualizado el modo de enlace personalizado si cambia la URL o la configuración
+  useEffect(() => {
+    const handleCheckMode = () => {
+      setIsCustomLinkMode(isQuickBuyCustomLinkActive(window.location.search));
+    };
+    handleCheckMode();
+    window.addEventListener('my_commerce_quick_buy_config_updated', handleCheckMode);
+    window.addEventListener('popstate', handleCheckMode);
+    return () => {
+      window.removeEventListener('my_commerce_quick_buy_config_updated', handleCheckMode);
+      window.removeEventListener('popstate', handleCheckMode);
+    };
+  }, []);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedCategoryTab, setSelectedCategoryTab] = useState<string>('all');
@@ -367,6 +406,130 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
 
     return { subtotal, totalSavings };
   }, [cartItems, categoryQuantitiesInCart, deliveryOption, paymentMethod]);
+
+  // Procesa la compra rápida exclusiva del enlace personalizado por WhatsApp:
+  // 1. Genera número correlativo único (#1001, etc.)
+  // 2. Registra el pedido de inmediato en la base de datos para que aparezca en el panel de administración
+  // 3. Abre WhatsApp (https://wa.me/message/TSF5H4YUIQJOC1) con el mensaje listo (número de pedido, listado de productos, cantidades y total)
+  const handleWhatsAppQuickBuy = async () => {
+    if (totalCartCount === 0 || isSubmittingWhatsAppOrder) return;
+
+    setIsSubmittingWhatsAppOrder(true);
+    try {
+      // 1. Generar número de pedido único y correlativo
+      const orderNumber = await getNextCorrelativeOrderNumber();
+
+      // 2. Mapear productos con precios resueltos
+      const processedItems = cartItems.map((item) => {
+        const cat = item.product.category || 'General';
+        const catQty = categoryQuantitiesInCart[cat] || 0;
+        const minQty = item.product.minWholesaleQty || 1;
+        const isWholesale = catQty >= minQty;
+
+        const prices = getResolvedProductPrices(item.product, item.selectedVariants, item.selectedSizeVariant);
+
+        let unitPrice = isWholesale ? prices.wholesalePrice : prices.retailPrice;
+        let cashUnitPrice = isWholesale
+          ? (prices.wholesaleCashPrice || prices.wholesalePrice)
+          : (prices.retailCashPrice || prices.retailPrice);
+
+        const effectiveUnitPrice =
+          deliveryOption === 'pickup' && paymentMethod === 'cash'
+            ? cashUnitPrice
+            : unitPrice;
+
+        return {
+          id: item.id,
+          productId: item.productId,
+          title: item.product.title,
+          image: item.selectedImage || (item.product.images && item.product.images[0]) || '',
+          variantText: item.variantText || '',
+          quantity: item.quantity,
+          unitPrice: unitPrice,
+          cashUnitPrice: cashUnitPrice,
+          totalPrice: effectiveUnitPrice * item.quantity,
+          totalCashPrice: cashUnitPrice * item.quantity,
+          isWholesale,
+        };
+      });
+
+      // 3. Preparar payload de pedido para la base de datos
+      const orderPayload = {
+        orderNumber,
+        customerName: 'Cliente Compra Rápida (WhatsApp)',
+        customerEmail: '',
+        customerWhatsapp: 'WhatsApp',
+        deliveryOption,
+        shippingMethodName: deliveryOption === 'pickup' ? 'Retiro en local' : 'Envío a coordinar por WhatsApp',
+        paymentMethod,
+        items: processedItems,
+        subtotal: cartCalculations.subtotal,
+        wholesaleDiscount: cartCalculations.totalSavings,
+        cashDiscount: paymentMethod === 'cash' ? Math.max(0, cartCalculations.totalSavings) : 0,
+        shippingCost: 0,
+        total: cartCalculations.subtotal,
+        status: 'pending_payment' as const,
+      };
+
+      // 4. Registrar en la base de datos de inmediato para que figure en el panel admin
+      if (onSaveOrder) {
+        await onSaveOrder(orderPayload);
+      } else {
+        await saveOrder(orderPayload);
+      }
+
+      // 5. Registrar métrica de uso del enlace
+      recordQuickBuyOrderPlaced();
+
+      // 6. Construir mensaje formateado para WhatsApp (comienza con #pedido, sigue listado de productos y cantidades, y el total)
+      const config = getQuickBuyLinkConfig();
+      const whatsappMessage = buildQuickBuyWhatsAppMessage({
+        orderNumber,
+        items: processedItems.map((p) => ({
+          title: p.title,
+          quantity: p.quantity,
+          variantText: p.variantText,
+          unitPrice: p.unitPrice,
+          totalPrice: p.totalPrice,
+        })),
+        total: cartCalculations.subtotal,
+        deliveryOption,
+        paymentMethod,
+      });
+
+      // 7. Enlace de WhatsApp especificado por el usuario
+      const baseWaUrl = config.whatsappUrl || 'https://wa.me/message/TSF5H4YUIQJOC1';
+      const finalWaUrl = `${baseWaUrl}?text=${encodeURIComponent(whatsappMessage)}`;
+
+      // 8. Abrir WhatsApp en nueva pestaña
+      try {
+        const win = window.open(finalWaUrl, '_blank');
+        if (!win) {
+          window.location.href = finalWaUrl;
+        }
+      } catch (e) {
+        window.location.href = finalWaUrl;
+      }
+
+      // 9. Limpiar carrito
+      if (onClearCart) {
+        onClearCart();
+      }
+
+      // 10. Mostrar confirmación visual interactiva
+      setWhatsAppSuccessModal({
+        orderNumber,
+        waUrl: finalWaUrl,
+        itemsCount: totalCartCount,
+        total: cartCalculations.subtotal,
+      });
+    } catch (err) {
+      console.error('Error procesando pedido de compra rápida WhatsApp:', err);
+      alert('Ocurrió un inconveniente al registrar el pedido. Por favor intenta nuevamente.');
+    } finally {
+      setIsSubmittingWhatsAppOrder(false);
+    }
+  };
 
   // Scroll to a specific category section
   const handleScrollToCategory = (catName: string) => {
@@ -955,20 +1118,47 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
               <span>Carrito</span>
             </button>
 
-            <button
-              type="button"
-              id="quick-buy-checkout-btn"
-              onClick={onProceedToCheckout}
-              disabled={totalCartCount === 0}
-              className={`font-bold text-xs sm:text-sm px-3 sm:px-4 py-3 sm:py-2.5 min-h-[42px] sm:min-h-[38px] rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer ${
-                totalCartCount > 0
-                  ? 'bg-[#0058bb] hover:bg-[#004bb0] text-white active:scale-95'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
-              }`}
-            >
-              <span>Comprar</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            {isCustomLinkMode ? (
+              <button
+                type="button"
+                id="quick-buy-whatsapp-checkout-btn"
+                onClick={handleWhatsAppQuickBuy}
+                disabled={totalCartCount === 0 || isSubmittingWhatsAppOrder}
+                className={`font-bold text-xs sm:text-sm px-3.5 sm:px-5 py-3 sm:py-2.5 min-h-[42px] sm:min-h-[38px] rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer ${
+                  totalCartCount > 0 && !isSubmittingWhatsAppOrder
+                    ? 'bg-[#25D366] hover:bg-[#20bd5a] text-white active:scale-95 shadow-emerald-600/20'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+                }`}
+                title="Comprar por WhatsApp (Número de pedido correlativo)"
+              >
+                {isSubmittingWhatsAppOrder ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Registrando...</span>
+                  </>
+                ) : (
+                  <>
+                    <OfficialWhatsAppIcon className="w-5 h-5 text-white shrink-0" />
+                    <span>Comprar</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                id="quick-buy-checkout-btn"
+                onClick={onProceedToCheckout}
+                disabled={totalCartCount === 0}
+                className={`font-bold text-xs sm:text-sm px-3 sm:px-4 py-3 sm:py-2.5 min-h-[42px] sm:min-h-[38px] rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer ${
+                  totalCartCount > 0
+                    ? 'bg-[#0058bb] hover:bg-[#004bb0] text-white active:scale-95'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+                }`}
+              >
+                <span>Comprar</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1055,6 +1245,56 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
               <span className="text-xs text-gray-400 font-medium shrink-0">
                 Desliza o toca la ✕ para cerrar
               </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Pedido Registrado por WhatsApp */}
+      {whatsAppSuccessModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 text-center shadow-2xl space-y-4 animate-scale-up border border-emerald-100">
+            <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-[#25D366] flex items-center justify-center mx-auto border border-emerald-100 shadow-xs">
+              <OfficialWhatsAppIcon className="w-10 h-10" />
+            </div>
+
+            <div>
+              <span className="inline-block px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full uppercase tracking-wider mb-2">
+                ¡Pedido Registrado con Éxito!
+              </span>
+              <h3 className="text-2xl font-black text-gray-900 font-['Montserrat']">
+                Pedido #{whatsAppSuccessModal.orderNumber}
+              </h3>
+              <p className="text-xs sm:text-sm text-gray-600 mt-1">
+                Tu pedido fue guardado en el sistema con el número correlativo asignado. Si WhatsApp no se abrió automáticamente, presiona el botón a continuación:
+              </p>
+            </div>
+
+            <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-700 flex justify-between items-center font-medium border border-gray-200/80">
+              <span>{whatsAppSuccessModal.itemsCount} productos seleccionados</span>
+              <span className="font-bold text-sm text-gray-900 font-mono">
+                $ {whatsAppSuccessModal.total.toLocaleString('es-AR')}
+              </span>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <a
+                href={whatsAppSuccessModal.waUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-sm py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer"
+              >
+                <OfficialWhatsAppIcon className="w-5 h-5 text-white" />
+                <span>Abrir WhatsApp con mi Pedido</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setWhatsAppSuccessModal(null)}
+                className="w-full py-2.5 text-xs text-gray-500 hover:text-gray-800 font-bold transition-colors cursor-pointer"
+              >
+                Cerrar y seguir explorando
+              </button>
             </div>
           </div>
         </div>

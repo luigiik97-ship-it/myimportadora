@@ -64,4 +64,13 @@ export const INITIAL_CATEGORIES: Category[] = [
     isVisible: true,
     description: 'Fragancias, colonias y esencias importadas',
   },
+  {
+    id: 'cat-bricks',
+    name: 'Bricks',
+    slug: 'bricks',
+    image: 'https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/categories/category-1787704989061-q0mc5.jpg',
+    sortOrder: 8,
+    isVisible: true,
+    description: 'Bloques de construcción didácticos, figuras armables y sets coleccionables',
+  },
 ];

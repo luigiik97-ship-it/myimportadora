@@ -356,7 +356,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         >
           {storefrontCategories.map((cat, idx) => (
             <button
-              key={cat.id || `${cat.name}-${idx}`}
+              key={cat.id ? `${cat.id}-${idx}` : `${cat.name}-${idx}`}
               id={`cat-tile-${idx}`}
               onClick={() => onSelectCategory(cat.name)}
               className="snap-start shrink-0 w-[110px] sm:w-[140px] md:w-[150px] group flex flex-col items-center bg-white rounded-xl p-2 sm:p-2.5 border border-gray-100 sm:border-gray-200/90 shadow-2xs hover:shadow-md hover:border-[#0058bb]/50 transition-all cursor-pointer text-center justify-between"

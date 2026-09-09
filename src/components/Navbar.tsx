@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Search, ShoppingCart, User, ChevronDown, ChevronRight, Layers, ArrowLeft, Zap } from 'lucide-react';
 import { CartItem, Category, UserProfile } from '../types';
+import { reconcileCategoriesWithProducts } from '../utils/categoryHelpers';
 
 interface NavbarProps {
   currentCategory: string;
@@ -50,21 +51,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, [isMobileSearchOpen]);
 
   const allVisibleCategories = useMemo(() => {
-    if (customCategories && customCategories.length > 0) {
-      return customCategories
-        .filter((c) => c.isVisible !== false)
-        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-    }
-    return [
-      { id: '1', name: 'Bijuteria', isVisible: true },
-      { id: '2', name: 'Juguetes', isVisible: true },
-      { id: '3', name: 'Perfumes', isVisible: true },
-      { id: '4', name: 'Tecnología', isVisible: true },
-    ];
+    const list = reconcileCategoriesWithProducts(customCategories, undefined);
+    return list
+      .filter((c) => c.isVisible !== false)
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   }, [customCategories]);
 
   const displayCategoryNames = useMemo(() => {
-    return allVisibleCategories.map((c) => c.name);
+    return Array.from(new Set(allVisibleCategories.map((c) => c.name)));
   }, [allVisibleCategories]);
 
   const updateDropdownPosition = () => {
@@ -355,11 +349,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           {/* Remaining categories (Bijuteria, etc.) */}
-          {displayCategoryNames.map((cat) => {
+          {displayCategoryNames.map((cat, idx) => {
             const isSelected = currentCategory === cat;
             return (
               <button
-                key={cat}
+                key={`cat-nav-${cat}-${idx}`}
                 id={`category-tab-${cat.toLowerCase()}`}
                 onClick={() => {
                   setIsCategoriesOpen(false);
@@ -400,11 +394,11 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Categories List */}
           <div className="max-h-[60vh] md:max-h-[340px] overflow-y-auto overscroll-contain py-1 divide-y divide-gray-50">
-            {allVisibleCategories.map((cat) => {
+            {allVisibleCategories.map((cat, idx) => {
               const isSelected = currentCategory === cat.name;
               return (
                 <button
-                  key={cat.id || cat.name}
+                  key={cat.id ? `${cat.id}-${idx}` : `${cat.name}-${idx}`}
                   onClick={() => {
                     onSelectCategory(cat.name);
                     setIsCategoriesOpen(false);

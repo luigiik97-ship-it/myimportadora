@@ -11,7 +11,9 @@ import { fetchProducts, fetchCategories, getCachedProducts, getCachedCategories,
 import { getLocalAuthUser, fetchUserProfile } from './services/auth';
 import { sendOrderEmails } from './services/emailjs';
 import { getActiveVariantImages, getItemEffectiveNormalPrice, getSelectedVariantStock, deductStockFromProduct } from './utils/variantHelpers';
-import { slugifyCategory } from './utils/categoryHelpers';
+import { slugifyCategory, reconcileCategoriesWithProducts } from './utils/categoryHelpers';
+import { recordSiteVisit } from './services/analytics';
+import { isQuickBuyCustomLinkActive } from './services/quickBuyLink';
 import {
   ProductDetailRouteWrapper,
   CategoryRouteWrapper,
@@ -120,6 +122,12 @@ export default function App() {
     if (!location.pathname.startsWith('/informacion')) {
       window.scrollTo(0, 0);
     }
+  }, [location.pathname]);
+
+  // Automatically record visit/pageview whenever route changes
+  // Deduplicates fast reloads on the same page and tracks session/visitor metrics
+  useEffect(() => {
+    recordSiteVisit(location.pathname);
   }, [location.pathname]);
 
   // Sync active category selector from URL pathname
@@ -246,12 +254,14 @@ export default function App() {
         setIsLoadingData(true);
       }
       const [prods, cats] = await Promise.all([fetchProducts({ force }), fetchCategories({ force })]);
-      if (prods && prods.length > 0) {
-        setProducts(prods);
+      const safeProds = prods && prods.length > 0 ? prods : [];
+      let safeCats = cats && cats.length > 0 ? cats : getCachedCategories();
+
+      if (safeProds.length > 0) {
+        setProducts(safeProds);
       }
-      if (cats && cats.length > 0) {
-        setCategories(cats);
-      }
+      safeCats = reconcileCategoriesWithProducts(safeCats, safeProds.length > 0 ? safeProds : products);
+      setCategories(safeCats);
     } catch (e) {
       console.error('Error loading data:', e);
     } finally {
@@ -330,6 +340,18 @@ export default function App() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Redirigir a modo Compra Rápida si se accede mediante el enlace personalizado
+  useEffect(() => {
+    try {
+      const search = location.search || (typeof window !== 'undefined' ? window.location.search : '');
+      if (search && isQuickBuyCustomLinkActive(search)) {
+        if (location.pathname === '/' || location.pathname === '') {
+          navigate(`/compra-rapida${search}`, { replace: true });
+        }
+      }
+    } catch (e) {}
+  }, [location.pathname, location.search, navigate]);
 
   // Cart operations
   const handleAddToCart = (
@@ -874,6 +896,8 @@ export default function App() {
                   setPreviousView('quick_buy');
                   handleSelectProduct(prod, variants, img);
                 }}
+                onSaveOrder={handleSaveOrderToSupabaseAndEmail}
+                onClearCart={() => setCart([])}
               />
             }
           />

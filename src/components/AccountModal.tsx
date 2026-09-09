@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, User, MapPin, Package, LogOut, Loader2, CheckCircle2, 
-  AlertCircle, ChevronRight, Clock, Truck, Store, ExternalLink, RefreshCw 
+  AlertCircle, ChevronRight, Clock, Truck, Store, ExternalLink, RefreshCw,
+  RotateCcw, ShoppingBag, AlertTriangle
 } from 'lucide-react';
-import { UserProfile, Order } from '../types';
+import { UserProfile, Order, Product, CartItem } from '../types';
 import { saveUserProfile, signOutUser, fetchUserOrders } from '../services/auth';
+import { reorderOrderItems, ReorderResult } from '../services/reorder';
 
 interface AccountModalProps {
   isOpen: boolean;
@@ -12,6 +14,10 @@ interface AccountModalProps {
   profile: UserProfile;
   onUpdateProfile: (updated: UserProfile) => void;
   onLogout: () => void;
+  products?: Product[];
+  cart?: CartItem[];
+  onUpdateCart?: (updatedCart: CartItem[]) => void;
+  onNavigateToCart?: () => void;
 }
 
 export const AccountModal: React.FC<AccountModalProps> = ({
@@ -20,6 +26,10 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   profile,
   onUpdateProfile,
   onLogout,
+  products = [],
+  cart = [],
+  onUpdateCart,
+  onNavigateToCart,
 }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'addresses' | 'orders'>('orders');
 

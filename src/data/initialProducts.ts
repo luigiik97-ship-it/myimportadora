@@ -460,5 +460,33 @@ export const INITIAL_PRODUCTS: Product[] = [
       { label: 'Corte', value: 'Regular Fit Unisex' },
       { label: 'Cuello', value: 'Ribb con refuerzo de limpieza' }
     ]
+  },
+  {
+    id: 'prod-1787410049198-usx1',
+    title: 'Lego Bricks Pokémon Colección',
+    description: 'Set de bloques de construcción armables colección Pokémon. Figuras coleccionables de alta calidad con excelente encaje, colores vibrantes y detalles fieles.',
+    category: 'Bricks',
+    subcategory: 'Bloques',
+    images: [
+      'https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/1787604212859-tzvbh1u.jpg',
+      'https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/1787702649889-dom0rtv.jpg',
+      'https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/1787703015669-6f450e7.jpg'
+    ],
+    minWholesaleQty: 5,
+    wholesalePrice: 1650,
+    retailPrice: 3100,
+    cashPrice: 3000,
+    retailCashPrice: 3000,
+    wholesaleCashPrice: 1500,
+    stock: 200,
+    soldCount: 52,
+    rating: 5,
+    reviewsCount: 56,
+    isBestSeller: false,
+    specs: [
+      { label: 'Material', value: 'Plástico ABS no tóxico' },
+      { label: 'Tipo', value: 'Bloques de construcción miniatura' },
+      { label: 'Edad recomendada', value: '+6 años' }
+    ]
   }
 ];

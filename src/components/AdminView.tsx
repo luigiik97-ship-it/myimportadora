@@ -32,6 +32,8 @@ import {
   sendOrderEmails,
 } from '../services/emailjs';
 import { EmailTemplateManager } from './admin/EmailTemplateManager';
+import { AnalyticsDashboard } from './admin/AnalyticsDashboard';
+import { QuickBuyLinkManager, OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
 import {
   Lock,
   Package,
@@ -67,6 +69,8 @@ import {
   Filter,
   RotateCcw,
   Eye,
+  BarChart3,
+  ArrowUpRight,
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -82,7 +86,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'orders' | 'bulk_price_update' | 'integrations'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'orders' | 'bulk_price_update' | 'integrations' | 'analytics' | 'quick_buy_link'>('products');
 
   // Data states
   const [products, setProducts] = useState<Product[]>([]);
@@ -873,7 +877,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
       </div>
 
       {/* Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-xs text-gray-500 font-semibold uppercase">Total Ventas</span>
@@ -909,6 +913,25 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
             <Package className="w-5 h-5" />
           </div>
         </div>
+
+        <button
+          onClick={() => setActiveTab('analytics')}
+          className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs flex items-center justify-between hover:border-[#0058bb]/50 hover:shadow-sm transition-all text-left cursor-pointer group"
+          title="Ver panel de visitas y analítica"
+        >
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-500 font-semibold uppercase">Tráfico Web</span>
+              <ArrowUpRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-[#0058bb] transition-colors" />
+            </div>
+            <p className="text-base font-bold text-[#0058bb] font-['Montserrat'] mt-1">
+              Ver Visitas
+            </p>
+          </div>
+          <div className="w-10 h-10 bg-blue-50 text-[#0058bb] rounded-lg flex items-center justify-center group-hover:bg-[#0058bb] group-hover:text-white transition-colors">
+            <BarChart3 className="w-5 h-5" />
+          </div>
+        </button>
       </div>
 
       {/* Navigation Tabs */}
@@ -938,6 +961,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
         </button>
 
         <button
+          onClick={() => setActiveTab('analytics')}
+          className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 cursor-pointer transition-colors border-b-2 whitespace-nowrap ${
+            activeTab === 'analytics'
+              ? 'border-[#0058bb] text-[#0058bb]'
+              : 'border-transparent text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4" />
+          Estadísticas de Visitas
+        </button>
+
+        <button
           onClick={() => setActiveTab('bulk_price_update')}
           className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 cursor-pointer transition-colors border-b-2 whitespace-nowrap ${
             activeTab === 'bulk_price_update'
@@ -959,6 +994,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
         >
           <ShoppingBag className="w-4 h-4" />
           Pedidos Finalizados ({orders.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('quick_buy_link')}
+          className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 cursor-pointer transition-colors border-b-2 whitespace-nowrap ${
+            activeTab === 'quick_buy_link'
+              ? 'border-emerald-600 text-emerald-700'
+              : 'border-transparent text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <OfficialWhatsAppIcon className="w-4 h-4 text-[#25D366]" />
+          Enlace Compra Rápida
         </button>
 
         <button
@@ -1595,6 +1642,22 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
         <BulkPriceUpdate
           products={products}
           onProductsUpdated={loadData}
+        />
+      )}
+
+      {/* TAB 5: ESTADÍSTICAS DE VISITAS & TRÁFICO */}
+      {activeTab === 'analytics' && (
+        <AnalyticsDashboard />
+      )}
+
+      {/* TAB 6: ENLACE COMPRA RÁPIDA (WHATSAPP) */}
+      {activeTab === 'quick_buy_link' && (
+        <QuickBuyLinkManager
+          orders={orders}
+          onViewOrder={(ord) => {
+            setSelectedOrder(ord);
+            setActiveTab('orders');
+          }}
         />
       )}
 

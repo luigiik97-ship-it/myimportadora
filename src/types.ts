@@ -164,3 +164,55 @@ export interface Category {
 }
 
 export type ViewMode = 'home' | 'category' | 'product_detail' | 'cart' | 'checkout' | 'confirmation' | 'admin' | 'quick_buy' | 'info';
+
+// ---------------- ANALYTICS & VISIT STATS TYPES ---------------- //
+export interface SiteVisit {
+  id: string;
+  visitorId: string;
+  sessionId: string;
+  timestamp: string; // ISO string
+  path: string;
+  pageTitle?: string;
+  referrer: string;
+  source: string; // "Directo" | "Google" | "Instagram" | "WhatsApp" | "Facebook" | "TikTok" | "Otro"
+  device: 'mobile' | 'desktop' | 'tablet';
+  isNewVisitor: boolean; // true if first time visitor
+  isNewSession: boolean; // true if new visit/session (not reload)
+}
+
+export interface PageStat {
+  path: string;
+  title: string;
+  views: number;
+  uniqueVisitors: number;
+  percentage: number;
+}
+
+export interface SourceStat {
+  source: string;
+  visits: number;
+  percentage: number;
+}
+
+export interface DayStat {
+  date: string; // YYYY-MM-DD
+  displayDate: string; // "09 Sep"
+  visits: number;
+  uniqueVisitors: number;
+  pageViews: number;
+}
+
+export interface AnalyticsMetrics {
+  totalVisits: number;
+  todayVisits: number;
+  weekVisits: number;
+  monthVisits: number;
+  yearVisits: number;
+  uniqueVisitors: number;
+  returningVisits: number;
+  totalPageViews: number;
+  topPages: PageStat[];
+  trafficSources: SourceStat[];
+  dailyEvolution: DayStat[];
+  deviceBreakdown: { mobile: number; desktop: number; tablet: number };
+}
