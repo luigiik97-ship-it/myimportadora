@@ -968,6 +968,13 @@ export default function App() {
             setCurrentUser(null);
             setIsAccountModalOpen(false);
           }}
+          products={products}
+          cart={cart}
+          onUpdateCart={(newCart) => setCart(newCart)}
+          onNavigateToCart={() => {
+            setIsAccountModalOpen(false);
+            navigate('/carrito');
+          }}
         />
       )}
 

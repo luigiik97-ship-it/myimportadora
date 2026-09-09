@@ -87,12 +87,20 @@ export const generateUniqueToken = (): string => {
 };
 
 /**
- * Construye la URL completa del enlace
+ * Construye la URL completa del enlace, asegurando compatibilidad pública en cualquier navegador o móvil
  */
 export const buildQuickBuyUrl = (customToken?: string, origin?: string): string => {
   const config = getQuickBuyLinkConfig();
   const token = customToken || config.token;
-  const baseUrl = origin || (typeof window !== 'undefined' ? window.location.origin : '');
+  let baseUrl = origin || (typeof window !== 'undefined' ? window.location.origin : '');
+
+  // Si la URL actual es el dominio privado de desarrollo de AI Studio (ais-dev-),
+  // convertir automáticamente al dominio público compartido (ais-pre-)
+  // para que cualquier usuario o navegador (móvil, incógnito, desktop) pueda abrirlo sin requerir login ni dar error 403.
+  if (baseUrl.includes('ais-dev-')) {
+    baseUrl = baseUrl.replace('ais-dev-', 'ais-pre-');
+  }
+
   const cleanBase = baseUrl.replace(/\/+$/, '');
   return `${cleanBase}/compra-rapida?${config.paramName || 'cr'}=${encodeURIComponent(token)}`;
 };
@@ -154,6 +162,57 @@ export const recordQuickBuyOrderPlaced = (): void => {
 };
 
 /**
+ * Número telefónico oficial de WhatsApp de la importadora (WhatsApp Business)
+ */
+export const DEFAULT_WHATSAPP_PHONE = '5491166904678';
+
+/**
+ * Resuelve y normaliza el número de WhatsApp a partir de una URL o cadena configurada.
+ * Si detecta el enlace corto conocido de la empresa (TSF5H4YUIQJOC1), lo mapea al número telefónico real (5491166904678).
+ */
+export const resolveWhatsAppPhone = (inputUrlOrPhone?: string): string => {
+  if (!inputUrlOrPhone) return DEFAULT_WHATSAPP_PHONE;
+
+  const trimmed = inputUrlOrPhone.trim();
+
+  // El shortcode /message/TSF5H4YUIQJOC1 es el enlace de WhatsApp Business de MY Importadora, cuyo número es 5491166904678
+  if (trimmed.includes('TSF5H4YUIQJOC1')) {
+    return DEFAULT_WHATSAPP_PHONE;
+  }
+
+  // Extraer cualquier secuencia de dígitos
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length >= 8) {
+    if (digits.startsWith('549')) return digits;
+    if (digits.startsWith('54')) return `549${digits.slice(2)}`;
+    if (digits.startsWith('11') && digits.length === 10) return `549${digits}`;
+    if (digits.startsWith('911') && digits.length === 11) return `54${digits}`;
+    return digits;
+  }
+
+  return DEFAULT_WHATSAPP_PHONE;
+};
+
+/**
+ * Construye la URL oficial y universal de WhatsApp con el mensaje codificado correctamente.
+ * Compatible al 100% con Android, iPhone (iOS Safari / Universal Links), Windows, Mac y WhatsApp Web.
+ * Evita la pérdida del parámetro de texto (?text=) que provocaba el enlace corto /message/TSF5H4YUIQJOC1.
+ */
+export const buildQuickBuyWhatsAppUrl = (
+  message: string,
+  customWaDestination?: string
+): string => {
+  const config = getQuickBuyLinkConfig();
+  const destination = customWaDestination || config.whatsappUrl;
+  const phone = resolveWhatsAppPhone(destination);
+  const encodedText = encodeURIComponent(message);
+
+  // La API oficial de WhatsApp (api.whatsapp.com/send) es el estándar universal que abre directamente
+  // la conversación con el texto prellenado en todas las plataformas (móvil y web) sin descartar parámetros.
+  return `https://api.whatsapp.com/send?phone=${phone}&text=${encodedText}`;
+};
+
+/**
  * Formatea el mensaje de WhatsApp conforme a los requerimientos:
  * - Comienza con el número de pedido
  * - Sigue con el listado completo de productos y cantidades
@@ -176,29 +235,39 @@ export const buildQuickBuyWhatsAppMessage = (params: {
 
   const lines: string[] = [];
 
-  // 1. Inicia estrictamente con el número de pedido
+  // 1. Inicia estrictamente con el número de pedido correlativo único
   lines.push(`*Pedido #${orderNumber}*`);
   lines.push('');
 
   // 2. Listado completo de productos, variantes y cantidades
   lines.push('*Detalle de productos:*');
-  items.forEach((item) => {
-    const variantDesc = item.variantText ? ` (${item.variantText})` : '';
-    const itemTotal = item.totalPrice ?? item.unitPrice * item.quantity;
-    lines.push(`• ${item.quantity}x ${item.title}${variantDesc} - $ ${itemTotal.toLocaleString('es-AR')}`);
-  });
+  if (items && items.length > 0) {
+    items.forEach((item) => {
+      const variantDesc = item.variantText ? ` (${item.variantText})` : '';
+      const itemTotal = item.totalPrice ?? item.unitPrice * item.quantity;
+      lines.push(`• ${item.quantity}x ${item.title}${variantDesc} - $ ${Math.round(itemTotal).toLocaleString('es-AR')}`);
+    });
+  } else {
+    lines.push('• (Sin productos)');
+  }
   lines.push('');
 
-  // 3. Total general
-  lines.push(`*Total:* $ ${total.toLocaleString('es-AR')}`);
+  // 3. Total general del pedido
+  lines.push(`*Total:* $ ${Math.round(total).toLocaleString('es-AR')}`);
 
   // 4. Datos adicionales de método de entrega y pago
   if (deliveryOption) {
-    const deliveryText = deliveryOption === 'pickup' ? 'Retiro en local' : 'Envío a domicilio';
+    const deliveryText =
+      deliveryOption === 'pickup'
+        ? 'Retiro en el local (Flores)'
+        : 'Envío a coordinar';
     lines.push(`*Entrega:* ${deliveryText}`);
   }
   if (paymentMethod) {
-    const paymentText = paymentMethod === 'cash' ? 'Efectivo' : 'Transferencia Bancaria';
+    const paymentText =
+      paymentMethod === 'cash'
+        ? 'Efectivo en local'
+        : 'Transferencia Bancaria';
     lines.push(`*Método de pago:* ${paymentText}`);
   }
 

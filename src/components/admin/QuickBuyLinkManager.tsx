@@ -22,7 +22,9 @@ import {
   generateUniqueToken,
   buildQuickBuyUrl,
   QuickBuyLinkConfig,
-  buildQuickBuyWhatsAppMessage
+  buildQuickBuyWhatsAppMessage,
+  buildQuickBuyWhatsAppUrl,
+  resolveWhatsAppPhone
 } from '../../services/quickBuyLink';
 
 // Ícono Oficial SVG de WhatsApp (Vector fiel oficial)
@@ -274,6 +276,14 @@ export const QuickBuyLinkManager: React.FC<QuickBuyLinkManagerProps> = ({
               </button>
             </div>
           </div>
+
+          {/* Indicador de compatibilidad de enlace público */}
+          <div className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50/80 px-3 py-1.5 rounded-lg border border-emerald-100 mt-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              <strong>Enlace Público Universal:</strong> Compatible para abrir en cualquier navegador móvil (Safari, Chrome, etc.), ventana de incógnito o escritorio sin requerir login ni arrojar error 403.
+            </span>
+          </div>
         </div>
 
         {/* Opciones de Administración Avanzada (Colapsable / Toggle) */}
@@ -321,7 +331,7 @@ export const QuickBuyLinkManager: React.FC<QuickBuyLinkManagerProps> = ({
                     className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#0058bb]"
                   />
                   <p className="text-[11px] text-gray-500 mt-1">
-                    Predeterminado: <code>https://wa.me/message/TSF5H4YUIQJOC1</code>
+                    Predeterminado: <code>https://wa.me/message/TSF5H4YUIQJOC1</code> (Número resuelto: <code>+{resolveWhatsAppPhone(whatsappUrlInput)}</code>)
                   </p>
                 </div>
               </div>
@@ -433,9 +443,22 @@ export const QuickBuyLinkManager: React.FC<QuickBuyLinkManagerProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-[11px] text-gray-500">
-            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>El pedido se guarda inmediatamente en el sistema antes de abrir WhatsApp.</span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
+            <div className="flex items-center gap-2 text-[11px] text-gray-500">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>El pedido se guarda inmediatamente en el sistema antes de abrir WhatsApp.</span>
+            </div>
+            <a
+              href={buildQuickBuyWhatsAppUrl(sampleMessage, config.whatsappUrl)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold transition-colors cursor-pointer border border-emerald-200 shrink-0 w-fit"
+              title="Abre WhatsApp en nueva pestaña con el mensaje de prueba codificado"
+            >
+              <OfficialWhatsAppIcon className="w-4 h-4 text-[#25D366]" />
+              <span>Probar en WhatsApp</span>
+              <ExternalLink className="w-3.5 h-3.5 text-emerald-600" />
+            </a>
           </div>
         </div>
       </div>

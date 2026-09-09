@@ -35,7 +35,8 @@ import {
   isQuickBuyCustomLinkActive,
   getQuickBuyLinkConfig,
   recordQuickBuyOrderPlaced,
-  buildQuickBuyWhatsAppMessage
+  buildQuickBuyWhatsAppMessage,
+  buildQuickBuyWhatsAppUrl
 } from '../services/quickBuyLink';
 import { getNextCorrelativeOrderNumber, saveOrder } from '../services/supabase';
 import { OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
@@ -497,15 +498,20 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         paymentMethod,
       });
 
-      // 7. Enlace de WhatsApp especificado por el usuario
-      const baseWaUrl = config.whatsappUrl || 'https://wa.me/message/TSF5H4YUIQJOC1';
-      const finalWaUrl = `${baseWaUrl}?text=${encodeURIComponent(whatsappMessage)}`;
+      // 7. Construir URL oficial de WhatsApp universal con codificación adecuada (Android, iPhone y WhatsApp Web)
+      const finalWaUrl = buildQuickBuyWhatsAppUrl(whatsappMessage, config.whatsappUrl);
 
-      // 8. Abrir WhatsApp en nueva pestaña
+      // 8. Abrir WhatsApp de forma segura y compatible con todos los navegadores y dispositivos
       try {
-        const win = window.open(finalWaUrl, '_blank');
-        if (!win) {
+        const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+        if (isMobile) {
+          // En móviles (Android / iPhone), window.location.href dispara de inmediato el universal link/app nativa
           window.location.href = finalWaUrl;
+        } else {
+          const win = window.open(finalWaUrl, '_blank', 'noopener,noreferrer');
+          if (!win || win.closed || typeof win.closed === 'undefined') {
+            window.location.href = finalWaUrl;
+          }
         }
       } catch (e) {
         window.location.href = finalWaUrl;
