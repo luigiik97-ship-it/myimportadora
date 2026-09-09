@@ -729,14 +729,14 @@ export const AccountModal: React.FC<AccountModalProps> = ({
               </p>
 
               {/* Lista de productos agregados */}
-              {reorderResult.addedItems.length > 0 && (
+              {(reorderResult.addedItems || []).length > 0 && (
                 <div className="space-y-2">
                   <div className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
                     <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Agregados al carrito ({reorderResult.totalUnitsAdded} unid.)</span>
                   </div>
                   <div className="max-h-32 overflow-y-auto space-y-1.5 pr-1">
-                    {reorderResult.addedItems.map((item, idx) => (
+                    {(reorderResult.addedItems || []).map((item, idx) => (
                       <div
                         key={idx}
                         className="text-xs bg-emerald-50/60 border border-emerald-100 text-emerald-900 rounded-lg p-2 flex items-center justify-between gap-2"
@@ -759,7 +759,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
               )}
 
               {/* Lista de productos no disponibles */}
-              {reorderResult.unavailableItems.length > 0 && (
+              {(reorderResult.unavailableItems || []).length > 0 && (
                 <div className="space-y-2">
                   <div className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
                     <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />

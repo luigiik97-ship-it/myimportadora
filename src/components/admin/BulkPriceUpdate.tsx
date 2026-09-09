@@ -627,7 +627,7 @@ export const BulkPriceUpdate: React.FC<BulkPriceUpdateProps> = ({
                       {hasVariants ? (
                         <span className="inline-flex items-center gap-1 bg-purple-50 text-purple-700 font-semibold px-2 py-0.5 rounded text-[10px]">
                           <Layers className="w-3 h-3" />
-                          {variantTypes.reduce((acc, vt) => acc + vt.options.length, 0)} opciones
+                          {variantTypes.reduce((acc, vt) => acc + (vt.options || []).length, 0)} opciones
                         </span>
                       ) : (
                         <span className="text-[10px] text-gray-400">Sin variantes</span>

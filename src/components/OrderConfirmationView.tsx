@@ -14,6 +14,8 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
   const [copiedAlias, setCopiedAlias] = useState(false);
   const [copiedCvu, setCopiedCvu] = useState(false);
 
+  const safeItems = Array.isArray(order?.items) ? order.items : [];
+
   const handleCopyAlias = () => {
     navigator.clipboard.writeText('hola.retiro');
     setCopiedAlias(true);
@@ -28,7 +30,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
 
   // Build WhatsApp Message URL
   const buildWhatsAppUrl = () => {
-    const itemsSummary = order.items
+    const itemsSummary = safeItems
       .map((i) => {
         const variantSuffix = i.variantText ? `, ${i.variantText}` : '';
         const pricingSuffix = ` (${i.isWholesale ? 'mayorista' : 'minorista'})`;
@@ -263,12 +265,12 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
             Resumen de productos
           </h3>
           <span className="text-xs sm:text-sm text-gray-500 font-medium">
-            {order.items.length} {order.items.length === 1 ? 'producto' : 'productos'}
+            {safeItems.length} {safeItems.length === 1 ? 'producto' : 'productos'}
           </span>
         </div>
 
         <div className="divide-y divide-gray-100">
-          {order.items.map((item) => {
+          {safeItems.map((item) => {
             const variantSuffix = item.variantText ? `, ${item.variantText}` : '';
             const pricingSuffix = ` (${item.isWholesale ? 'mayorista' : 'minorista'})`;
             const fullItemLabel = `${item.quantity}x ${item.title}${variantSuffix}${pricingSuffix}`;

@@ -31,6 +31,7 @@ import {
   isEmailJsConfigured,
   sendOrderEmails,
 } from '../services/emailjs';
+import { OptimizationResult } from '../utils/imageOptimizer';
 import { EmailTemplateManager } from './admin/EmailTemplateManager';
 import { AnalyticsDashboard } from './admin/AnalyticsDashboard';
 import { QuickBuyLinkManager, OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
@@ -107,7 +108,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [imageInputUrl, setImageInputUrl] = useState('');
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{
+    current: number;
+    total: number;
+    stats?: OptimizationResult;
+  } | null>(null);
+  const [lastOptimizationSummary, setLastOptimizationSummary] = useState<string | null>(null);
 
   // Additional image & reviews states
   const [additionalImageInputUrl, setAdditionalImageInputUrl] = useState('');
@@ -172,15 +178,37 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
       loadData();
     }
 
-    const handleOrdersUpdated = () => {
+    const handleOrdersUpdated = (event?: any) => {
+      // Optimistic update if order is included in the event detail
+      if (event?.detail?.order) {
+        const incomingOrder = event.detail.order as Order;
+        setOrders((prev) => {
+          const exists = prev.some((o) => o.id === incomingOrder.id || o.orderNumber === incomingOrder.orderNumber);
+          if (exists) {
+            return prev.map((o) => (o.id === incomingOrder.id || o.orderNumber === incomingOrder.orderNumber ? incomingOrder : o));
+          }
+          return [incomingOrder, ...prev];
+        });
+      }
+
       fetchOrders().then((ords) => {
         setOrders(ords);
       });
     };
 
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'my_commerce_orders') {
+        fetchOrders().then((ords) => {
+          setOrders(ords);
+        });
+      }
+    };
+
     window.addEventListener('my_commerce_orders_updated', handleOrdersUpdated);
+    window.addEventListener('storage', handleStorageChange);
     return () => {
       window.removeEventListener('my_commerce_orders_updated', handleOrdersUpdated);
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, [isAuthenticated]);
 
@@ -499,14 +527,26 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
     setUploadProgress({ current: 1, total: filesArray.length });
 
     try {
-      const uploadedUrls = await uploadProductImages(filesArray, (current, total) => {
-        setUploadProgress({ current, total });
-      });
+      const isFirstCover = currentImages.length === 0;
+      const uploadedUrls = await uploadProductImages(
+        filesArray,
+        (current, total, stats) => {
+          setUploadProgress({ current, total, stats });
+        },
+        {
+          isFirstImageCover: isFirstCover,
+          areAllSecondary: !isFirstCover,
+        }
+      );
 
       setEditingProduct({
         ...editingProduct,
         images: [...currentImages, ...uploadedUrls],
       });
+      setLastOptimizationSummary(
+        `✓ ${uploadedUrls.length} ${uploadedUrls.length === 1 ? 'imagen procesada y optimizada' : 'imágenes procesadas y optimizadas'} automáticamente en formato WebP antes de guardar.`
+      );
+      setTimeout(() => setLastOptimizationSummary(null), 5000);
     } catch (err: any) {
       alert('Error subiendo imágenes a Supabase Storage: ' + err.message);
     } finally {
@@ -548,11 +588,23 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
     setUploadProgress({ current: 1, total: 1 });
 
     try {
-      const [uploadedUrl] = await uploadProductImages([file]);
+      const isCover = index === 0;
+      const [uploadedUrl] = await uploadProductImages(
+        [file],
+        (current, total, stats) => {
+          setUploadProgress({ current, total, stats });
+        },
+        {
+          isFirstImageCover: isCover,
+          areAllSecondary: !isCover,
+        }
+      );
       if (uploadedUrl) {
         const newImages = [...editingProduct.images];
         newImages[index] = uploadedUrl;
         setEditingProduct({ ...editingProduct, images: newImages });
+        setLastOptimizationSummary('✓ Imagen reemplazada y optimizada automáticamente en formato WebP.');
+        setTimeout(() => setLastOptimizationSummary(null), 4000);
       }
     } catch (err: any) {
       alert('Error reemplazando imagen: ' + err.message);
@@ -570,10 +622,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
 
     setIsUploadingAdditionalImage(true);
     try {
-      const uploadedUrl = await uploadProductImage(file);
+      const uploadedUrl = await uploadProductImage(file, { isCover: true, maxDimension: 1600 });
       if (uploadedUrl) {
         setEditingProduct({ ...editingProduct, additionalImage: uploadedUrl });
         setAdditionalImageInputUrl(uploadedUrl);
+        setLastOptimizationSummary('✓ Imagen adicional / banner optimizada automáticamente en formato WebP.');
+        setTimeout(() => setLastOptimizationSummary(null), 4000);
       }
     } catch (err: any) {
       alert('Error subiendo imagen adicional: ' + err.message);
@@ -1088,13 +1142,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                         <td className="p-3">
                           <div className="flex items-center gap-3">
                             <img
-                              src={prod.images[0] || 'https://via.placeholder.com/150'}
+                              src={(prod.images && prod.images[0]) || 'https://via.placeholder.com/150'}
                               alt={prod.title}
                               className="w-10 h-10 object-contain rounded border border-gray-200 p-0.5 bg-white shrink-0"
                             />
                             <div>
                               <p className="font-semibold text-gray-900 line-clamp-1 max-w-xs">{prod.title}</p>
-                              <span className="text-[10px] text-gray-400">{prod.images.length} fotos</span>
+                              <span className="text-[10px] text-gray-400">{(prod.images || []).length} fotos</span>
                             </div>
                           </div>
                         </td>
@@ -1981,16 +2035,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                   })}
                 </div>
 
-                {/* Upload Progress Notification */}
+                {/* Upload & Optimization Progress Notification */}
                 {isUploadingImage && (
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-1.5 text-xs text-blue-900">
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2 text-xs text-blue-900">
                     <div className="flex items-center justify-between font-semibold">
                       <span className="flex items-center gap-1.5">
                         <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#0058bb]" />
-                        Subiendo fotos a Supabase Storage...
+                        Optimizando y subiendo a Supabase Storage...
                       </span>
                       {uploadProgress && (
-                        <span>
+                        <span className="font-mono text-[11px] bg-blue-100 px-2 py-0.5 rounded text-blue-800">
                           {uploadProgress.current} de {uploadProgress.total}
                         </span>
                       )}
@@ -2005,6 +2059,34 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                         }}
                       />
                     </div>
+                    {uploadProgress?.stats && (
+                      <div className="text-[11px] text-blue-700 flex items-center justify-between font-mono bg-white/70 p-1.5 rounded border border-blue-100">
+                        <span>
+                          Foto #{uploadProgress.current}: {uploadProgress.stats.width}x{uploadProgress.stats.height}px ({uploadProgress.stats.format.toUpperCase()})
+                        </span>
+                        <span className="font-bold text-emerald-700">
+                          {uploadProgress.stats.originalSizeKB.toFixed(0)} KB ➔ {uploadProgress.stats.optimizedSizeKB.toFixed(0)} KB
+                          {uploadProgress.stats.savedPercent > 0 && ` (-${uploadProgress.stats.savedPercent.toFixed(0)}%)`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Last Optimization Success Notification */}
+                {lastOptimizationSummary && !isUploadingImage && (
+                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-900 font-semibold flex items-center justify-between animate-fade-in">
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                      {lastOptimizationSummary}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setLastOptimizationSummary(null)}
+                      className="text-emerald-600 hover:text-emerald-800 text-[10px] underline ml-2"
+                    >
+                      Cerrar
+                    </button>
                   </div>
                 )}
 
@@ -2055,6 +2137,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                       Agregar
                     </button>
                   </div>
+                </div>
+
+                <div className="p-2 bg-emerald-50/60 border border-emerald-200/80 rounded-lg text-[11px] text-emerald-900 space-y-0.5">
+                  <div className="flex items-center gap-1.5 font-bold text-emerald-800">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Optimización automática de imágenes activa</span>
+                  </div>
+                  <p className="text-[10px] text-emerald-700 leading-relaxed">
+                    Las fotos se redimensionan inteligentemente (1200-1600px) y se convierten a formato WebP de alta fidelidad (portada ~200-300 KB, secundarias ~150-250 KB) antes de guardarse en Supabase Storage. Sin pasos manuales, ahorrando hasta un 80% de almacenamiento y acelerando la tienda.
+                  </p>
                 </div>
 
                 <p className="text-[11px] text-gray-500 italic">

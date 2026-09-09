@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Product, CartItem, Category, SizeVariant, Order } from '../types';
+import { Product, CartItem, Category, SizeVariant, Order, UserProfile } from '../types';
 import {
   Search,
   Zap,
@@ -21,7 +21,8 @@ import {
   ArrowUp,
   X,
   ExternalLink,
-  ShieldCheck
+  ShieldCheck,
+  AlertCircle
 } from 'lucide-react';
 import {
   normalizeVariantTypes,
@@ -39,6 +40,7 @@ import {
   buildQuickBuyWhatsAppUrl
 } from '../services/quickBuyLink';
 import { getNextCorrelativeOrderNumber, saveOrder } from '../services/supabase';
+import { getLocalAuthUser, getLocalProfiles } from '../services/auth';
 import { OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
 
 export interface QuickBuyItem {
@@ -80,10 +82,11 @@ interface QuickBuyViewProps {
     targetQty: number
   ) => void;
   onRemoveCartItem: (id: string) => void;
-  onOpenCart: () => void;
+  onOpenCart: (options?: { deliveryOption?: 'pickup' | 'delivery'; paymentMethod?: 'transfer' | 'cash' }) => void;
   onProceedToCheckout: () => void;
   onGoToHome?: () => void;
   onSelectProductDetail?: (product: Product, selectedVariants?: Record<string, string>, selectedImage?: string) => void;
+  currentUser?: UserProfile | null;
   onSaveOrder?: (orderPayload: any) => Promise<Order>;
   onClearCart?: () => void;
 }
@@ -104,6 +107,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
   onProceedToCheckout,
   onGoToHome,
   onSelectProductDetail,
+  currentUser,
   onSaveOrder,
   onClearCart,
 }) => {
@@ -111,6 +115,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
     return isQuickBuyCustomLinkActive(typeof window !== 'undefined' ? window.location.search : '');
   });
   const [isSubmittingWhatsAppOrder, setIsSubmittingWhatsAppOrder] = useState(false);
+  const [orderSaveError, setOrderSaveError] = useState<string | null>(null);
   const [whatsAppSuccessModal, setWhatsAppSuccessModal] = useState<{
     orderNumber: string;
     waUrl: string;
@@ -454,14 +459,34 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         };
       });
 
-      // 3. Preparar payload de pedido para la base de datos
+      // 3. Resolver usuario: si está registrado, asociar pedido a su cuenta; si no, guardar usando el número de pedido sin solicitar registro
+      const activeUser =
+        currentUser ||
+        (typeof window !== 'undefined'
+          ? getLocalProfiles()[getLocalAuthUser()?.id || ''] || null
+          : null);
+
       const orderPayload = {
         orderNumber,
-        customerName: 'Cliente Compra Rápida (WhatsApp)',
-        customerEmail: '',
-        customerWhatsapp: 'WhatsApp',
+        userId: activeUser ? activeUser.id : undefined,
+        customerName: activeUser
+          ? (activeUser.fullName || activeUser.email?.split('@')[0] || `Cliente #${orderNumber}`)
+          : `Cliente #${orderNumber}`,
+        customerEmail: activeUser?.email || '',
+        customerWhatsapp: activeUser?.phone || 'WhatsApp',
         deliveryOption,
-        shippingMethodName: deliveryOption === 'pickup' ? 'Retiro en local' : 'Envío a coordinar por WhatsApp',
+        shippingMethodName: deliveryOption === 'pickup' ? 'Retiro en local (Compra Rápida WhatsApp)' : 'Envío a coordinar por WhatsApp',
+        deliveryAddress: activeUser?.street
+          ? {
+              street: activeUser.street || '',
+              number: activeUser.streetNumber || '',
+              floor: activeUser.floor || '',
+              city: activeUser.city || '',
+              postalCode: activeUser.postalCode || '',
+              province: activeUser.province || '',
+              receiverName: activeUser.receiverName || activeUser.fullName || '',
+            }
+          : undefined,
         paymentMethod,
         items: processedItems,
         subtotal: cartCalculations.subtotal,
@@ -472,20 +497,35 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         status: 'pending_payment' as const,
       };
 
-      // 4. Registrar en la base de datos de inmediato para que figure en el panel admin
-      if (onSaveOrder) {
-        await onSaveOrder(orderPayload);
-      } else {
-        await saveOrder(orderPayload);
+      // 4. Registrar en la base de datos de inmediato para que figure en el panel admin con estado "Pendiente"
+      let savedOrder: Order | null = null;
+      try {
+        if (onSaveOrder) {
+          savedOrder = await onSaveOrder(orderPayload);
+        } else {
+          savedOrder = await saveOrder(orderPayload);
+        }
+      } catch (saveError) {
+        console.error('Error al guardar el pedido en la base de datos:', saveError);
+        savedOrder = null;
       }
 
-      // 5. Registrar métrica de uso del enlace
+      // 5. VALIDACIÓN CRÍTICA: Solo después de confirmar que el pedido fue guardado correctamente, abrir WhatsApp.
+      // Si el guardado falla, NO abrir WhatsApp y mostrar mensaje de error indicando que no se pudo registrar el pedido.
+      if (!savedOrder || (!savedOrder.id && !savedOrder.orderNumber)) {
+        setIsSubmittingWhatsAppOrder(false);
+        setOrderSaveError('No se pudo registrar el pedido en el sistema. Por favor, verifica tu conexión e inténtalo nuevamente.');
+        return;
+      }
+
+      // 6. Registrar métrica de uso del enlace
       recordQuickBuyOrderPlaced();
 
-      // 6. Construir mensaje formateado para WhatsApp (comienza con #pedido, sigue listado de productos y cantidades, y el total)
+      // 7. Construir mensaje formateado para WhatsApp (comienza con #pedido, sigue listado de productos, cantidades y el total)
       const config = getQuickBuyLinkConfig();
+      const confirmedOrderNumber = savedOrder.orderNumber || orderNumber;
       const whatsappMessage = buildQuickBuyWhatsAppMessage({
-        orderNumber,
+        orderNumber: confirmedOrderNumber,
         items: processedItems.map((p) => ({
           title: p.title,
           quantity: p.quantity,
@@ -498,10 +538,10 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         paymentMethod,
       });
 
-      // 7. Construir URL oficial de WhatsApp universal con codificación adecuada (Android, iPhone y WhatsApp Web)
+      // 8. Construir URL oficial de WhatsApp universal con codificación adecuada (Android, iPhone y WhatsApp Web)
       const finalWaUrl = buildQuickBuyWhatsAppUrl(whatsappMessage, config.whatsappUrl);
 
-      // 8. Abrir WhatsApp de forma segura y compatible con todos los navegadores y dispositivos
+      // 9. Abrir WhatsApp solo tras confirmar el guardado exitoso
       try {
         const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
         if (isMobile) {
@@ -517,21 +557,21 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         window.location.href = finalWaUrl;
       }
 
-      // 9. Limpiar carrito
+      // 10. Limpiar carrito
       if (onClearCart) {
         onClearCart();
       }
 
-      // 10. Mostrar confirmación visual interactiva
+      // 11. Mostrar confirmación visual interactiva
       setWhatsAppSuccessModal({
-        orderNumber,
+        orderNumber: confirmedOrderNumber,
         waUrl: finalWaUrl,
         itemsCount: totalCartCount,
         total: cartCalculations.subtotal,
       });
     } catch (err) {
       console.error('Error procesando pedido de compra rápida WhatsApp:', err);
-      alert('Ocurrió un inconveniente al registrar el pedido. Por favor intenta nuevamente.');
+      setOrderSaveError('No se pudo registrar el pedido. Por favor verifica tu conexión e intenta nuevamente.');
     } finally {
       setIsSubmittingWhatsAppOrder(false);
     }
@@ -1117,7 +1157,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
             <button
               type="button"
               id="quick-buy-view-cart-btn"
-              onClick={onOpenCart}
+              onClick={() => onOpenCart({ deliveryOption, paymentMethod })}
               className="bg-white hover:bg-gray-100 text-gray-800 font-bold text-xs sm:text-sm px-3 sm:px-4 py-3 sm:py-2.5 min-h-[42px] sm:min-h-[38px] rounded-xl border border-gray-300 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
             >
               <ShoppingCart className="w-4 h-4 text-[#0058bb]" />
@@ -1251,6 +1291,39 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
               <span className="text-xs text-gray-400 font-medium shrink-0">
                 Desliza o toca la ✕ para cerrar
               </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Error al Registrar Pedido (No abre WhatsApp si el guardado falla) */}
+      {orderSaveError && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 text-center shadow-2xl space-y-4 animate-scale-up border border-red-100">
+            <div className="w-16 h-16 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto border border-red-100 shadow-xs">
+              <AlertCircle className="w-9 h-9" />
+            </div>
+
+            <div>
+              <span className="inline-block px-3 py-1 bg-red-100 text-red-800 text-xs font-bold rounded-full uppercase tracking-wider mb-2">
+                Aviso del Sistema
+              </span>
+              <h3 className="text-xl font-black text-gray-900 font-['Montserrat']">
+                No se pudo registrar el pedido
+              </h3>
+              <p className="text-xs sm:text-sm text-gray-600 mt-2 leading-relaxed">
+                {orderSaveError}
+              </p>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setOrderSaveError(null)}
+                className="w-full bg-gray-900 hover:bg-black text-white font-bold text-sm py-3 px-4 rounded-xl transition-all cursor-pointer shadow-xs"
+              >
+                Entendido, intentar nuevamente
+              </button>
             </div>
           </div>
         </div>

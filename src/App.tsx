@@ -173,6 +173,15 @@ export default function App() {
     return 'cash'; // Default to cash for pickup
   });
 
+  // Track if user came from Compra Rápida with Retiro en local and Pago en efectivo
+  const [isFromQuickBuyCashPickup, setIsFromQuickBuyCashPickup] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('quick_buy_cash_pickup_cart') === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
+
   // Authentication & Account state
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -393,7 +402,7 @@ export default function App() {
           true
         );
 
-        const resolvedImage = selectedImage || product.images[0] || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
+        const resolvedImage = selectedImage || (product.images && product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
 
         const finalQty = maxAvailableStock > 0 ? Math.min(quantity, maxAvailableStock) : quantity;
 
@@ -422,7 +431,7 @@ export default function App() {
         selectedSizeVariant,
         true
       );
-      const resolvedImage = selectedImage || product.images[0] || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
+      const resolvedImage = selectedImage || (product.images && product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
       const finalQty = maxAvailableStock > 0 ? Math.min(quantity, maxAvailableStock) : quantity;
 
       let variantSummary = '';
@@ -526,7 +535,7 @@ export default function App() {
           undefined,
           true
         );
-        const resolvedImage = selectedImage || product.images[0] || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
+        const resolvedImage = selectedImage || (product.images && product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
         const newItem: CartItem = {
           id: itemId,
           productId: product.id,
@@ -672,7 +681,41 @@ export default function App() {
 
   const handleGoToCart = () => {
     setCartNotification(null);
-    navigate('/carrito');
+    setIsFromQuickBuyCashPickup(false);
+    try {
+      sessionStorage.removeItem('quick_buy_cash_pickup_cart');
+    } catch (e) {}
+    navigate('/carrito', {
+      state: {
+        fromQuickBuy: false,
+        isCashPickup: false,
+      },
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleGoToCartFromQuickBuy = (opts?: { deliveryOption?: 'pickup' | 'delivery'; paymentMethod?: 'transfer' | 'cash' }) => {
+    setCartNotification(null);
+    setLastShoppingView('quick_buy');
+    const effectiveDelivery = opts?.deliveryOption ?? deliveryOption;
+    const effectivePayment = opts?.paymentMethod ?? paymentMethod;
+    const isEligible = effectiveDelivery === 'pickup' && effectivePayment === 'cash';
+    setIsFromQuickBuyCashPickup(isEligible);
+    try {
+      if (isEligible) {
+        sessionStorage.setItem('quick_buy_cash_pickup_cart', 'true');
+      } else {
+        sessionStorage.removeItem('quick_buy_cash_pickup_cart');
+      }
+    } catch (e) {}
+    navigate('/carrito', {
+      state: {
+        fromQuickBuy: true,
+        deliveryOption: effectiveDelivery,
+        paymentMethod: effectivePayment,
+        isCashPickup: isEligible,
+      },
+    });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -807,6 +850,10 @@ export default function App() {
                 cartItems={cart}
                 onSelectProduct={handleSelectProduct}
                 onSelectCategory={(cat) => {
+                  setIsFromQuickBuyCashPickup(false);
+                  try {
+                    sessionStorage.removeItem('quick_buy_cash_pickup_cart');
+                  } catch (e) {}
                   setCurrentCategory(cat);
                   if (cat === 'Todo') {
                     navigate('/');
@@ -828,6 +875,7 @@ export default function App() {
                     handleGoHome();
                   }
                 }}
+                showCashEquivalent={isFromQuickBuyCashPickup}
               />
             }
           />
@@ -886,7 +934,7 @@ export default function App() {
                 onUpdateCartQuantity={handleUpdateCartQuantity}
                 onSetCartItemQuantity={handleSetCartItemQuantity}
                 onRemoveCartItem={handleRemoveCartItem}
-                onOpenCart={handleGoToCart}
+                onOpenCart={handleGoToCartFromQuickBuy}
                 onGoToHome={handleGoHome}
                 onProceedToCheckout={() => {
                   navigate('/checkout');
@@ -896,6 +944,7 @@ export default function App() {
                   setPreviousView('quick_buy');
                   handleSelectProduct(prod, variants, img);
                 }}
+                currentUser={currentUser}
                 onSaveOrder={handleSaveOrderToSupabaseAndEmail}
                 onClearCart={() => setCart([])}
               />

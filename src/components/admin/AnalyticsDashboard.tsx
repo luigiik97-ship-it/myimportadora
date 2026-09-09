@@ -55,7 +55,7 @@ export const AnalyticsDashboard: React.FC = () => {
 
   // Peak and average calculation for chart
   const chartSummary = useMemo(() => {
-    if (!metrics || !metrics.dailyEvolution.length) {
+    if (!metrics || !metrics.dailyEvolution || !metrics.dailyEvolution.length) {
       return { peakVisits: 0, peakDate: '', avgDaily: 0, totalPeriodVisits: 0 };
     }
     const days = metrics.dailyEvolution;

@@ -10,6 +10,11 @@ import {
   SPECS_VARIANT_TYPES_KEY,
 } from '../utils/variantHelpers';
 import { reconcileCategoriesWithProducts } from '../utils/categoryHelpers';
+import {
+  optimizeProductImage,
+  ImageOptimizationOptions,
+  OptimizationResult,
+} from '../utils/imageOptimizer';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -701,7 +706,7 @@ export const createProduct = async (product: Omit<Product, 'id'> & { id?: string
       console.log(`[VARIANT DEBUG - DB-RESPONSE] (createProduct) Respuesta del guardado en Supabase:`, result);
 
       if (result.success) {
-        console.log(`[Supabase] Producto ${newProduct.id} creado con éxito con ${newProduct.images.length} imágenes y ${currentVariantTypes.length} tipos de variante.`);
+        console.log(`[Supabase] Producto ${newProduct.id} creado con éxito con ${(newProduct.images || []).length} imágenes y ${(currentVariantTypes || []).length} tipos de variante.`);
       } else {
         console.warn('[Supabase] Advertencia al guardar producto:', result.error);
       }
@@ -736,7 +741,7 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
 
   const finalImages = updates.images !== undefined
     ? (Array.isArray(updates.images) ? updates.images.slice(0, 6) : [updates.images])
-    : (existingProduct ? existingProduct.images : []);
+    : (existingProduct && Array.isArray(existingProduct.images) ? existingProduct.images : []);
 
   const currentVariantTypes = updates.variantTypes !== undefined
     ? updates.variantTypes
@@ -802,7 +807,7 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
       if (updates.category !== undefined) dbPayload.category = updates.category;
       if (updates.subcategory !== undefined) dbPayload.subcategory = updates.subcategory;
       
-      if (updates.images !== undefined || finalImages.length > 0) {
+      if (updates.images !== undefined || (finalImages && finalImages.length > 0)) {
         dbPayload.images = finalImages;
         // Asignación directa a columnas image_1..image_6 y compatibilidad
         dbPayload.image_1 = finalImages[0] || null;
@@ -846,7 +851,7 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
       console.log(`[VARIANT DEBUG - DB-RESPONSE] (updateProduct) Respuesta recibida de Supabase:`, result);
 
       if (result.success) {
-        console.log(`[Supabase] Producto ${id} actualizado correctamente con ${finalImages.length} imágenes y ${currentVariantTypes.length} tipos de variante.`);
+        console.log(`[Supabase] Producto ${id} actualizado correctamente con ${(finalImages || []).length} imágenes y ${(currentVariantTypes || []).length} tipos de variante.`);
       } else {
         console.error('[Supabase] Error al actualizar producto en Supabase:', result.error);
       }
@@ -963,25 +968,46 @@ export const seedInitialProducts = async (): Promise<void> => {
   }
 };
 
-// ---------------- SUPABASE STORAGE (Image Upload) ---------------- //
+// ---------------- SUPABASE STORAGE (Image Upload con Optimización Automática) ---------------- //
 
-export const uploadProductImage = async (file: File): Promise<string> => {
-  console.log(`[VARIANT DEBUG - UPLOAD] Iniciando subida de archivo: "${file.name}" (${file.type || 'tipo desconocido'}, ${(file.size / 1024).toFixed(1)} KB)`);
+export interface UploadProductImageOptions extends ImageOptimizationOptions {
+  onOptimized?: (result: OptimizationResult) => void;
+}
+
+export const uploadProductImage = async (
+  file: File,
+  options?: UploadProductImageOptions
+): Promise<string> => {
+  console.log(`[IMAGE UPLOAD] Iniciando procesamiento de archivo: "${file.name}" (${file.type || 'desconocido'}, ${(file.size / 1024).toFixed(1)} KB)`);
+
+  // 1. Optimizar automáticamente la imagen (redimensionado inteligente 1200-1600px, compresión WebP, pesos óptimos)
+  const optimization = await optimizeProductImage(file, options);
+  const fileToUpload = optimization.file;
+
+  if (options?.onOptimized) {
+    options.onOptimized(optimization);
+  }
+
+  console.log(
+    `[IMAGE UPLOAD] Archivo listo para Supabase: "${fileToUpload.name}" ` +
+    `(${fileToUpload.type}, ${(fileToUpload.size / 1024).toFixed(1)} KB) ` +
+    `[Original: ${(file.size / 1024).toFixed(1)} KB, Reducción: ${optimization.savedPercent.toFixed(1)}%]`
+  );
 
   if (isSupabaseConfigured() && supabaseInstance) {
     try {
-      const fileExt = file.name.split('.').pop() || 'jpg';
+      const fileExt = fileToUpload.name.split('.').pop() || (fileToUpload.type === 'image/webp' ? 'webp' : 'jpg');
       const cleanExt = fileExt.toLowerCase().replace(/[^a-z0-9]/g, '');
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${cleanExt}`;
       const filePath = `products/${fileName}`;
 
-      console.log(`[VARIANT DEBUG - UPLOAD] Subiendo al bucket "product-images" en ruta: "${filePath}"`);
+      console.log(`[IMAGE UPLOAD] Subiendo al bucket "product-images" en ruta: "${filePath}"`);
       const { error: uploadError } = await supabaseInstance.storage
         .from('product-images')
-        .upload(filePath, file, {
-          cacheControl: '3600',
+        .upload(filePath, fileToUpload, {
+          cacheControl: '31536000',
           upsert: true,
-          contentType: file.type || 'image/jpeg'
+          contentType: fileToUpload.type || 'image/webp',
         });
 
       if (!uploadError) {
@@ -990,84 +1016,78 @@ export const uploadProductImage = async (file: File): Promise<string> => {
           .getPublicUrl(filePath);
 
         if (data?.publicUrl) {
-          console.log(`[VARIANT DEBUG - UPLOAD] ✓ Archivo subido con éxito. URL Pública generada:`, data.publicUrl);
+          console.log(`[IMAGE UPLOAD] ✓ Archivo optimizado subido con éxito. URL Pública:`, data.publicUrl);
           return data.publicUrl;
         } else {
-          console.warn('[VARIANT DEBUG - UPLOAD] Subida completada pero no se pudo obtener publicUrl.');
+          console.warn('[IMAGE UPLOAD] Subida completada pero no se pudo obtener publicUrl.');
         }
       } else {
-        console.warn('[VARIANT DEBUG - UPLOAD] Error en upload de Supabase Storage:', uploadError.message, uploadError);
+        console.warn('[IMAGE UPLOAD] Error en upload de Supabase Storage:', uploadError.message, uploadError);
       }
     } catch (e) {
-      console.warn('[VARIANT DEBUG - UPLOAD] Excepción al subir a Supabase storage:', e);
+      console.warn('[IMAGE UPLOAD] Excepción al subir a Supabase storage:', e);
     }
   } else {
-    console.warn('[VARIANT DEBUG - UPLOAD] Supabase no está configurado, usando fallback base64 local.');
+    console.warn('[IMAGE UPLOAD] Supabase no está configurado o falló, usando archivo optimizado en almacenamiento local.');
   }
 
-  // Fallback: Convert and compress image using Canvas to avoid localStorage quota exhaustion
+  // Fallback: Convertir el archivo ya optimizado a DataURL
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          const maxDim = 800;
-          let width = img.width;
-          let height = img.height;
-
-          if (width > maxDim || height > maxDim) {
-            if (width > height) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            } else {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            // Export compressed JPEG (0.75 quality is ~40-60KB vs 5-10MB original)
-            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.75);
-            console.log(`[VARIANT DEBUG - UPLOAD] ✓ Imagen comprimida localmente (DataURL length: ${compressedBase64.length})`);
-            resolve(compressedBase64);
-            return;
-          }
-        } catch (canvasErr) {
-          console.warn('[Image] Fallback a imagen original:', canvasErr);
-        }
-        resolve(reader.result as string);
-      };
-      img.onerror = () => resolve(reader.result as string);
-      img.src = e.target?.result as string;
+    reader.onload = () => {
+      resolve(reader.result as string);
     };
-    reader.onerror = error => reject(error);
-    reader.readAsDataURL(file);
+    reader.onerror = (error) => reject(error);
+    reader.readAsDataURL(fileToUpload);
   });
 };
 
+export interface UploadProductImagesOptions {
+  isFirstImageCover?: boolean;
+  areAllSecondary?: boolean;
+  onProgress?: (current: number, total: number, stats?: OptimizationResult) => void;
+}
+
 export const uploadProductImages = async (
   files: File[],
-  onProgress?: (current: number, total: number) => void
+  onProgress?: (current: number, total: number, stats?: OptimizationResult) => void,
+  options?: {
+    isFirstImageCover?: boolean;
+    areAllSecondary?: boolean;
+  }
 ): Promise<string[]> => {
-  console.log(`\n================== [VARIANT DEBUG - UPLOAD INICIO] ==================`);
-  console.log(`[VARIANT DEBUG - UPLOAD] Cantidad de archivos a procesar: ${files.length}`);
+  if (!files || !Array.isArray(files) || files.length === 0) {
+    return [];
+  }
+  console.log(`\n================== [UPLOAD PRODUCT IMAGES - OPTIMIZACIÓN EN LOTE] ==================`);
+  console.log(`[UPLOAD PRODUCT IMAGES] Cantidad de archivos a procesar: ${files.length}`);
   const urls: string[] = [];
+
   for (let i = 0; i < files.length; i++) {
+    const isCover = options?.areAllSecondary
+      ? false
+      : options?.isFirstImageCover !== undefined
+      ? (options.isFirstImageCover ? i === 0 : false)
+      : i === 0;
+
+    let lastResult: OptimizationResult | undefined;
+    const url = await uploadProductImage(files[i], {
+      isCover,
+      onOptimized: (res) => {
+        lastResult = res;
+      },
+    });
+
     if (onProgress) {
-      onProgress(i + 1, files.length);
+      onProgress(i + 1, files.length, lastResult);
     }
-    const url = await uploadProductImage(files[i]);
-    console.log(`[VARIANT DEBUG - UPLOAD] [${i + 1}/${files.length}] URL resuelta:`, url);
+
+    console.log(`[UPLOAD PRODUCT IMAGES] [${i + 1}/${files.length}] URL resuelta:`, url);
     urls.push(url);
   }
-  console.log('[VARIANT DEBUG - UPLOAD] Array final de URLs generadas:', urls);
-  console.log(`================== [VARIANT DEBUG - UPLOAD FIN] ==================\n`);
+
+  console.log('[UPLOAD PRODUCT IMAGES] Array final de URLs generadas:', urls);
+  console.log(`================== [UPLOAD PRODUCT IMAGES - FIN] ==================\n`);
   return urls;
 };
 
@@ -1569,19 +1589,23 @@ export const reorderCategories = async (orderedCategories: Category[]): Promise<
 };
 
 export const uploadCategoryImage = async (file: File): Promise<string> => {
+  // Optimizar automáticamente imagen de categoría (1200px, WebP, ~150-250KB)
+  const optimization = await optimizeProductImage(file, { isCover: false, maxDimension: 1200 });
+  const fileToUpload = optimization.file;
+
   if (isSupabaseConfigured() && supabaseInstance) {
     try {
-      const fileExt = file.name.split('.').pop() || 'jpg';
+      const fileExt = fileToUpload.name.split('.').pop() || (fileToUpload.type === 'image/webp' ? 'webp' : 'jpg');
       const cleanExt = fileExt.toLowerCase().replace(/[^a-z0-9]/g, '');
       const fileName = `category-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${cleanExt}`;
       const filePath = `categories/${fileName}`;
 
       const { error: uploadError } = await supabaseInstance.storage
         .from('product-images')
-        .upload(filePath, file, {
-          cacheControl: '3600',
+        .upload(filePath, fileToUpload, {
+          cacheControl: '31536000',
           upsert: true,
-          contentType: file.type || 'image/jpeg',
+          contentType: fileToUpload.type || 'image/webp',
         });
 
       if (!uploadError) {
@@ -1597,7 +1621,7 @@ export const uploadCategoryImage = async (file: File): Promise<string> => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
     reader.onerror = reject;
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(fileToUpload);
   });
 };
 

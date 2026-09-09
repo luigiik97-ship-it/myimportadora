@@ -94,6 +94,10 @@ export const VariantManager: React.FC<VariantManagerProps> = ({
   const handleAddOption = (typeIndex: number) => {
     const updated = [...variantTypes];
     const targetType = updated[typeIndex];
+    if (!targetType) return;
+    if (!Array.isArray(targetType.options)) {
+      targetType.options = [];
+    }
     const newOptionId = `opt-${typeIndex}-${Date.now()}`;
     const newOption: VariantOption = {
       id: newOptionId,
@@ -143,7 +147,7 @@ export const VariantManager: React.FC<VariantManagerProps> = ({
 
     try {
       const filesArray = Array.from(files);
-      const uploadedUrls = await uploadProductImages(filesArray);
+      const uploadedUrls = await uploadProductImages(filesArray, undefined, { areAllSecondary: true });
 
       if (uploadedUrls.length > 0) {
         const currentImages = option.images || [];

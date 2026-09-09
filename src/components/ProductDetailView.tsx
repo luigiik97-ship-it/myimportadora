@@ -304,7 +304,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   };
 
   const handleAdd = () => {
-    const activeMainImage = activeImages[activeImageIndex] || activeImages[0] || product.images[0];
+    const activeMainImage = activeImages[activeImageIndex] || activeImages[0] || (product.images && product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
     onAddToCart(product, selectedColorName, selectedSizeVariantObj, quantity, activeMainImage, userFriendlySelectedVariants);
     setShowAddedFeedback(true);
     setHasAddedToCart(true);
@@ -312,7 +312,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   };
 
   const handleBuy = () => {
-    const activeMainImage = activeImages[activeImageIndex] || activeImages[0] || product.images[0];
+    const activeMainImage = activeImages[activeImageIndex] || activeImages[0] || (product.images && product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
     onBuyNow(product, selectedColorName, selectedSizeVariantObj, quantity, activeMainImage, userFriendlySelectedVariants);
   };
 
@@ -882,7 +882,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               className="bg-white rounded-xl border border-gray-100 sm:border-gray-200 p-2.5 sm:p-3.5 shadow-2xs sm:shadow-xs hover:shadow-md hover:border-[#0058bb]/40 transition-all cursor-pointer flex flex-col justify-between"
             >
               <div className="aspect-square w-full bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center mb-1.5 sm:mb-2">
-                <ImageWithSkeleton src={rel.images[0]} alt={rel.title} className="w-full h-full object-cover" />
+                <ImageWithSkeleton src={(rel.images && rel.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'} alt={rel.title} className="w-full h-full object-cover" />
               </div>
               <div>
                 <h4 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 mb-1">{rel.title}</h4>

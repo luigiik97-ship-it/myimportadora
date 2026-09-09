@@ -1,7 +1,8 @@
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import { CartItem, Product } from '../types';
-import { Trash2, Plus, Minus, ArrowRight, ArrowLeft, ShieldCheck, Truck, ShoppingBag, Info, CheckCircle2 } from 'lucide-react';
-import { getItemEffectiveNormalPrice, getSelectedVariantStock } from '../utils/variantHelpers';
+import { Trash2, Plus, Minus, ArrowRight, ArrowLeft, ShieldCheck, Truck, ShoppingBag, Info, CheckCircle2, Banknote } from 'lucide-react';
+import { getItemEffectiveNormalPrice, getItemEffectiveCashPrice, getSelectedVariantStock } from '../utils/variantHelpers';
 
 interface CartViewProps {
   cartItems: CartItem[];
@@ -11,6 +12,7 @@ interface CartViewProps {
   onContinueShopping: () => void;
   onSelectProduct?: (product: Product, selectedVariants?: Record<string, string>, selectedImage?: string) => void;
   onSelectCategory?: (category: string) => void;
+  showCashEquivalent?: boolean;
 }
 
 export const CartView: React.FC<CartViewProps> = ({
@@ -21,7 +23,16 @@ export const CartView: React.FC<CartViewProps> = ({
   onContinueShopping,
   onSelectProduct,
   onSelectCategory,
+  showCashEquivalent = false,
 }) => {
+  const location = useLocation();
+
+  const isCashEquivalentActive = Boolean(
+    showCashEquivalent ||
+    (location.state as any)?.isCashPickup ||
+    (typeof window !== 'undefined' && sessionStorage.getItem('quick_buy_cash_pickup_cart') === 'true')
+  );
+
   // 1. Calculate total quantity per category in cart
   const categoryQuantities: Record<string, number> = {};
   cartItems.forEach((item) => {
@@ -58,6 +69,16 @@ export const CartView: React.FC<CartViewProps> = ({
     const remainingToWholesale = Math.max(0, minQty - totalInCat);
     const availableStock = getSelectedVariantStock(item.product, item.selectedVariants || {});
 
+    // Cash price calculation based on store configuration (same logic as Checkout & QuickBuy)
+    const cashUnitPrice = getItemEffectiveCashPrice(
+      item.product,
+      item.selectedVariants,
+      item.selectedSizeVariant,
+      unitPrice,
+      isWholesale
+    );
+    const cashTotalPrice = cashUnitPrice * item.quantity;
+
     return {
       ...item,
       isWholesale,
@@ -65,6 +86,8 @@ export const CartView: React.FC<CartViewProps> = ({
       wholesaleUnitPrice,
       retailUnitPrice,
       totalPrice,
+      cashUnitPrice,
+      cashTotalPrice,
       savings,
       remainingToWholesale,
       minQty,
@@ -76,6 +99,7 @@ export const CartView: React.FC<CartViewProps> = ({
   const totalQuantity = processedItems.reduce((acc, i) => acc + i.quantity, 0);
   const subtotalProducts = processedItems.reduce((acc, i) => acc + i.totalPrice, 0);
   const totalSavings = processedItems.reduce((acc, i) => acc + i.savings, 0);
+  const cashSubtotalProducts = processedItems.reduce((acc, i) => acc + i.cashTotalPrice, 0);
 
   if (cartItems.length === 0) {
     return (
@@ -129,7 +153,7 @@ export const CartView: React.FC<CartViewProps> = ({
                   .filter(Boolean)
                   .join(' | ');
 
-            const itemDisplayImage = item.selectedImage || item.product.images[0] || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400';
+            const itemDisplayImage = item.selectedImage || (item.product.images && item.product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400';
 
             return (
               <div
@@ -312,6 +336,39 @@ export const CartView: React.FC<CartViewProps> = ({
                 <span className="text-xs text-gray-400 block">* sin envío</span>
               </div>
             </div>
+
+            {/* Equivalente en efectivo: solo si en Compra Rápida se eligió Retiro en local y Pago en efectivo */}
+            {isCashEquivalentActive && (
+              <div
+                id="cart-cash-equivalent-section"
+                className="mt-3 pt-2.5 border-t border-dashed border-gray-200 flex items-center justify-between text-emerald-800 bg-emerald-50/70 border border-emerald-100 rounded-lg px-3 py-2.5"
+              >
+                <div className="flex items-center gap-2">
+                  <Banknote className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <span className="text-xs sm:text-sm font-bold text-gray-900 block leading-tight">
+                      Total en efectivo
+                    </span>
+                    <span className="text-[10px] sm:text-xs text-emerald-700 font-medium block">
+                      Retiro en local
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span
+                    id="cart-cash-equivalent-amount"
+                    className="text-lg sm:text-xl font-bold text-emerald-700 font-['Montserrat'] block leading-tight"
+                  >
+                    $ {cashSubtotalProducts.toLocaleString('es-AR')}
+                  </span>
+                  {cashSubtotalProducts < subtotalProducts && (
+                    <span className="text-[10px] text-emerald-600 font-semibold block">
+                      Ahorro: $ {(subtotalProducts - cashSubtotalProducts).toLocaleString('es-AR')}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Action CTA Button - Enlarged full touch target */}

@@ -128,7 +128,8 @@ export const QuickBuyLinkManager: React.FC<QuickBuyLinkManagerProps> = ({
   };
 
   // Filtrar pedidos generados por Compra Rápida WhatsApp
-  const quickBuyOrders = orders.filter(
+  const safeOrders = Array.isArray(orders) ? orders : [];
+  const quickBuyOrders = safeOrders.filter(
     (o) =>
       o.customerName?.toLowerCase().includes('compra rápida') ||
       o.customerName?.toLowerCase().includes('whatsapp') ||

@@ -271,7 +271,7 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
                 {/* Thumbnail with object-cover and zero margin */}
                 <div className="relative aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
                   <ImageWithSkeleton
-                    src={product.images[0]}
+                    src={(product.images && product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'}
                     alt={product.title}
                     className={`w-full h-full object-cover ${
                       isOutOfStock ? 'opacity-60 grayscale-[30%]' : 'group-hover:scale-105'
