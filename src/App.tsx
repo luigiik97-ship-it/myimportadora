@@ -100,6 +100,10 @@ export default function App() {
   const isHome = location.pathname === '/';
   const isCategory = location.pathname.startsWith('/categoria');
   const isQuickBuy = location.pathname === '/compra-rapida' || location.pathname === '/quick-buy' || location.pathname === '/quick_buy';
+  const isCart = location.pathname === '/carrito' || location.pathname.startsWith('/carrito/');
+  const isCheckout = location.pathname === '/checkout' || location.pathname.startsWith('/checkout/');
+  const isConfirmation = location.pathname === '/confirmacion' || location.pathname.startsWith('/confirmacion/');
+  const isFooterHiddenOnMobile = isCart || isCheckout || isConfirmation;
   const isAdmin = location.pathname === '/admin';
   const isProductDetail = location.pathname.startsWith('/producto');
   const showTopBar = isHome || isCategory;
@@ -908,8 +912,13 @@ export default function App() {
         </Routes>
       </main>
 
-      {/* Footer (oculto en la página de compra rápida) */}
-      {!isQuickBuy && <Footer onNavigateToInfo={handleOpenInfoPage} />}
+      {/* Footer (oculto en compra rápida; en móvil oculto en carrito, finalizar compra y gracias por tu compra) */}
+      {!isQuickBuy && (
+        <Footer
+          onNavigateToInfo={handleOpenInfoPage}
+          className={isFooterHiddenOnMobile ? 'hidden md:block' : ''}
+        />
+      )}
 
       {/* Mobile-only Orientation Lock */}
       <MobileOrientationLock />

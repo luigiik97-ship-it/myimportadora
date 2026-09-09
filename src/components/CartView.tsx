@@ -142,13 +142,13 @@ export const CartView: React.FC<CartViewProps> = ({
                   <button
                     type="button"
                     onClick={() => onSelectProduct?.(item.product, item.selectedVariants, itemDisplayImage)}
-                    className="w-20 h-20 sm:w-20 sm:h-20 bg-white md:bg-gray-50 rounded-xl p-1 flex items-center justify-center shrink-0 border border-gray-200/90 cursor-pointer hover:border-blue-400 transition-all focus:outline-none focus:ring-2 focus:ring-[#0058bb]/20 group/thumb self-center shadow-2xs"
+                    className="w-20 h-20 sm:w-20 sm:h-20 bg-white md:bg-gray-50 rounded-xl overflow-hidden flex items-center justify-center shrink-0 border border-gray-200/90 cursor-pointer hover:border-blue-400 transition-all focus:outline-none focus:ring-2 focus:ring-[#0058bb]/20 group/thumb self-center shadow-2xs"
                     title={`Ver detalle de ${item.product.title}`}
                   >
                     <img
                       src={itemDisplayImage}
                       alt={item.product.title}
-                      className="w-full h-full object-contain group-hover/thumb:scale-105 transition-transform duration-200"
+                      className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-200"
                     />
                   </button>
 
@@ -339,7 +339,7 @@ export const CartView: React.FC<CartViewProps> = ({
           <div className="space-y-2 pt-2 border-t border-gray-100 text-xs sm:text-sm text-gray-500">
             <div className="flex items-center gap-2">
               <Truck className="w-4 h-4 text-gray-400 shrink-0" />
-              <span>Envíos a todo el país vía Correo Argentino.</span>
+              <span>Envíos a todo el país.</span>
             </div>
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />

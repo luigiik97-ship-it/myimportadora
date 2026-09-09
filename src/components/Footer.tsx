@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 
 export interface FooterProps {
   onNavigateToInfo?: (sectionId: string) => void;
+  className?: string;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onNavigateToInfo }) => {
+export const Footer: React.FC<FooterProps> = ({ onNavigateToInfo, className = '' }) => {
   const navigate = useNavigate();
 
   const handleLinkClick = (sectionId: string) => (e: React.MouseEvent) => {
@@ -18,7 +19,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateToInfo }) => {
   };
 
   return (
-    <footer id="main-footer" className="bg-[#f0eded] border-t border-[#e4e2e1] mt-8 sm:mt-16 text-gray-600 text-xs sm:text-sm py-6 sm:py-8">
+    <footer id="main-footer" className={`bg-[#f0eded] border-t border-[#e4e2e1] mt-8 sm:mt-16 text-gray-600 text-xs sm:text-sm py-6 sm:py-8 ${className}`}>
       <div className="max-w-[1240px] mx-auto px-2 sm:px-4">
         {/* Navigation Links */}
         <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-4 sm:gap-x-6 gap-y-2 mb-4 sm:mb-6 font-medium text-gray-700 text-xs sm:text-sm">

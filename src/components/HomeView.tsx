@@ -164,23 +164,51 @@ export const HomeView: React.FC<HomeViewProps> = ({
     }
   };
 
-  // Filter products by category and search query
-  const filteredProducts = products.filter((prod) => {
-    const matchesCategory =
-      currentCategory === 'Todo' ||
-      prod.category.toLowerCase() === currentCategory.toLowerCase() ||
-      (prod.subcategory && prod.subcategory.toLowerCase() === currentCategory.toLowerCase());
+  // Mapas de pesos aleatorios independientes para cada sector (estables por carga/visita, aleatorios en cada actualización/recarga)
+  const bestSellersRandomMap = useRef<Map<string, number>>(new Map());
+  const catalogRandomMap = useRef<Map<string, number>>(new Map());
 
-    const matchesSearch =
-      !searchQuery ||
-      prod.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      prod.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      prod.category.toLowerCase().includes(searchQuery.toLowerCase());
+  const getBestSellerWeight = (id: string) => {
+    if (!bestSellersRandomMap.current.has(id)) {
+      bestSellersRandomMap.current.set(id, Math.random());
+    }
+    return bestSellersRandomMap.current.get(id)!;
+  };
 
-    return matchesCategory && matchesSearch;
-  });
+  const getCatalogWeight = (id: string) => {
+    if (!catalogRandomMap.current.has(id)) {
+      catalogRandomMap.current.set(id, Math.random());
+    }
+    return catalogRandomMap.current.get(id)!;
+  };
 
-  const bestSellers = products.filter((p) => p.isBestSeller).slice(0, 4);
+  // 1. Más vendidos: productos destacados en orden aleatorio independiente
+  const bestSellers = useMemo(() => {
+    const sellers = products.filter((p) => p.isBestSeller);
+    return [...sellers]
+      .sort((a, b) => getBestSellerWeight(a.id) - getBestSellerWeight(b.id))
+      .slice(0, 4);
+  }, [products]);
+
+  // 2. Todos los productos: catálogo filtrado en orden aleatorio independiente
+  const filteredProducts = useMemo(() => {
+    const matched = products.filter((prod) => {
+      const matchesCategory =
+        currentCategory === 'Todo' ||
+        prod.category.toLowerCase() === currentCategory.toLowerCase() ||
+        (prod.subcategory && prod.subcategory.toLowerCase() === currentCategory.toLowerCase());
+
+      const matchesSearch =
+        !searchQuery ||
+        prod.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        prod.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        prod.category.toLowerCase().includes(searchQuery.toLowerCase());
+
+      return matchesCategory && matchesSearch;
+    });
+
+    return [...matched].sort((a, b) => getCatalogWeight(a.id) - getCatalogWeight(b.id));
+  }, [products, currentCategory, searchQuery]);
 
   // Get visible categories with independent images and dynamic product counts
   const storefrontCategories = useMemo(
@@ -293,7 +321,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
       {/* 2. Categorías principales (Fila horizontal desplazable) */}
       <section id="categorias-principales" className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="hidden">
           <div>
             <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 font-['Montserrat']">
               Categorías principales
@@ -324,7 +352,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         {/* Horizontal scrollable row */}
         <div
           ref={categoriesScrollRef}
-          className="flex items-stretch gap-2.5 sm:gap-4 overflow-x-auto pb-2 sm:pb-3 pt-1 no-scrollbar scroll-smooth snap-x touch-pan-x"
+          className="flex items-stretch gap-2.5 sm:gap-4 overflow-x-auto pb-2 sm:pb-3 pt-1 no-scrollbar scroll-smooth snap-x touch-auto"
         >
           {storefrontCategories.map((cat, idx) => (
             <button
@@ -561,45 +589,45 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </h3>
           <div className="space-y-2">
             {/* Uber moto */}
-            <div className="bg-[#1b1c1c] text-white p-3 rounded-lg flex items-center justify-between shadow-xs">
-              <div>
-                <span className="text-sm font-black tracking-tight block">Uber</span>
-                <span className="text-xs font-semibold text-gray-300">moto</span>
-              </div>
-              <div className="text-right">
-                <span className="text-xs text-gray-400 italic block">Llega</span>
-                <span className="text-sm font-bold text-white flex items-center gap-1">
-                  Hoy <ArrowRight className="w-3.5 h-3.5" />
-                </span>
-              </div>
+            <div className="rounded-lg overflow-hidden shadow-xs w-full aspect-[2038/512] bg-[#1d1d1b] flex items-center justify-center">
+              <img
+                src="https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/btgh.jpg"
+                alt="Uber Moto"
+                className="w-full h-full object-cover [image-rendering:-webkit-optimize-contrast] [image-rendering:high-quality] [transform:translateZ(0)] [backface-visibility:hidden]"
+                width={2038}
+                height={512}
+                loading="eager"
+                decoding="async"
+                referrerPolicy="no-referrer"
+              />
             </div>
 
             {/* Envíos flex */}
-            <div className="bg-[#a3e635] text-gray-900 p-3 rounded-lg flex items-center justify-between shadow-xs font-medium">
-              <div>
-                <span className="text-sm font-bold block">Envíos</span>
-                <span className="text-xs font-semibold">flex</span>
-              </div>
-              <div className="text-right">
-                <span className="text-xs text-gray-700 italic block">Llega</span>
-                <span className="text-sm font-bold text-gray-900 flex items-center gap-1">
-                  Mañana <ArrowRight className="w-3.5 h-3.5" />
-                </span>
-              </div>
+            <div className="rounded-lg overflow-hidden shadow-xs w-full aspect-[2038/512] bg-[#a5cb2a] flex items-center justify-center">
+              <img
+                src="https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/btgf.jpg"
+                alt="Envíos Flex"
+                className="w-full h-full object-cover [image-rendering:-webkit-optimize-contrast] [image-rendering:high-quality] [transform:translateZ(0)] [backface-visibility:hidden]"
+                width={2038}
+                height={512}
+                loading="eager"
+                decoding="async"
+                referrerPolicy="no-referrer"
+              />
             </div>
 
             {/* Correo Argentino */}
-            <div className="bg-[#facc15] text-gray-900 p-3 rounded-lg flex items-center justify-between shadow-xs">
-              <div>
-                <span className="text-sm font-bold block">Correo</span>
-                <span className="text-xs font-semibold">Argentino</span>
-              </div>
-              <div className="text-right">
-                <span className="text-xs text-gray-700 italic block">Llega</span>
-                <span className="text-sm font-bold text-gray-900 flex items-center gap-1">
-                  1 a 4 días <ArrowRight className="w-3.5 h-3.5" />
-                </span>
-              </div>
+            <div className="rounded-lg overflow-hidden shadow-xs w-full aspect-[2038/512] bg-[#fccc04] flex items-center justify-center">
+              <img
+                src="https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/bgt.jpg"
+                alt="Correo Argentino"
+                className="w-full h-full object-cover [image-rendering:-webkit-optimize-contrast] [image-rendering:high-quality] [transform:translateZ(0)] [backface-visibility:hidden]"
+                width={2038}
+                height={512}
+                loading="eager"
+                decoding="async"
+                referrerPolicy="no-referrer"
+              />
             </div>
           </div>
         </div>
@@ -627,7 +655,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               Direcciones
             </h3>
             <div className="space-y-2">
-              <div className="bg-[#e11d48] text-white p-3 rounded-lg flex items-start gap-3 shadow-xs">
+              <div className="bg-[#f24ba8] text-white p-3 rounded-lg flex items-start gap-3 shadow-xs">
                 <Store className="w-5 h-5 shrink-0 mt-0.5" />
                 <div>
                   <span className="text-xs font-bold uppercase tracking-wider block">Local</span>
