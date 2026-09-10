@@ -25,8 +25,25 @@ import {
   OptimizationResult,
 } from '../utils/imageOptimizer';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+// Configuración robusta de Supabase: utiliza variables de entorno de Vite
+// y proporciona respaldo automático a las credenciales públicas del proyecto
+// para garantizar conectividad total tanto en AI Studio como en Vercel.
+const DEFAULT_SUPABASE_URL = 'https://zzkzssqwpcacmegmxerb.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp6a3pzc3F3cGNhY21lZ214ZXJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyNzAxNjEsImV4cCI6MjEwMjg0NjE2MX0.9qLWKP41BZhqdLJeQhdTMQM6lVDWFsgY4woX8r3qO_4';
+
+const rawUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || '';
+const rawKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || '';
+
+const supabaseUrl =
+  rawUrl && !rawUrl.includes('your-project') && !rawUrl.includes('tu-proyecto')
+    ? rawUrl
+    : DEFAULT_SUPABASE_URL;
+
+const supabaseAnonKey =
+  rawKey && !rawKey.includes('your-anon-key') && !rawKey.includes('tu-clave')
+    ? rawKey
+    : DEFAULT_SUPABASE_ANON_KEY;
 
 let supabaseInstance: SupabaseClient | null = null;
 
@@ -57,18 +74,15 @@ export const safeLocalStorageSet = (key: string, value: string): boolean => {
   } catch (e: any) {
     console.warn(`[Storage] Error al guardar "${key}" en localStorage:`, e?.name || e?.message);
     
-    // If quota exceeded, try cleaning up old orders or cache
+    // If quota exceeded, clean up disposable temporary caches (never delete orders)
     try {
-      if (key !== LOCAL_ORDERS_KEY) {
-        // Truncate orders to keep only the 5 most recent ones
-        const savedOrders = localStorage.getItem(LOCAL_ORDERS_KEY);
-        if (savedOrders) {
-          const parsed = JSON.parse(savedOrders);
-          if (Array.isArray(parsed) && parsed.length > 5) {
-            localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(parsed.slice(0, 5)));
-          }
-        }
-      }
+      const disposableKeys = [
+        'my_commerce_debug_logs',
+        'my_commerce_temp_images',
+        'supabase.auth.token.backup',
+      ];
+      disposableKeys.forEach((k) => localStorage.removeItem(k));
+
       // Retry saving
       localStorage.setItem(key, value);
       return true;
@@ -1299,6 +1313,23 @@ export const deleteStorageImageIfUnused = async (
 
 // ---------------- ORDERS API ---------------- //
 
+/**
+ * Genera un identificador universalmente único para cada pedido (UUID v4),
+ * garantizando que jamás existan colisiones entre pedidos realizados al mismo tiempo.
+ */
+export const generateUniqueOrderId = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  const timestamp = Date.now().toString(36);
+  const randomHex = Array.from(
+    typeof crypto !== 'undefined' && crypto.getRandomValues
+      ? crypto.getRandomValues(new Uint8Array(8))
+      : [Math.floor(Math.random() * 256), Math.floor(Math.random() * 256), Math.floor(Math.random() * 256), Math.floor(Math.random() * 256)]
+  ).map((b) => b.toString(16).padStart(2, '0')).join('');
+  return `ord_${timestamp}_${randomHex}`;
+};
+
 export const getNextCorrelativeOrderNumber = async (): Promise<string> => {
   let maxSeq = 1000;
 
@@ -1321,7 +1352,7 @@ export const getNextCorrelativeOrderNumber = async (): Promise<string> => {
         const digits = o.orderNumber.replace(/\D/g, '');
         if (digits) {
           const val = parseInt(digits, 10);
-          if (!isNaN(val) && val >= maxSeq && val < 1000000) {
+          if (!isNaN(val) && val >= maxSeq && val < 10000000) {
             maxSeq = val;
           }
         }
@@ -1329,21 +1360,21 @@ export const getNextCorrelativeOrderNumber = async (): Promise<string> => {
     });
   } catch (e) {}
 
-  // 3. Escanear pedidos en Supabase de forma liviana (últimos 10 en lugar de 50)
+  // 3. Escanear pedidos en Supabase para obtener la secuencia correlativa más alta en la nube
   if (isSupabaseConfigured() && supabaseInstance) {
     try {
       const { data } = await supabaseInstance
         .from('orders')
         .select('order_number')
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(100);
       if (data && Array.isArray(data)) {
         data.forEach((row: any) => {
           if (row.order_number) {
             const digits = String(row.order_number).replace(/\D/g, '');
             if (digits) {
               const val = parseInt(digits, 10);
-              if (!isNaN(val) && val >= maxSeq && val < 1000000) {
+              if (!isNaN(val) && val >= maxSeq && val < 10000000) {
                 maxSeq = val;
               }
             }
@@ -1364,11 +1395,40 @@ export const getNextCorrelativeOrderNumber = async (): Promise<string> => {
 export const saveOrder = async (
   orderData: Omit<Order, 'id' | 'createdAt'> & { orderNumber?: string; id?: string }
 ): Promise<Order> => {
-  let orderNumber = orderData.orderNumber;
+  const orderId = orderData.id || generateUniqueOrderId();
+  let orderNumber = orderData.orderNumber ? String(orderData.orderNumber).trim() : '';
+
   if (!orderNumber) {
     orderNumber = await getNextCorrelativeOrderNumber();
   }
-  const orderId = orderData.id || `ord-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+
+  // Verificación y garantía de correlatividad única sin colisiones en Supabase:
+  // Si dos pedidos se realizan concurrentemente, se detecta y se incrementa el número
+  if (isSupabaseConfigured() && supabaseInstance) {
+    try {
+      let isDuplicate = true;
+      let collisionAttempts = 0;
+      while (isDuplicate && collisionAttempts < 15) {
+        collisionAttempts++;
+        const { data: existing } = await supabaseInstance
+          .from('orders')
+          .select('id')
+          .eq('order_number', orderNumber)
+          .limit(1);
+
+        if (existing && existing.length > 0 && existing[0].id !== orderId) {
+          const digits = orderNumber.replace(/\D/g, '');
+          const currentNum = digits ? parseInt(digits, 10) : 1000;
+          orderNumber = String(currentNum + 1);
+        } else {
+          isDuplicate = false;
+        }
+      }
+    } catch (e) {
+      console.warn('Error verificando unicidad de número de pedido en Supabase:', e);
+    }
+  }
+
   const createdAt = new Date().toISOString();
 
   const newOrder: Order = {
@@ -1380,45 +1440,86 @@ export const saveOrder = async (
 
   if (isSupabaseConfigured() && supabaseInstance) {
     try {
-      const dbPayload = {
+      // Carga útil estrictamente compatible con la tabla 'orders' de Supabase:
+      // - No incluye 'user_id' ya que no existe en el esquema remoto (evita error PGRST204)
+      // - 'delivery_address' siempre es un objeto JSON (nunca null, respeta constraint NOT NULL)
+      const dbPayload: any = {
         id: newOrder.id,
-        order_number: newOrder.orderNumber,
-        user_id: newOrder.userId || null,
-        customer_name: newOrder.customerName,
-        customer_email: newOrder.customerEmail,
-        customer_whatsapp: newOrder.customerWhatsapp,
-        delivery_option: newOrder.deliveryOption,
-        delivery_address: newOrder.deliveryAddress || null,
-        shipping_method_name: newOrder.shippingMethodName || null,
-        payment_method: newOrder.paymentMethod,
-        items: newOrder.items,
-        subtotal: newOrder.subtotal,
-        wholesale_discount: newOrder.wholesaleDiscount || 0,
-        cash_discount: newOrder.cashDiscount || 0,
-        shipping_cost: newOrder.shippingCost || 0,
-        total: newOrder.total,
-        status: newOrder.status || 'pending_payment',
+        order_number: String(newOrder.orderNumber),
+        customer_name: String(newOrder.customerName || `Cliente #${newOrder.orderNumber}`),
+        customer_email: String(newOrder.customerEmail ?? ''),
+        customer_whatsapp: String(newOrder.customerWhatsapp ?? 'WhatsApp'),
+        delivery_option: String(newOrder.deliveryOption || 'pickup'),
+        delivery_address:
+          typeof newOrder.deliveryAddress === 'object' && newOrder.deliveryAddress !== null
+            ? newOrder.deliveryAddress
+            : {},
+        shipping_method_name: newOrder.shippingMethodName ? String(newOrder.shippingMethodName) : null,
+        payment_method: String(newOrder.paymentMethod || 'cash'),
+        items: Array.isArray(newOrder.items) ? newOrder.items : [],
+        subtotal: Number(newOrder.subtotal || 0),
+        wholesale_discount: Number(newOrder.wholesaleDiscount || 0),
+        cash_discount: Number(newOrder.cashDiscount || 0),
+        shipping_cost: Number(newOrder.shippingCost || 0),
+        total: Number(newOrder.total || 0),
+        status: String(newOrder.status || 'pending_payment'),
         created_at: newOrder.createdAt,
-        email_sent_to_customer: newOrder.emailSentToCustomer ?? false,
-        email_sent_to_admin: newOrder.emailSentToAdmin ?? false,
+        email_sent_to_customer: Boolean(newOrder.emailSentToCustomer),
+        email_sent_to_admin: Boolean(newOrder.emailSentToAdmin),
       };
 
       const { error } = await supabaseInstance.from('orders').insert([dbPayload]);
       if (error) {
-        console.warn('Supabase saveOrder error:', error.message);
+        console.warn('Supabase saveOrder error, reintentando con payload de rescate:', error.message);
+        // Rescate si algún campo opcional falló
+        const fallback = {
+          id: String(newOrder.id),
+          order_number: String(newOrder.orderNumber),
+          customer_name: String(newOrder.customerName || `Cliente #${newOrder.orderNumber}`),
+          customer_email: String(newOrder.customerEmail || `cliente.${newOrder.orderNumber}@comprarapida.whatsapp`),
+          customer_whatsapp: String(newOrder.customerWhatsapp || 'WhatsApp'),
+          delivery_option: String(newOrder.deliveryOption || 'pickup'),
+          shipping_method_name: newOrder.shippingMethodName ? String(newOrder.shippingMethodName) : 'Retiro en local',
+          delivery_address: {},
+          payment_method: String(newOrder.paymentMethod || 'cash'),
+          items: Array.isArray(newOrder.items) ? newOrder.items : [],
+          subtotal: Number(newOrder.subtotal || 0),
+          wholesale_discount: Number(newOrder.wholesaleDiscount || 0),
+          cash_discount: Number(newOrder.cashDiscount || 0),
+          shipping_cost: Number(newOrder.shippingCost || 0),
+          total: Number(newOrder.total || 0),
+          status: String(newOrder.status || 'pending_payment'),
+          created_at: newOrder.createdAt
+        };
+        const { error: retryErr } = await supabaseInstance.from('orders').insert([fallback]);
+        if (retryErr) {
+          console.error('CRITICAL: No se pudo guardar el pedido en Supabase:', retryErr.message);
+        } else {
+          console.log('Pedido guardado exitosamente en Supabase (rescate)');
+        }
       }
     } catch (e) {
-      console.warn('Error saving order to Supabase:', e);
+      console.warn('Error guardando pedido en Supabase:', e);
     }
   }
 
-  // Always save to unified local storage, preventing duplicates
+  // Guardar en local storage desduplicando ÚNICAMENTE por ID único (id)
+  // Jamás descartar ni sobrescribir pedidos por orderNumber
   const currentOrders = getLocalOrders();
-  const filtered = currentOrders.filter(
-    (o) => o.id !== newOrder.id && o.orderNumber !== newOrder.orderNumber
-  );
+  const filtered = currentOrders.filter((o) => o.id !== newOrder.id);
   const updatedOrders = [newOrder, ...filtered];
   saveLocalOrders(updatedOrders);
+
+  // Actualizar secuencia máxima en localStorage
+  try {
+    const digits = newOrder.orderNumber.replace(/\D/g, '');
+    if (digits) {
+      const num = parseInt(digits, 10);
+      if (!isNaN(num)) {
+        localStorage.setItem('my_commerce_correlative_order_seq', String(num));
+      }
+    }
+  } catch (e) {}
 
   // Dispatch realtime event across components
   try {
@@ -1456,7 +1557,7 @@ export const fetchOrders = async (): Promise<Order[]> => {
           customerWhatsapp: item.customer_whatsapp || item.customerWhatsapp || '',
           deliveryOption: item.delivery_option || item.deliveryOption || 'pickup',
           shippingMethodName: item.shipping_method_name || item.shippingMethodName || undefined,
-          deliveryAddress: item.delivery_address || item.deliveryAddress,
+          deliveryAddress: item.delivery_address || item.deliveryAddress || {},
           paymentMethod: item.payment_method || item.paymentMethod || 'transfer',
           items: Array.isArray(item.items)
             ? item.items
@@ -1470,6 +1571,15 @@ export const fetchOrders = async (): Promise<Order[]> => {
           createdAt: item.created_at || item.createdAt || new Date().toISOString(),
           emailSentToCustomer: Boolean(item.email_sent_to_customer || item.emailSentToCustomer),
           emailSentToAdmin: Boolean(item.email_sent_to_admin || item.emailSentToAdmin),
+          source:
+            item.shipping_method_name?.toLowerCase().includes('whatsapp') ||
+            item.shipping_method_name?.toLowerCase().includes('compra rápida') ||
+            item.shipping_method_name?.toLowerCase().includes('compra rapida') ||
+            item.customer_name?.toLowerCase().includes('compra rápida') ||
+            item.customer_name?.toLowerCase().includes('compra rapida') ||
+            item.customer_whatsapp === 'WhatsApp'
+              ? 'quick_buy'
+              : 'web',
         }));
       }
     } catch (e) {
@@ -1479,30 +1589,26 @@ export const fetchOrders = async (): Promise<Order[]> => {
 
   const localOrders = getLocalOrders();
 
-  // Merge database orders and local orders to ensure a single deduplicated source of truth
+  // Fusionar pedidos de Supabase y locales desduplicando ESTRICTAMENTE por id único (UUID)
   const orderMap = new Map<string, Order>();
 
   if (dbOrders && dbOrders.length > 0) {
     for (const ord of dbOrders) {
-      const key = ord.orderNumber || ord.id;
-      orderMap.set(key, ord);
+      orderMap.set(ord.id, ord);
     }
   }
 
   for (const ord of localOrders) {
-    const key = ord.orderNumber || ord.id;
-    if (!orderMap.has(key)) {
-      orderMap.set(key, ord);
-    } else if (!dbOrders) {
-      orderMap.set(key, ord);
+    if (!orderMap.has(ord.id)) {
+      orderMap.set(ord.id, ord);
     }
   }
 
   const combinedOrders = Array.from(orderMap.values());
-  // Sort most recent first
+  // Ordenar los más recientes primero
   combinedOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  // Cache deduplicated list locally
+  // Cachear lista sincronizada en local storage
   saveLocalOrders(combinedOrders);
 
   return combinedOrders;

@@ -24,7 +24,8 @@ import {
   QuickBuyLinkConfig,
   buildQuickBuyWhatsAppMessage,
   buildQuickBuyWhatsAppUrl,
-  resolveWhatsAppPhone
+  resolveWhatsAppPhone,
+  isQuickBuyOrder
 } from '../../services/quickBuyLink';
 
 // Ícono Oficial SVG de WhatsApp (Vector fiel oficial)
@@ -127,15 +128,9 @@ export const QuickBuyLinkManager: React.FC<QuickBuyLinkManagerProps> = ({
     setTimeout(() => setSaveSuccess(false), 2000);
   };
 
-  // Filtrar pedidos generados por Compra Rápida WhatsApp
+  // Filtrar pedidos generados por Compra Rápida WhatsApp de forma exhaustiva
   const safeOrders = Array.isArray(orders) ? orders : [];
-  const quickBuyOrders = safeOrders.filter(
-    (o) =>
-      o.customerName?.toLowerCase().includes('compra rápida') ||
-      o.customerName?.toLowerCase().includes('whatsapp') ||
-      o.shippingMethodName?.toLowerCase().includes('whatsapp') ||
-      o.customerWhatsapp === 'WhatsApp'
-  );
+  const quickBuyOrders = safeOrders.filter(isQuickBuyOrder);
 
   // Mensaje de WhatsApp de ejemplo para la vista previa
   const sampleOrderNumber = '1001';

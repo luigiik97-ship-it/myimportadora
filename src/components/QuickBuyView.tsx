@@ -40,7 +40,7 @@ import {
   buildQuickBuyWhatsAppMessage,
   buildQuickBuyWhatsAppUrl
 } from '../services/quickBuyLink';
-import { getNextCorrelativeOrderNumber, saveOrder } from '../services/supabase';
+import { getNextCorrelativeOrderNumber, saveOrder, generateUniqueOrderId } from '../services/supabase';
 import { getLocalAuthUser, getLocalProfiles } from '../services/auth';
 import { OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
 
@@ -414,8 +414,10 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
     if (totalCartCount === 0 || isSubmittingWhatsAppOrder) return;
 
     setIsSubmittingWhatsAppOrder(true);
+    setOrderSaveError(null);
     try {
-      // 1. Generar número de pedido único y correlativo
+      // 1. Generar identificador universalmente único (UUID) y número de pedido correlativo
+      const orderId = generateUniqueOrderId();
       const orderNumber = await getNextCorrelativeOrderNumber();
 
       // 2. Mapear productos con precios resueltos
@@ -468,16 +470,29 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
           ? getLocalProfiles()[getLocalAuthUser()?.id || ''] || null
           : null);
 
+      const customerName = activeUser
+        ? (activeUser.fullName || activeUser.email?.split('@')[0] || `Cliente #${orderNumber}`)
+        : `Cliente #${orderNumber} (Compra Rápida)`;
+
+      const customerEmail = activeUser?.email || `cliente.${orderNumber}@comprarapida.whatsapp`;
+
+      const customerWhatsapp = activeUser?.phone || 'WhatsApp';
+
+      const shippingMethodName =
+        deliveryOption === 'pickup'
+          ? 'Retiro en local (Compra Rápida WhatsApp)'
+          : 'Envío a coordinar (Compra Rápida WhatsApp)';
+
       const orderPayload = {
+        id: orderId,
         orderNumber,
+        source: 'quick_buy',
         userId: activeUser ? activeUser.id : undefined,
-        customerName: activeUser
-          ? (activeUser.fullName || activeUser.email?.split('@')[0] || `Cliente #${orderNumber}`)
-          : `Cliente #${orderNumber}`,
-        customerEmail: activeUser?.email || '',
-        customerWhatsapp: activeUser?.phone || 'WhatsApp',
+        customerName,
+        customerEmail,
+        customerWhatsapp,
         deliveryOption,
-        shippingMethodName: deliveryOption === 'pickup' ? 'Retiro en local (Compra Rápida WhatsApp)' : 'Envío a coordinar por WhatsApp',
+        shippingMethodName,
         deliveryAddress: activeUser?.street
           ? {
               street: activeUser.street || '',
@@ -488,7 +503,13 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
               province: activeUser.province || '',
               receiverName: activeUser.receiverName || activeUser.fullName || '',
             }
-          : undefined,
+          : {
+              street: 'A coordinar por WhatsApp',
+              number: 'S/N',
+              city: 'A coordinar',
+              postalCode: '0000',
+              province: 'A coordinar',
+            },
         paymentMethod,
         items: processedItems,
         subtotal: cartCalculations.subtotal,
@@ -518,6 +539,11 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         setIsSubmittingWhatsAppOrder(false);
         setOrderSaveError('No se pudo registrar el pedido en el sistema. Por favor, verifica tu conexión e inténtalo nuevamente.');
         return;
+      }
+
+      // Notificar al sistema para refresco reactivo en panel de Administración
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('my_commerce_orders_updated', { detail: savedOrder }));
       }
 
       // 6. Registrar métrica de uso del enlace

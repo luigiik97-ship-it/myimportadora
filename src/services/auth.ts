@@ -366,9 +366,7 @@ export const fetchUserOrders = async (userId: string, email: string): Promise<Or
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (userId) {
-        query = query.or(`user_id.eq.${userId},customer_email.ilike.${cleanEmail}`);
-      } else {
+      if (cleanEmail) {
         query = query.ilike('customer_email', cleanEmail);
       }
 
@@ -385,7 +383,7 @@ export const fetchUserOrders = async (userId: string, email: string): Promise<Or
             customerWhatsapp: item.customer_whatsapp || item.customerWhatsapp || '',
             deliveryOption: item.delivery_option || item.deliveryOption || 'pickup',
             shippingMethodName: item.shipping_method_name || item.shippingMethodName || undefined,
-            deliveryAddress: item.delivery_address || item.deliveryAddress,
+            deliveryAddress: item.delivery_address || item.deliveryAddress || {},
             paymentMethod: item.payment_method || item.paymentMethod || 'transfer',
             items: Array.isArray(item.items)
               ? item.items
@@ -400,8 +398,7 @@ export const fetchUserOrders = async (userId: string, email: string): Promise<Or
             emailSentToCustomer: Boolean(item.email_sent_to_customer || item.emailSentToCustomer),
             emailSentToAdmin: Boolean(item.email_sent_to_admin || item.emailSentToAdmin),
           };
-          const key = ord.orderNumber || ord.id;
-          orderMap.set(key, ord);
+          orderMap.set(ord.id, ord);
         });
       }
     } catch (e) {
@@ -419,12 +416,11 @@ export const fetchUserOrders = async (userId: string, email: string): Promise<Or
           .filter(
             (o) =>
               (o.userId && o.userId === userId) ||
-              (o.customerEmail && o.customerEmail.toLowerCase() === cleanEmail)
+              (cleanEmail && o.customerEmail && o.customerEmail.toLowerCase() === cleanEmail)
           )
           .forEach((ord) => {
-            const key = ord.orderNumber || ord.id;
-            if (!orderMap.has(key)) {
-              orderMap.set(key, ord);
+            if (!orderMap.has(ord.id)) {
+              orderMap.set(ord.id, ord);
             }
           });
       }

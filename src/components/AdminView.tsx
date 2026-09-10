@@ -38,6 +38,7 @@ import { OptimizationResult } from '../utils/imageOptimizer';
 import { EmailTemplateManager } from './admin/EmailTemplateManager';
 import { AnalyticsDashboard } from './admin/AnalyticsDashboard';
 import { QuickBuyLinkManager, OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
+import { isQuickBuyOrder } from '../services/quickBuyLink';
 import {
   Lock,
   Package,
@@ -106,6 +107,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
   const [orderCustomDate, setOrderCustomDate] = useState('');
   const [orderPaymentFilter, setOrderPaymentFilter] = useState<'all' | 'transfer' | 'cash'>('all');
   const [orderDeliveryFilter, setOrderDeliveryFilter] = useState<'all' | 'pickup' | 'delivery'>('all');
+  const [orderOriginFilter, setOrderOriginFilter] = useState<'all' | 'quick_buy' | 'web'>('all');
 
   // Product edit/create modal
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -198,12 +200,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
 
     const handleOrdersUpdated = (event?: any) => {
       // Optimistic update if order is included in the event detail
-      if (event?.detail?.order) {
-        const incomingOrder = event.detail.order as Order;
+      const incomingOrder = (event?.detail?.order || event?.detail) as Order | undefined;
+      if (incomingOrder && (incomingOrder.id || incomingOrder.orderNumber)) {
         setOrders((prev) => {
           const exists = prev.some((o) => o.id === incomingOrder.id || o.orderNumber === incomingOrder.orderNumber);
           if (exists) {
-            return prev.map((o) => (o.id === incomingOrder.id || o.orderNumber === incomingOrder.orderNumber ? incomingOrder : o));
+            return prev.map((o) => (o.id === incomingOrder.id ? incomingOrder : o));
           }
           return [incomingOrder, ...prev];
         });
@@ -269,19 +271,23 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
   const filteredOrders = useMemo(() => {
     return orders
       .filter((order) => {
-        // 1. Search Query: Matches #orderNumber, customer name, email, whatsapp, or product title/variant
+        // 1. Search Query: Matches #orderNumber, customer name, email, whatsapp, shipping or product title/variant
         if (orderSearchTerm.trim()) {
           const query = orderSearchTerm.trim().toLowerCase();
           const matchesNumber = order.orderNumber?.toLowerCase().includes(query);
           const matchesName = order.customerName?.toLowerCase().includes(query);
           const matchesEmail = order.customerEmail?.toLowerCase().includes(query);
           const matchesWhatsapp = order.customerWhatsapp?.toLowerCase().includes(query);
+          const matchesShipping = order.shippingMethodName?.toLowerCase().includes(query);
+          const matchesOrigin =
+            (query.includes('rapida') || query.includes('rápida') || query.includes('whatsapp')) &&
+            isQuickBuyOrder(order);
           const matchesProducts = order.items?.some(
             (item) =>
               item.title?.toLowerCase().includes(query) ||
               item.variantText?.toLowerCase().includes(query)
           );
-          if (!matchesNumber && !matchesName && !matchesEmail && !matchesWhatsapp && !matchesProducts) {
+          if (!matchesNumber && !matchesName && !matchesEmail && !matchesWhatsapp && !matchesShipping && !matchesOrigin && !matchesProducts) {
             return false;
           }
         }
@@ -327,6 +333,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
           return false;
         }
 
+        // 6. Origin Filter (Compra Rápida WhatsApp vs Web)
+        if (orderOriginFilter !== 'all') {
+          const isQB = isQuickBuyOrder(order);
+          if (orderOriginFilter === 'quick_buy' && !isQB) return false;
+          if (orderOriginFilter === 'web' && isQB) return false;
+        }
+
         return true;
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -338,6 +351,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
     orderCustomDate,
     orderPaymentFilter,
     orderDeliveryFilter,
+    orderOriginFilter,
   ]);
 
   const hasActiveOrderFilters = Boolean(
@@ -345,7 +359,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
     orderStatusFilter !== 'all' ||
     orderDateFilter !== 'all' ||
     orderPaymentFilter !== 'all' ||
-    orderDeliveryFilter !== 'all'
+    orderDeliveryFilter !== 'all' ||
+    orderOriginFilter !== 'all'
   );
 
   const handleResetOrderFilters = () => {
@@ -355,7 +370,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
     setOrderCustomDate('');
     setOrderPaymentFilter('all');
     setOrderDeliveryFilter('all');
+    setOrderOriginFilter('all');
   };
+
+  const quickBuyOrdersCount = useMemo(() => {
+    return orders.filter(isQuickBuyOrder).length;
+  }, [orders]);
 
   // Categories loaded from Supabase for the selector dropdown
   const categoryOptions = useMemo(() => {
@@ -1233,7 +1253,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
           }`}
         >
           <OfficialWhatsAppIcon className="w-4 h-4 text-[#25D366]" />
-          Enlace Compra Rápida
+          Enlace Compra Rápida ({quickBuyOrdersCount})
         </button>
 
         <button
@@ -1433,10 +1453,22 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
       {activeTab === 'orders' && (
         <div className="space-y-4">
           {/* Header & Metric Summary */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-xs">
               <span className="text-[11px] font-semibold text-gray-500 block">Total Pedidos</span>
               <span className="text-xl font-bold text-gray-900">{orders.length}</span>
+            </div>
+            <div className="bg-emerald-50/80 p-3.5 rounded-xl border border-emerald-200 shadow-xs">
+              <span className="text-[11px] font-bold text-emerald-800 flex items-center gap-1">
+                <OfficialWhatsAppIcon className="w-3.5 h-3.5 text-[#25D366]" />
+                Compra Rápida
+              </span>
+              <div className="flex items-baseline justify-between mt-0.5">
+                <span className="text-xl font-bold text-emerald-900">{quickBuyOrdersCount}</span>
+                <span className="text-[11px] font-bold text-emerald-700">
+                  ${orders.filter(isQuickBuyOrder).reduce((acc, o) => acc + (o.total || 0), 0).toLocaleString('es-AR')}
+                </span>
+              </div>
             </div>
             <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-xs">
               <span className="text-[11px] font-semibold text-gray-500 block">Pendiente Pago</span>
@@ -1460,9 +1492,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
 
           {/* Search & Filter Toolbar */}
           <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs space-y-3">
-            <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+            <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between flex-wrap">
               {/* Search input */}
-              <div className="relative flex-1">
+              <div className="relative flex-1 min-w-[220px]">
                 <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   id="admin-orders-search"
@@ -1480,6 +1512,21 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                     ✕
                   </button>
                 )}
+              </div>
+
+              {/* Origin Filter (Compra Rápida WhatsApp vs Web) */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <OfficialWhatsAppIcon className="w-3.5 h-3.5 text-emerald-600" />
+                <select
+                  id="admin-orders-origin-filter"
+                  value={orderOriginFilter}
+                  onChange={(e) => setOrderOriginFilter(e.target.value as any)}
+                  className="text-xs rounded-lg border border-gray-300 py-2 px-2.5 bg-white text-gray-700 font-medium focus:outline-none focus:ring-1 focus:ring-[#0058bb]"
+                >
+                  <option value="all">Todos los orígenes</option>
+                  <option value="quick_buy">Compra Rápida (WhatsApp)</option>
+                  <option value="web">Tienda Web Estándar</option>
+                </select>
               </div>
 
               {/* Status Filter */}
@@ -1632,13 +1679,21 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                       return (
                         <tr key={order.id} className="hover:bg-gray-50/80 transition-colors">
                           <td className="p-3 font-bold text-[#0058bb]">
-                            <button
-                              onClick={() => setSelectedOrder(order)}
-                              className="hover:underline font-bold text-left cursor-pointer"
-                              title="Ver detalle del pedido"
-                            >
-                              #{order.orderNumber}
-                            </button>
+                            <div className="flex flex-col gap-0.5">
+                              <button
+                                onClick={() => setSelectedOrder(order)}
+                                className="hover:underline font-bold text-left cursor-pointer"
+                                title="Ver detalle del pedido"
+                              >
+                                #{order.orderNumber}
+                              </button>
+                              {isQuickBuyOrder(order) && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md w-fit">
+                                  <OfficialWhatsAppIcon className="w-2.5 h-2.5 text-[#25D366]" />
+                                  Compra Rápida
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="p-3 text-gray-500 whitespace-nowrap">
                             <div>{formattedDate}</div>
@@ -1651,16 +1706,29 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                             </div>
                           </td>
                           <td className="p-3 whitespace-nowrap">
-                            <a
-                              href={`https://wa.me/${order.customerWhatsapp.replace(/\D/g, '')}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-emerald-600 hover:underline font-semibold flex items-center gap-1"
-                              title="Abrir chat de WhatsApp"
-                            >
-                              <MessageSquare className="w-3 h-3" />
-                              {order.customerWhatsapp}
-                            </a>
+                            {order.customerWhatsapp && order.customerWhatsapp.replace(/\D/g, '').length > 5 ? (
+                              <a
+                                href={`https://wa.me/${order.customerWhatsapp.replace(/\D/g, '')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-emerald-600 hover:underline font-semibold flex items-center gap-1"
+                                title="Abrir chat de WhatsApp"
+                              >
+                                <MessageSquare className="w-3 h-3" />
+                                {order.customerWhatsapp}
+                              </a>
+                            ) : (
+                              <a
+                                href="https://wa.me/message/TSF5H4YUIQJOC1"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded text-[11px] font-bold inline-flex items-center gap-1"
+                                title="Abrir WhatsApp oficial de la tienda"
+                              >
+                                <OfficialWhatsAppIcon className="w-3 h-3 text-[#25D366]" />
+                                WhatsApp
+                              </a>
+                            )}
                           </td>
                           <td className="p-3">
                             {order.deliveryOption === 'pickup' ? (
@@ -2681,8 +2749,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
           <div className="bg-white rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-gray-200 pb-3">
               <div>
-                <h3 className="text-lg font-bold text-gray-900 font-['Montserrat'] flex items-center gap-2">
+                <h3 className="text-lg font-bold text-gray-900 font-['Montserrat'] flex items-center gap-2 flex-wrap">
                   <span>Pedido #{selectedOrder.orderNumber}</span>
+                  {isQuickBuyOrder(selectedOrder) && (
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2.5 py-0.5 rounded-full">
+                      <OfficialWhatsAppIcon className="w-3 h-3 text-[#25D366]" />
+                      Compra Rápida WhatsApp
+                    </span>
+                  )}
                 </h3>
                 <span className="text-xs text-gray-400">
                   {new Date(selectedOrder.createdAt).toLocaleString('es-AR', {
@@ -2729,7 +2803,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
 
             <div className="space-y-3 text-xs">
               {/* Customer & Payment Info */}
-              <div className="grid grid-cols-2 gap-3 bg-gray-50 p-3 rounded-lg border border-gray-100">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-gray-50 p-3 rounded-lg border border-gray-100">
                 <div>
                   <span className="text-gray-400 block">Cliente:</span>
                   <strong className="text-gray-900">{selectedOrder.customerName}</strong>
@@ -2740,20 +2814,46 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                 </div>
                 <div>
                   <span className="text-gray-400 block">WhatsApp:</span>
-                  <a
-                    href={`https://wa.me/${selectedOrder.customerWhatsapp.replace(/\D/g, '')}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-emerald-600 font-bold underline flex items-center gap-1"
-                  >
-                    <MessageSquare className="w-3 h-3" />
-                    {selectedOrder.customerWhatsapp}
-                  </a>
+                  {selectedOrder.customerWhatsapp && selectedOrder.customerWhatsapp.replace(/\D/g, '').length > 5 ? (
+                    <a
+                      href={`https://wa.me/${selectedOrder.customerWhatsapp.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-600 font-bold underline flex items-center gap-1"
+                    >
+                      <MessageSquare className="w-3 h-3" />
+                      {selectedOrder.customerWhatsapp}
+                    </a>
+                  ) : (
+                    <a
+                      href="https://wa.me/message/TSF5H4YUIQJOC1"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded text-xs font-bold inline-flex items-center gap-1"
+                      title="Abrir chat de WhatsApp oficial"
+                    >
+                      <OfficialWhatsAppIcon className="w-3 h-3 text-[#25D366]" />
+                      Chat WhatsApp
+                    </a>
+                  )}
                 </div>
                 <div>
                   <span className="text-gray-400 block">Medio de Pago:</span>
                   <strong className="text-gray-900">
                     {selectedOrder.paymentMethod === 'transfer' ? 'Transferencia Bancaria' : 'Efectivo'}
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-gray-400 block">Canal / Origen:</span>
+                  <strong className={isQuickBuyOrder(selectedOrder) ? "text-emerald-700 font-bold flex items-center gap-1" : "text-gray-900"}>
+                    {isQuickBuyOrder(selectedOrder) ? (
+                      <>
+                        <OfficialWhatsAppIcon className="w-3 h-3 text-[#25D366]" />
+                        Compra Rápida
+                      </>
+                    ) : (
+                      'Tienda Web'
+                    )}
                   </strong>
                 </div>
               </div>

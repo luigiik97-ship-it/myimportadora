@@ -134,6 +134,7 @@ export interface Order {
   createdAt: string;
   emailSentToCustomer?: boolean;
   emailSentToAdmin?: boolean;
+  source?: 'quick_buy' | 'web' | string;
 }
 
 export interface UserProfile {

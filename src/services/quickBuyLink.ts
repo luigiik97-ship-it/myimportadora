@@ -327,3 +327,32 @@ export const buildQuickBuyWhatsAppMessage = (params: {
 
   return lines.join('\n');
 };
+
+/**
+ * Detecta de forma exhaustiva si un pedido proviene de Compra Rápida (WhatsApp),
+ * analizando origen, método de envío, nombre del cliente, teléfono o email.
+ */
+export const isQuickBuyOrder = (order: any): boolean => {
+  if (!order) return false;
+  if (order.source === 'quick_buy' || order.source === 'quick_buy_whatsapp') return true;
+
+  const name = String(order.customerName || order.customer_name || '').toLowerCase();
+  const shipping = String(order.shippingMethodName || order.shipping_method_name || '').toLowerCase();
+  const phone = String(order.customerWhatsapp || order.customer_whatsapp || '').toLowerCase();
+  const email = String(order.customerEmail || order.customer_email || '').toLowerCase();
+
+  return (
+    shipping.includes('compra rápida') ||
+    shipping.includes('compra rapida') ||
+    shipping.includes('whatsapp') ||
+    name.includes('compra rápida') ||
+    name.includes('compra rapida') ||
+    name.includes('whatsapp') ||
+    email.includes('comprarapida') ||
+    phone === 'whatsapp' ||
+    phone.includes('whatsapp') ||
+    phone.includes('compra rápida') ||
+    phone.includes('compra rapida')
+  );
+};
+
