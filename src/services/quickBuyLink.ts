@@ -214,7 +214,7 @@ export const buildQuickBuyWhatsAppUrl = (
 
 /**
  * Formatea el mensaje de WhatsApp conforme a los requerimientos:
- * - Comienza con el número de pedido
+ * - Comienza estrictamente con el número de pedido correlativo único
  * - Sigue con el listado completo de productos y cantidades
  * - Incluye el total
  */
@@ -236,7 +236,7 @@ export const buildQuickBuyWhatsAppMessage = (params: {
   const lines: string[] = [];
 
   // 1. Inicia estrictamente con el número de pedido correlativo único
-  lines.push(`*Pedido #${orderNumber}*`);
+  lines.push(`*Pedido #${orderNumber} Hola buenas acabo de realizar un pedido por su pagina www.michy.ar*`);
   lines.push('');
 
   // 2. Listado completo de productos, variantes y cantidades
@@ -272,7 +272,89 @@ export const buildQuickBuyWhatsAppMessage = (params: {
   }
 
   lines.push('');
-  lines.push('Hola, te paso el pedido generado desde la tienda para coordinar el pago y la entrega. ¡Muchas gracias!');
+  lines.push('Adjunto el comprobante de pago para coordinar la entrega. ¡Muchas gracias!');
 
   return lines.join('\n');
+};
+
+export interface OrderWhatsAppDetails {
+  orderNumber: string;
+  items?: Array<{
+    title: string;
+    quantity: number;
+    variantText?: string;
+    unitPrice?: number;
+    totalPrice?: number;
+    isWholesale?: boolean;
+  }>;
+  total?: number;
+  paymentMethod?: string;
+  deliveryOption?: string;
+  shippingMethodName?: string;
+  shippingCost?: number;
+  customerName?: string;
+}
+
+/**
+ * Formatea el mensaje oficial de WhatsApp para pedidos de la tienda.
+ * Inicia estrictamente con el número de pedido correlativo único:
+ * *Pedido #<orderNumber> Hola buenas acabo de realizar un pedido por su pagina www.michy.ar*
+ */
+export const buildOrderWhatsAppMessage = (order: OrderWhatsAppDetails): string => {
+  const lines: string[] = [];
+
+  // Inicia estrictamente con el número de pedido correlativo único
+  lines.push(`*Pedido #${order.orderNumber} Hola buenas acabo de realizar un pedido por su pagina www.michy.ar*`);
+  lines.push('');
+
+  // Detalle de productos
+  if (order.items && order.items.length > 0) {
+    lines.push('*Detalle:*');
+    order.items.forEach((item) => {
+      const variantSuffix = item.variantText ? `, ${item.variantText}` : '';
+      const pricingSuffix = item.isWholesale !== undefined ? ` (${item.isWholesale ? 'mayorista' : 'minorista'})` : '';
+      const itemTotal = item.totalPrice ?? ((item.unitPrice || 0) * (item.quantity || 1));
+      lines.push(`• ${item.quantity}x ${item.title}${variantSuffix}${pricingSuffix} - $${Math.round(itemTotal).toLocaleString('es-AR')}`);
+    });
+    lines.push('');
+  }
+
+  if (order.total !== undefined) {
+    lines.push(`*Total:* $${Math.round(order.total).toLocaleString('es-AR')}`);
+  }
+
+  if (order.paymentMethod) {
+    const isCash = order.paymentMethod === 'cash' || String(order.paymentMethod).toLowerCase().includes('efectivo');
+    lines.push(`*Método de Pago:* ${isCash ? 'Efectivo en local' : 'Transferencia Bancaria'}`);
+  }
+
+  if (order.deliveryOption) {
+    const isPickup = order.deliveryOption === 'pickup';
+    const deliveryDetail = isPickup
+      ? 'Retiro en Local San Pedrito (Flores)'
+      : `Envío a domicilio (${order.shippingMethodName || 'Envío'}${order.shippingCost !== undefined ? ` - $${order.shippingCost.toLocaleString('es-AR')}` : ''})`;
+    lines.push(`*Entrega:* ${deliveryDetail}`);
+  }
+
+  if (order.customerName) {
+    lines.push(`*Nombre:* ${order.customerName}`);
+  }
+
+  lines.push('');
+  lines.push('Adjunto el comprobante de pago para coordinar la entrega. ¡Muchas gracias!');
+
+  return lines.join('\n');
+};
+
+/**
+ * Construye la URL universal de WhatsApp (https://api.whatsapp.com/send?phone=...&text=...)
+ * con el mensaje del pedido prellenado e iniciado con el número de pedido.
+ * Evita redirecciones intermedias de WhatsApp Business que descartaban el texto prellenado.
+ */
+export const buildOrderWhatsAppUrl = (
+  order: OrderWhatsAppDetails,
+  customWaDestination?: string
+): string => {
+  const message = buildOrderWhatsAppMessage(order);
+  return buildQuickBuyWhatsAppUrl(message, customWaDestination);
 };

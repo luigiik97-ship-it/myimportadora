@@ -585,7 +585,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
                   required
                   value={editingCategory.name || ''}
                   onChange={(e) => handleNameChange(e.target.value)}
-                  placeholder="ej: Collares, Dijes, Bijuteria, Tecnología..."
+                  placeholder="ej: Pulseras, Anillos, Cubanas..."
                   className="w-full border border-gray-300 rounded-lg px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb]"
                 />
               </div>
@@ -602,7 +602,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
                   onChange={(e) =>
                     setEditingCategory({ ...editingCategory, slug: slugifyCategory(e.target.value) })
                   }
-                  placeholder="ej: collares, dijes, bijuteria"
+                  placeholder="ej: pulseras, anillos, cubanas"
                   className="w-full border border-gray-300 bg-gray-50 rounded-lg px-3.5 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#0058bb]"
                 />
                 <span className="text-[11px] text-gray-400 mt-1 block">

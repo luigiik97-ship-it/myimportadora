@@ -13,6 +13,7 @@ import {
 import { ClassicStar as Star } from './common/ClassicStar';
 import { MichyOfficialBadge } from './common/MichyOfficialBadge';
 import { ImageWithSkeleton } from './common/ImageWithSkeleton';
+import { ProductImageLightbox } from './common/ProductImageLightbox';
 import {
   Truck,
   ShieldCheck,
@@ -126,6 +127,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
   // Active image index in the currently displayed gallery
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
+  const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
 
   // Active gallery of images based on current variant selection (falls back to product.images)
   const activeImages: string[] = useMemo(() => {
@@ -343,6 +345,9 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
           setActiveImageIndex((prev) => (prev > 0 ? prev - 1 : activeImages.length - 1));
         }
       }
+    } else if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) {
+      // Direct tap without swipe opens fullscreen lightbox
+      setIsLightboxOpen(true);
     }
     touchStartX.current = null;
     touchStartY.current = null;
@@ -398,7 +403,8 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
           {/* Main Large Image with touch swipe support and full-width presence */}
           <div
-            className="flex-1 bg-white -mx-2 sm:mx-0 rounded-none sm:rounded-xl border-b border-gray-100 sm:border flex items-center justify-center p-2 sm:p-4 min-h-[330px] sm:min-h-[380px] md:min-h-[480px] max-h-[520px] overflow-hidden relative group select-none touch-pan-y"
+            className="flex-1 bg-white -mx-2 sm:mx-0 rounded-none sm:rounded-xl border-b border-gray-100 sm:border flex items-center justify-center p-2 sm:p-4 min-h-[330px] sm:min-h-[380px] md:min-h-[480px] max-h-[520px] overflow-hidden relative group select-none touch-pan-y cursor-zoom-in"
+            onClick={() => setIsLightboxOpen(true)}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
           >
@@ -896,6 +902,21 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
           ))}
         </div>
       </section>
+
+      {/* Lightbox / Visor de Imagen a Pantalla Completa con Zoom y Deslizamiento */}
+      <ProductImageLightbox
+        isOpen={isLightboxOpen}
+        onClose={() => setIsLightboxOpen(false)}
+        images={activeImages.length > 0 ? activeImages : [product.images?.[0] || '']}
+        initialIndex={activeImageIndex}
+        title={product.title}
+        subtitle={
+          userFriendlySelectedVariants
+            ? Object.values(userFriendlySelectedVariants).join(' • ')
+            : undefined
+        }
+        onIndexChange={(newIdx) => setActiveImageIndex(newIdx)}
+      />
     </div>
   );
 };

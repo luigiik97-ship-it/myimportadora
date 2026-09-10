@@ -166,16 +166,35 @@ export function unmarkCategoryAsDeleted(id?: string, name?: string, slug?: strin
  * Merges two category lists preserving existing order and prioritizing cloud definitions.
  */
 export function mergeCategoriesLists(cloudCategories: Category[], localCategories: Category[]): Category[] {
-  if (!cloudCategories || cloudCategories.length === 0) return localCategories || [];
-  if (!localCategories || localCategories.length === 0) return cloudCategories;
+  const deletedSet = getDeletedCategories();
+  const filterValid = (c: Category) => {
+    if (!c || !c.name) return false;
+    const idClean = (c.id || '').trim().toLowerCase();
+    const slugClean = (c.slug || slugifyCategory(c.name)).trim().toLowerCase();
+    const nameClean = c.name.trim().toLowerCase();
+    const nameNorm = slugifyCategory(c.name);
 
-  const result = [...cloudCategories];
-  const seenIds = new Set(cloudCategories.map((c) => (c.id || '').trim().toLowerCase()));
-  const seenSlugs = new Set(cloudCategories.map((c) => (c.slug || slugifyCategory(c.name)).trim().toLowerCase()));
-  const seenNames = new Set(cloudCategories.map((c) => c.name.trim().toLowerCase()));
+    if (deletedSet.has(idClean) || deletedSet.has(slugClean) || deletedSet.has(nameClean) || deletedSet.has(nameNorm)) {
+      return false;
+    }
+    if (OBSOLETE_DEFAULT_CATEGORIES.has(idClean) || OBSOLETE_DEFAULT_CATEGORIES.has(slugClean) || OBSOLETE_DEFAULT_CATEGORIES.has(nameClean) || OBSOLETE_DEFAULT_CATEGORIES.has(nameNorm)) {
+      return false;
+    }
+    return true;
+  };
 
-  for (const localCat of localCategories) {
-    if (!localCat || !localCat.name) continue;
+  const validCloud = (cloudCategories || []).filter(filterValid);
+  const validLocal = (localCategories || []).filter(filterValid);
+
+  if (validCloud.length === 0) return validLocal;
+  if (validLocal.length === 0) return validCloud;
+
+  const result = [...validCloud];
+  const seenIds = new Set(validCloud.map((c) => (c.id || '').trim().toLowerCase()));
+  const seenSlugs = new Set(validCloud.map((c) => (c.slug || slugifyCategory(c.name)).trim().toLowerCase()));
+  const seenNames = new Set(validCloud.map((c) => c.name.trim().toLowerCase()));
+
+  for (const localCat of validLocal) {
     const idClean = (localCat.id || '').trim().toLowerCase();
     const slugClean = (localCat.slug || slugifyCategory(localCat.name)).trim().toLowerCase();
     const nameClean = localCat.name.trim().toLowerCase();
@@ -191,6 +210,33 @@ export function mergeCategoriesLists(cloudCategories: Category[], localCategorie
   return result.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
 }
 
+export const OBSOLETE_DEFAULT_CATEGORIES = new Set([
+  'cat-bijuteria',
+  'cat-collares',
+  'cat-dijes',
+  'cat-aros',
+  'cat-tecnologia',
+  'cat-juguetes',
+  'cat-perfumes',
+  'bijuteria',
+  'collares',
+  'dijes',
+  'aros',
+  'tecnologia',
+  'juguetes',
+  'perfumes',
+]);
+
+/**
+ * Checks if a category matches any of the obsolete default categories that shouldn't appear
+ */
+export function isObsoleteDefaultCategory(idOrNameOrSlug: string): boolean {
+  if (!idOrNameOrSlug) return false;
+  const clean = idOrNameOrSlug.trim().toLowerCase();
+  const slug = slugifyCategory(idOrNameOrSlug);
+  return OBSOLETE_DEFAULT_CATEGORIES.has(clean) || OBSOLETE_DEFAULT_CATEGORIES.has(slug);
+}
+
 /**
  * Checks if a given category identifier has been marked as deleted.
  */
@@ -202,114 +248,48 @@ export function isCategoryDeleted(idOrNameOrSlug: string): boolean {
 }
 
 /**
- * Reconcile a list of categories with INITIAL_CATEGORIES and any categories present in active products.
- * Guarantees that deleted categories are NEVER resurrected, and that active products
- * always have a valid corresponding category entry in the storefront navigation.
+ * Reconciles and filters categories list.
+ * Only categories present in the administered list are kept.
+ * Obsolete default categories and deleted categories are strictly excluded.
  */
 export function reconcileCategoriesWithProducts(
   categories: Category[] = [],
-  products: Product[] = []
+  _products?: Product[]
 ): Category[] {
   const deletedSet = getDeletedCategories();
 
-  // Filter out any explicitly deleted categories from the input
+  // Filter out any deleted or obsolete default categories
   const filteredInput = (categories || []).filter((c) => {
     if (!c || !c.name) return false;
     const idClean = (c.id || '').trim().toLowerCase();
     const slugClean = (c.slug || slugifyCategory(c.name)).trim().toLowerCase();
     const nameClean = c.name.trim().toLowerCase();
     const nameNorm = slugifyCategory(c.name);
-    return !deletedSet.has(idClean) && !deletedSet.has(slugClean) && !deletedSet.has(nameClean) && !deletedSet.has(nameNorm);
+
+    if (
+      deletedSet.has(idClean) ||
+      deletedSet.has(slugClean) ||
+      deletedSet.has(nameClean) ||
+      deletedSet.has(nameNorm)
+    ) {
+      return false;
+    }
+
+    if (
+      OBSOLETE_DEFAULT_CATEGORIES.has(idClean) ||
+      OBSOLETE_DEFAULT_CATEGORIES.has(slugClean) ||
+      OBSOLETE_DEFAULT_CATEGORIES.has(nameClean) ||
+      OBSOLETE_DEFAULT_CATEGORIES.has(nameNorm)
+    ) {
+      return false;
+    }
+
+    return true;
   });
 
-  const baseSource = filteredInput.length > 0
-    ? filteredInput
-    : INITIAL_CATEGORIES.filter((c) => {
-        const idClean = (c.id || '').trim().toLowerCase();
-        const slugClean = (c.slug || slugifyCategory(c.name)).trim().toLowerCase();
-        const nameClean = c.name.trim().toLowerCase();
-        const nameNorm = slugifyCategory(c.name);
-        return !deletedSet.has(idClean) && !deletedSet.has(slugClean) && !deletedSet.has(nameClean) && !deletedSet.has(nameNorm);
-      });
+  const baseSource = filteredInput.length > 0 ? filteredInput : [...INITIAL_CATEGORIES];
 
   const list: Category[] = deduplicateCategories(baseSource);
-
-  const seenIds = new Set<string>(list.map((c) => c.id.trim().toLowerCase()));
-  const seenSlugs = new Set<string>(list.map((c) => (c.slug || slugifyCategory(c.name)).trim().toLowerCase()));
-  const seenNormalizedNames = new Set<string>(list.map((c) => slugifyCategory(c.name)));
-
-  // 1. Only backfill from INITIAL_CATEGORIES if the list was completely empty,
-  // preventing user-deleted initial categories from reappearing.
-  if (filteredInput.length === 0) {
-    INITIAL_CATEGORIES.forEach((initCat) => {
-      const id = initCat.id.trim().toLowerCase();
-      const slug = (initCat.slug || slugifyCategory(initCat.name)).trim().toLowerCase();
-      const normalizedName = slugifyCategory(initCat.name);
-      const nameClean = initCat.name.trim().toLowerCase();
-
-      if (deletedSet.has(id) || deletedSet.has(slug) || deletedSet.has(nameClean) || deletedSet.has(normalizedName)) {
-        return;
-      }
-
-      if (!seenIds.has(id) && !seenSlugs.has(slug) && !seenNormalizedNames.has(normalizedName)) {
-        list.push({ ...initCat });
-        seenIds.add(id);
-        seenSlugs.add(slug);
-        seenNormalizedNames.add(normalizedName);
-      }
-    });
-  }
-
-  // 2. Discover any category present in active products that isn't yet in the list
-  if (products && Array.isArray(products)) {
-    products.forEach((prod) => {
-      if (!prod.category) return;
-      const catName = prod.category.trim();
-      if (!catName || catName.toLowerCase() === 'todo' || catName.toLowerCase() === '__system__' || prod.id.startsWith('__system_')) return;
-
-      const slug = slugifyCategory(catName);
-      const normalizedName = slugifyCategory(catName);
-      const idToCheck = `cat-${slug}`;
-      const nameClean = catName.toLowerCase();
-
-      // If marked as deleted, do not re-add
-      if (deletedSet.has(idToCheck) || deletedSet.has(slug) || deletedSet.has(nameClean) || deletedSet.has(normalizedName)) {
-        return;
-      }
-
-      if (!seenIds.has(idToCheck) && !seenSlugs.has(slug) && !seenNormalizedNames.has(normalizedName)) {
-        if (slug === 'otros' || nameClean === 'otros') {
-          list.push({ ...DEFAULT_OTHERS_CATEGORY });
-          seenIds.add(DEFAULT_OTHERS_CATEGORY.id.toLowerCase());
-          seenSlugs.add('otros');
-          seenNormalizedNames.add('otros');
-          return;
-        }
-
-        const matchedInitial = INITIAL_CATEGORIES.find(
-          (c) => slugifyCategory(c.name) === normalizedName || (c.slug && c.slug.toLowerCase() === slug)
-        );
-        const targetId = matchedInitial?.id || `cat-${slug}`;
-        const prodImage = (prod.images && prod.images[0]) || '';
-        const maxOrder = list.length > 0 ? Math.max(...list.map((c) => c.sortOrder || 0)) : 0;
-
-        const newCat: Category = {
-          id: targetId,
-          name: matchedInitial?.name || catName,
-          slug: matchedInitial?.slug || slug,
-          image: matchedInitial?.image || prodImage || 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=600',
-          sortOrder: maxOrder + 1,
-          isVisible: matchedInitial?.isVisible !== undefined ? matchedInitial.isVisible : true,
-          description: matchedInitial?.description || `Productos de la categoría ${catName}`,
-        };
-
-        list.push(newCat);
-        seenIds.add(newCat.id.toLowerCase());
-        seenSlugs.add(newCat.slug.toLowerCase());
-        seenNormalizedNames.add(normalizedName);
-      }
-    });
-  }
 
   return deduplicateCategories(list).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
 }
@@ -317,20 +297,54 @@ export function reconcileCategoriesWithProducts(
 /**
  * Get the visible storefront categories ordered by sortOrder with dedicated custom images,
  * calculating the dynamic product count for each.
+ * STRICT: Only displays categories that exist in the administration categories list and are visible.
  */
 export function getStorefrontCategories(
   categories: Category[],
-  products: Product[]
+  products: Product[] = []
 ): StorefrontCategory[] {
-  const source = reconcileCategoriesWithProducts(categories, products);
+  if (!categories || !Array.isArray(categories)) return [];
 
-  return source
-    .filter((cat) => cat.isVisible !== false)
-    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-    .map((cat) => ({
-      ...cat,
-      productCount: countProductsInCategory(cat.name, products, cat.slug),
-    }));
+  const deletedSet = getDeletedCategories();
+
+  const visibleAdminCategories = categories.filter((cat) => {
+    if (!cat || !cat.name || cat.isVisible === false) return false;
+    const idClean = (cat.id || '').trim().toLowerCase();
+    const slugClean = (cat.slug || slugifyCategory(cat.name)).trim().toLowerCase();
+    const nameClean = cat.name.trim().toLowerCase();
+    const nameNorm = slugifyCategory(cat.name);
+
+    // Skip if deleted
+    if (
+      deletedSet.has(idClean) ||
+      deletedSet.has(slugClean) ||
+      deletedSet.has(nameClean) ||
+      deletedSet.has(nameNorm)
+    ) {
+      return false;
+    }
+
+    // Skip obsolete defaults
+    if (
+      OBSOLETE_DEFAULT_CATEGORIES.has(idClean) ||
+      OBSOLETE_DEFAULT_CATEGORIES.has(slugClean) ||
+      OBSOLETE_DEFAULT_CATEGORIES.has(nameClean) ||
+      OBSOLETE_DEFAULT_CATEGORIES.has(nameNorm)
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const deduplicated = deduplicateCategories(visibleAdminCategories).sort(
+    (a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)
+  );
+
+  return deduplicated.map((cat) => ({
+    ...cat,
+    productCount: countProductsInCategory(cat.name, products, cat.slug),
+  }));
 }
 
 /**

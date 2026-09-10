@@ -29,6 +29,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [isTransitioning, setIsTransitioning] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
 
+  const firstCat = categories && categories[0] ? categories[0].name : 'Todo';
+  const secondCat = categories && categories[1] ? categories[1].name : firstCat;
+
   // 3 distinct hero banners
   const banners = [
     {
@@ -73,8 +76,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
       subtitleText: 'a todo el país por',
       subtitleHighlight: 'Expresos y Correo',
       description: 'Retirá sin costo por Av. San Pedrito 28 (Flores, CABA) de Lunes a Viernes de 11 a 17hs',
-      ctaText: 'Ver Bijouterie',
-      categoryTarget: 'Bijuteria',
+      ctaText: firstCat !== 'Todo' ? `Ver ${firstCat}` : 'Ver Catálogo',
+      categoryTarget: firstCat,
       bgGradient: 'from-blue-50 via-indigo-50/50 to-slate-100',
       images: [
         {
@@ -102,8 +105,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
       subtitleText: 'con hasta un',
       subtitleHighlight: '40% OFF Mayorista',
       description: 'Lotes de alta rotación en Bijouterie de acero, tecnología, juguetes y bazar importado',
-      ctaText: 'Ver Tecnología',
-      categoryTarget: 'Tecnología',
+      ctaText: secondCat !== 'Todo' ? `Ver ${secondCat}` : 'Ver Novedades',
+      categoryTarget: secondCat,
       bgGradient: 'from-amber-50/80 via-orange-50/50 to-slate-100',
       images: [
         {

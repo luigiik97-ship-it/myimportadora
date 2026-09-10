@@ -32,6 +32,7 @@ import {
   ResolvedProductPrices
 } from '../utils/variantHelpers';
 import { ImageWithSkeleton } from './common/ImageWithSkeleton';
+import { ProductImageLightbox } from './common/ProductImageLightbox';
 import {
   isQuickBuyCustomLinkActive,
   getQuickBuyLinkConfig,
@@ -141,26 +142,13 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedCategoryTab, setSelectedCategoryTab] = useState<string>('all');
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [previewImage, setPreviewImage] = useState<{
-    url: string;
+  const [lightboxData, setLightboxData] = useState<{
+    images: string[];
+    initialIndex: number;
     title: string;
     variantText?: string;
   } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const touchStartYRef = useRef<number | null>(null);
-  const touchStartXRef = useRef<number | null>(null);
-
-  // Close image preview modal on ESC
-  useEffect(() => {
-    if (!previewImage) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setPreviewImage(null);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [previewImage]);
 
   // Restore scroll position if returning from Cart
   useEffect(() => {
@@ -332,30 +320,35 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
     const categoryMap = new Map<string, QuickBuyItem[]>();
 
     filteredItems.forEach((item) => {
-      const cat = item.category || 'General';
-      if (!categoryMap.has(cat)) {
-        categoryMap.set(cat, []);
+      const rawCat = (item.category || '').trim();
+      const matchedAdminCat = categories.find(
+        (c) =>
+          c.name.toLowerCase() === rawCat.toLowerCase() ||
+          c.slug.toLowerCase() === rawCat.toLowerCase() ||
+          (c.id && c.id.toLowerCase() === rawCat.toLowerCase())
+      );
+      const finalCatName = matchedAdminCat ? matchedAdminCat.name : 'Otros';
+
+      if (!categoryMap.has(finalCatName)) {
+        categoryMap.set(finalCatName, []);
       }
-      categoryMap.get(cat)!.push(item);
+      categoryMap.get(finalCatName)!.push(item);
     });
 
-    // Order categories according to the defined category list or alphabetically
-    const existingCatNames = Array.from(categoryMap.keys());
+    // Order strictly according to the defined administration category list
     const sortedCatNames: string[] = [];
 
-    // First add known categories by their sortOrder
+    // Add administered categories in their sortOrder
     categories.forEach((c) => {
-      if (categoryMap.has(c.name)) {
+      if (categoryMap.has(c.name) && !sortedCatNames.includes(c.name)) {
         sortedCatNames.push(c.name);
       }
     });
 
-    // Append any remaining categories not explicitly in categories list
-    existingCatNames.forEach((name) => {
-      if (!sortedCatNames.includes(name)) {
-        sortedCatNames.push(name);
-      }
-    });
+    // If 'Otros' has items but wasn't in categories list, append it
+    if (categoryMap.has('Otros') && !sortedCatNames.includes('Otros')) {
+      sortedCatNames.push('Otros');
+    }
 
     sortedCatNames.forEach((catName) => {
       const rawItems = categoryMap.get(catName) || [];
@@ -987,8 +980,13 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setPreviewImage({
-                                url: item.image,
+                              const variantImgs = getActiveVariantImages(item.product, item.selectedVariants);
+                              const gallery = variantImgs.length > 0 ? variantImgs : (item.product.images?.length ? item.product.images : [item.image]);
+                              const foundIdx = gallery.findIndex((img) => img === item.image);
+
+                              setLightboxData({
+                                images: gallery,
+                                initialIndex: foundIdx >= 0 ? foundIdx : 0,
                                 title: item.title,
                                 variantText: item.variantText
                               });
@@ -1222,79 +1220,15 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         </button>
       )}
 
-      {/* Lightbox / Ventana Emergente con Imagen Ampliada */}
-      {previewImage && (
-        <div
-          id="quick-buy-image-modal"
-          className="fixed inset-0 z-60 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 transition-opacity animate-in fade-in duration-200"
-          onClick={() => setPreviewImage(null)}
-          onTouchStart={(e) => {
-            if (e.touches.length === 1) {
-              touchStartYRef.current = e.touches[0].clientY;
-              touchStartXRef.current = e.touches[0].clientX;
-            }
-          }}
-          onTouchEnd={(e) => {
-            if (touchStartYRef.current !== null && touchStartXRef.current !== null && e.changedTouches.length === 1) {
-              const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
-              const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
-              // Si se desliza más de 45px vertical u horizontalmente, cerramos la ventana
-              if (Math.abs(deltaY) > 45 || Math.abs(deltaX) > 60) {
-                setPreviewImage(null);
-              }
-            }
-            touchStartYRef.current = null;
-            touchStartXRef.current = null;
-          }}
-        >
-          {/* Botón cerrar "X" superior */}
-          <button
-            type="button"
-            id="close-image-modal-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              setPreviewImage(null);
-            }}
-            className="absolute top-4 right-4 sm:top-6 sm:right-6 z-70 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center cursor-pointer transition-all shadow-lg active:scale-95 border border-white/30"
-            title="Cerrar imagen (o desliza)"
-          >
-            <X className="w-6 h-6 stroke-[2.5]" />
-          </button>
-
-          {/* Contenedor central de la imagen */}
-          <div
-            className="relative max-w-[92vw] sm:max-w-md md:max-w-lg lg:max-w-xl max-h-[85vh] bg-white rounded-2xl p-2 sm:p-3 shadow-2xl flex flex-col items-center gap-2.5 overflow-hidden animate-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Imagen Ampliada */}
-            <div className="w-full max-h-[68vh] sm:max-h-[70vh] flex items-center justify-center overflow-hidden rounded-xl bg-gray-50">
-              <img
-                src={previewImage.url}
-                alt={previewImage.title}
-                className="w-full h-full max-h-[68vh] sm:max-h-[70vh] object-contain select-none"
-                loading="eager"
-              />
-            </div>
-
-            {/* Título, Variante y Guía de Cierre */}
-            <div className="w-full px-1.5 pb-1 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-center sm:text-left">
-              <div className="min-w-0 flex-1">
-                <h3 className="font-bold text-sm sm:text-base text-gray-900 truncate">
-                  {previewImage.title}
-                </h3>
-                {previewImage.variantText && (
-                  <span className="inline-block text-xs font-semibold text-[#0058bb] bg-blue-50 px-2 py-0.5 rounded-md mt-0.5">
-                    {previewImage.variantText}
-                  </span>
-                )}
-              </div>
-              <span className="text-xs text-gray-400 font-medium shrink-0">
-                Desliza o toca la ✕ para cerrar
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Lightbox / Visor de Imagen a Pantalla Completa con Zoom y Deslizamiento */}
+      <ProductImageLightbox
+        isOpen={Boolean(lightboxData)}
+        onClose={() => setLightboxData(null)}
+        images={lightboxData?.images || []}
+        initialIndex={lightboxData?.initialIndex || 0}
+        title={lightboxData?.title}
+        subtitle={lightboxData?.variantText}
+      />
 
       {/* Modal de Error al Registrar Pedido (No abre WhatsApp si el guardado falla) */}
       {orderSaveError && (

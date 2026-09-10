@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Product, Order, SizeVariant, VariantType, ProductReview } from '../types';
+import { Product, Order, SizeVariant, VariantType, ProductReview, Category } from '../types';
 import {
   normalizeVariantTypes,
   syncLegacyFields,
@@ -13,6 +13,8 @@ import { CategoryManager } from './admin/CategoryManager';
 import { ClassicStar } from './common/ClassicStar';
 import {
   fetchProducts,
+  fetchCategories,
+  getLocalCategories,
   createProduct,
   updateProduct,
   deleteProduct,
@@ -91,6 +93,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
 
   // Data states
   const [products, setProducts] = useState<Product[]>([]);
+  const [adminCategories, setAdminCategories] = useState<Category[]>(() => getLocalCategories());
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -214,6 +217,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
     const handleProductsUpdated = () => {
       fetchProducts().then((prods) => {
         setProducts(prods);
+      });
+      fetchCategories().then((cats) => {
+        if (cats && cats.length > 0) {
+          setAdminCategories(cats);
+        }
       });
     };
 
@@ -346,7 +354,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
     setEditingProduct({
       title: '',
       description: '',
-      category: 'Bijuteria',
+      category: adminCategories[0]?.name || 'Otros',
       subcategory: '',
       images: [],
       additionalImage: '',
@@ -1850,11 +1858,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                     list="admin-categories-datalist"
                     value={editingProduct.category || ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })}
-                    placeholder="Ej: Bijuteria, Collares, Dijes, Tecnología..."
+                    placeholder="Ej: cubanas, Bricks, pulsera, anillos..."
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-[#0058bb]"
                   />
                   <datalist id="admin-categories-datalist">
-                    {Array.from(new Set(['Bijuteria', 'Tecnología', 'Juguetes', 'Perfumes', 'Collares', 'Dijes', 'Aros', ...products.map((p) => p.category).filter(Boolean)])).map((cat) => (
+                    {Array.from(new Set([...adminCategories.map((c) => c.name), ...products.map((p) => p.category).filter(Boolean)])).map((cat) => (
                       <option key={cat} value={cat} />
                     ))}
                   </datalist>

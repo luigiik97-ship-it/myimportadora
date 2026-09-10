@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { ArrowLeft, ShoppingBag } from 'lucide-react';
 import { Product, Category, SizeVariant, Order } from '../../types';
-import { slugifyCategory } from '../../utils/categoryHelpers';
+import { slugifyCategory, isObsoleteDefaultCategory } from '../../utils/categoryHelpers';
 import { ProductDetailView } from '../ProductDetailView';
 import { CategoryView } from '../CategoryView';
 import { OrderConfirmationView } from '../OrderConfirmationView';
@@ -144,7 +144,7 @@ export function CategoryRouteWrapper({
   const { categorySlug } = useParams<{ categorySlug: string }>();
   const navigate = useNavigate();
 
-  if (categorySlug === 'todo' || categorySlug === 'todos') {
+  if (categorySlug === 'todo' || categorySlug === 'todos' || (categorySlug && isObsoleteDefaultCategory(categorySlug))) {
     return <Navigate to="/" replace />;
   }
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Order } from '../types';
 import { CheckCircle2, Copy, Check, MessageSquare, ShoppingBag, Truck, Store, CreditCard, Mail } from 'lucide-react';
+import { buildOrderWhatsAppUrl } from '../services/quickBuyLink';
 
 interface OrderConfirmationViewProps {
   order: Order;
@@ -28,25 +29,18 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
     setTimeout(() => setCopiedCvu(false), 2000);
   };
 
-  // Build WhatsApp Message URL
+  // Construye la URL universal oficial de WhatsApp con mensaje prellenado
   const buildWhatsAppUrl = () => {
-    const itemsSummary = safeItems
-      .map((i) => {
-        const variantSuffix = i.variantText ? `, ${i.variantText}` : '';
-        const pricingSuffix = ` (${i.isWholesale ? 'mayorista' : 'minorista'})`;
-        return `• ${i.quantity}x ${i.title}${variantSuffix}${pricingSuffix} - $${i.totalPrice.toLocaleString('es-AR')}`;
-      })
-      .join('%0A');
-
-    const deliveryDetail =
-      order.deliveryOption === 'pickup'
-        ? 'Retiro en Local San Pedrito'
-        : `Envío a domicilio (${order.shippingMethodName || 'Envío'} - $${order.shippingCost.toLocaleString('es-AR')})`;
-
-    const msg = `¡Hola MY Importadora! 👋 Acabo de realizar el pedido *#${order.orderNumber}*.%0A%0A*Detalle:*%0A${itemsSummary}%0A%0A*Total:* $${order.total.toLocaleString('es-AR')}%0A*Método de Pago:* ${order.paymentMethod === 'transfer' ? 'Transferencia Bancaria' : 'Efectivo'}%0A*Entrega:* ${deliveryDetail}%0A*Nombre:* ${order.customerName}%0A%0AAdjunto el comprobante de pago para coordinar la entrega. ¡Muchas gracias!`;
-
-    // WhatsApp business number: 5491166904678
-    return `https://wa.me/5491166904678?text=${msg}`;
+    return buildOrderWhatsAppUrl({
+      orderNumber: order.orderNumber,
+      items: safeItems,
+      total: order.total,
+      paymentMethod: order.paymentMethod,
+      deliveryOption: order.deliveryOption,
+      shippingMethodName: order.shippingMethodName,
+      shippingCost: order.shippingCost,
+      customerName: order.customerName,
+    });
   };
 
   return (
@@ -131,7 +125,15 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
               <div className="space-y-2.5 text-xs sm:text-sm">
                 <span className="font-bold text-[#0058bb] block text-base">Transferencia bancaria</span>
                 <p className="text-gray-600 leading-relaxed text-xs sm:text-sm">
-                  Realice el pago para poder enviar su compra lo antes posible. Enviar el comprobante al WhatsApp <strong>1166904678</strong>.
+                  Realice el pago para poder enviar su compra lo antes posible. Enviar el comprobante a nuestro{' '}
+                  <a
+                    href={buildWhatsAppUrl()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#00a650] hover:underline font-bold inline-flex items-center gap-1"
+                  >
+                    WhatsApp (1166904678)
+                  </a>.
                 </p>
 
                 {/* Bank details */}

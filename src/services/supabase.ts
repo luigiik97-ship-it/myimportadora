@@ -17,6 +17,7 @@ import {
   getDeletedCategories,
   DEFAULT_OTHERS_CATEGORY,
   slugifyCategory,
+  isObsoleteDefaultCategory,
 } from '../utils/categoryHelpers';
 import {
   optimizeProductImage,
@@ -118,7 +119,16 @@ export const getRawLocalCategories = (): Category[] => {
     const saved = localStorage.getItem(LOCAL_CATEGORIES_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.filter(
+          (c) =>
+            c &&
+            c.name &&
+            !isObsoleteDefaultCategory(c.id) &&
+            !isObsoleteDefaultCategory(c.slug) &&
+            !isObsoleteDefaultCategory(c.name)
+        );
+      }
     }
   } catch (e) {}
   return [];
