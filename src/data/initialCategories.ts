@@ -73,4 +73,13 @@ export const INITIAL_CATEGORIES: Category[] = [
     isVisible: true,
     description: 'Bloques de construcción didácticos, figuras armables y sets coleccionables',
   },
+  {
+    id: 'cat-otros',
+    name: 'Otros',
+    slug: 'otros',
+    image: 'https://images.unsplash.com/photo-1513094735237-8f2714d57c13?w=600&auto=format&fit=crop&q=80',
+    sortOrder: 9,
+    isVisible: true,
+    description: 'Publicaciones y artículos varios',
+  },
 ];

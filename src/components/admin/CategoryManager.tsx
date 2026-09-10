@@ -32,17 +32,25 @@ import {
 interface CategoryManagerProps {
   products: Product[];
   onCategoriesUpdated?: (categories: Category[]) => void;
+  onProductsUpdated?: () => Promise<void> | void;
 }
 
 export const CategoryManager: React.FC<CategoryManagerProps> = ({
   products,
   onCategoriesUpdated,
+  onProductsUpdated,
 }) => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState<boolean>(false);
+
+  // Deletion modal state (replaces window.confirm)
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
+  const [isDeletingCategory, setIsDeletingCategory] = useState<boolean>(false);
+  const [showResetConfirmModal, setShowResetConfirmModal] = useState<boolean>(false);
+  const [isResetting, setIsResetting] = useState<boolean>(false);
 
   // Edit / Create Modal state
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -67,6 +75,17 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
 
   useEffect(() => {
     loadCategories();
+
+    const handleCategoriesUpdated = (e: any) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        setCategories([...e.detail].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)));
+      }
+    };
+
+    window.addEventListener('categories-updated', handleCategoriesUpdated);
+    return () => {
+      window.removeEventListener('categories-updated', handleCategoriesUpdated);
+    };
   }, []);
 
   const showFeedback = (type: 'success' | 'error', text: string) => {
@@ -155,8 +174,11 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
     setIsSaving(true);
     try {
       const saved = await saveCategory(payload);
+      let nextCategories: Category[] = [];
       setCategories((prev) => {
-        const index = prev.findIndex((c) => c.id === saved.id);
+        const index = prev.findIndex(
+          (c) => c.id === saved.id || c.slug === saved.slug || c.name.toLowerCase() === saved.name.toLowerCase()
+        );
         let updated: Category[];
         if (index >= 0) {
           updated = [...prev];
@@ -164,15 +186,14 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
         } else {
           updated = [...prev, saved];
         }
-        return updated.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+        nextCategories = updated.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+        return nextCategories;
       });
       setIsModalOpen(false);
       setEditingCategory(null);
       showFeedback('success', `Categoría "${saved.name}" guardada correctamente`);
       if (onCategoriesUpdated) {
-        onCategoriesUpdated(
-          categories.map((c) => (c.id === saved.id ? saved : c))
-        );
+        onCategoriesUpdated(nextCategories);
       }
     } catch (err: any) {
       console.error('[CategoryManager] Error saving category:', err);
@@ -182,24 +203,33 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    const prodsCount = countProductsInCategory(name, products);
-    const confirmMsg =
-      prodsCount > 0
-        ? `¿Estás seguro de eliminar la categoría "${name}"? Hay ${prodsCount} producto(s) asignados a ella.`
-        : `¿Estás seguro de eliminar la categoría "${name}"?`;
+  const handleOpenDeleteModal = (cat: Category) => {
+    setCategoryToDelete(cat);
+  };
 
-    if (window.confirm(confirmMsg)) {
-      try {
-        await deleteCategory(id);
-        const updated = categories.filter((c) => c.id !== id);
-        setCategories(updated);
-        showFeedback('success', `Categoría "${name}" eliminada`);
-        if (onCategoriesUpdated) onCategoriesUpdated(updated);
-      } catch (err: any) {
-        console.error('[CategoryManager] Error deleting category:', err);
-        showFeedback('error', `Error al eliminar: ${err.message}`);
+  const confirmDeleteCategory = async () => {
+    if (!categoryToDelete) return;
+    setIsDeletingCategory(true);
+    try {
+      const result = await deleteCategory(categoryToDelete.id, categoryToDelete.name);
+      await loadCategories();
+      if (onProductsUpdated) {
+        await onProductsUpdated();
       }
+      showFeedback(
+        'success',
+        `Categoría "${categoryToDelete.name}" eliminada correctamente.${
+          result.affectedProductsCount > 0
+            ? ` ${result.affectedProductsCount} publicación(es) cambiaron automáticamente a la categoría "Otros".`
+            : ''
+        }`
+      );
+      setCategoryToDelete(null);
+    } catch (err: any) {
+      console.error('[CategoryManager] Error deleting category:', err);
+      showFeedback('error', `Error al eliminar categoría: ${err.message || 'Error desconocido'}`);
+    } finally {
+      setIsDeletingCategory(false);
     }
   };
 
@@ -210,11 +240,12 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
     };
     try {
       await saveCategory(updated);
-      setCategories((prev) => prev.map((c) => (c.id === cat.id ? updated : c)));
+      setCategories((prev) => {
+        const next = prev.map((c) => (c.id === cat.id ? updated : c));
+        if (onCategoriesUpdated) onCategoriesUpdated(next);
+        return next;
+      });
       showFeedback('success', `Categoría "${cat.name}" ahora está ${updated.isVisible ? 'Visible' : 'Oculta'}`);
-      if (onCategoriesUpdated) {
-        onCategoriesUpdated(categories.map((c) => (c.id === cat.id ? updated : c)));
-      }
     } catch (err: any) {
       showFeedback('error', 'Error al cambiar visibilidad');
     }
@@ -246,20 +277,25 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
     }
   };
 
-  const handleResetDefaults = async () => {
-    if (window.confirm('¿Deseas restaurar las categorías iniciales predeterminadas con sus imágenes?')) {
-      setLoading(true);
-      try {
-        for (const cat of INITIAL_CATEGORIES) {
-          await saveCategory(cat);
-        }
-        await loadCategories();
-        showFeedback('success', 'Categorías predeterminadas restauradas con éxito');
-      } catch (err: any) {
-        showFeedback('error', 'Error al restaurar categorías');
-      } finally {
-        setLoading(false);
+  const handleOpenResetModal = () => {
+    setShowResetConfirmModal(true);
+  };
+
+  const confirmResetDefaults = async () => {
+    setIsResetting(true);
+    setLoading(true);
+    try {
+      for (const cat of INITIAL_CATEGORIES) {
+        await saveCategory(cat);
       }
+      await loadCategories();
+      showFeedback('success', 'Categorías predeterminadas restauradas con éxito');
+      setShowResetConfirmModal(false);
+    } catch (err: any) {
+      showFeedback('error', 'Error al restaurar categorías');
+    } finally {
+      setLoading(false);
+      setIsResetting(false);
     }
   };
 
@@ -312,7 +348,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
           </button>
 
           <button
-            onClick={handleResetDefaults}
+            onClick={handleOpenResetModal}
             className="text-xs font-semibold text-gray-600 hover:text-gray-900 border border-gray-200 bg-gray-50 hover:bg-gray-100 px-3 py-2 rounded-lg transition-colors cursor-pointer"
           >
             Restaurar base
@@ -499,7 +535,8 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => handleDelete(cat.id, cat.name)}
+                            id={`delete-category-btn-${cat.id}`}
+                            onClick={() => handleOpenDeleteModal(cat)}
                             className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                             title="Eliminar categoría"
                           >
@@ -708,6 +745,117 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Category Confirmation Modal */}
+      {categoryToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-100">
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-base font-bold text-gray-900 text-center font-['Montserrat']">
+              ¿Eliminar la categoría "{categoryToDelete.name}"?
+            </h3>
+
+            {(() => {
+              const count = countProductsInCategory(categoryToDelete.name, products);
+              return count > 0 ? (
+                <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 leading-relaxed">
+                  <p className="font-semibold mb-1">
+                    ⚠️ Esta categoría contiene {count} {count === 1 ? 'publicación' : 'publicaciones'}.
+                  </p>
+                  <p>
+                    Para no perder tus publicaciones, el sistema las reasignará automáticamente a la categoría <span className="font-bold text-gray-900">"Otros"</span> de manera inmediata.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500 text-center mt-2 leading-relaxed">
+                  Esta categoría no tiene publicaciones asociadas actualmente. Se eliminará de la base de datos y de la portada.
+                </p>
+              );
+            })()}
+
+            <div className="flex items-center justify-end gap-2.5 mt-6 pt-4 border-t border-gray-100">
+              <button
+                type="button"
+                disabled={isDeletingCategory}
+                onClick={() => setCategoryToDelete(null)}
+                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                id="confirm-delete-category-btn"
+                disabled={isDeletingCategory}
+                onClick={confirmDeleteCategory}
+                className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-xs font-bold px-4 py-2 rounded-lg cursor-pointer shadow-sm transition-colors flex items-center gap-1.5"
+              >
+                {isDeletingCategory ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Eliminando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Confirmar Eliminación</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Categories Modal */}
+      {showResetConfirmModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-100">
+            <div className="w-12 h-12 rounded-full bg-blue-100 text-[#0058bb] flex items-center justify-center mx-auto mb-4">
+              <RefreshCw className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-base font-bold text-gray-900 text-center font-['Montserrat']">
+              ¿Restaurar categorías predeterminadas?
+            </h3>
+            <p className="text-xs text-gray-500 text-center mt-2 leading-relaxed">
+              Esto restaurará el conjunto inicial de categorías con sus fotos predeterminadas sin borrar tus productos existentes.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 mt-6 pt-4 border-t border-gray-100">
+              <button
+                type="button"
+                disabled={isResetting}
+                onClick={() => setShowResetConfirmModal(false)}
+                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                id="confirm-reset-categories-btn"
+                disabled={isResetting}
+                onClick={confirmResetDefaults}
+                className="bg-[#0058bb] hover:bg-[#004bb0] disabled:bg-gray-400 text-white text-xs font-bold px-4 py-2 rounded-lg cursor-pointer shadow-sm transition-colors flex items-center gap-1.5"
+              >
+                {isResetting ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Restaurando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Restaurar</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

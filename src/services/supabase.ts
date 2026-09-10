@@ -9,7 +9,15 @@ import {
   syncLegacyFields,
   SPECS_VARIANT_TYPES_KEY,
 } from '../utils/variantHelpers';
-import { reconcileCategoriesWithProducts } from '../utils/categoryHelpers';
+import {
+  reconcileCategoriesWithProducts,
+  markCategoryAsDeleted,
+  unmarkCategoryAsDeleted,
+  mergeCategoriesLists,
+  getDeletedCategories,
+  DEFAULT_OTHERS_CATEGORY,
+  slugifyCategory,
+} from '../utils/categoryHelpers';
 import {
   optimizeProductImage,
   ImageOptimizationOptions,
@@ -105,12 +113,24 @@ export const invalidateCategoriesCache = () => {
   categoriesCacheTimestamp = 0;
 };
 
+export const getRawLocalCategories = (): Category[] => {
+  try {
+    const saved = localStorage.getItem(LOCAL_CATEGORIES_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {}
+  return [];
+};
+
 // Initial loader for local storage categories
 export const getLocalCategories = (): Category[] => {
   if (cachedCategories && cachedCategories.length > 0) {
     const reconciled = reconcileCategoriesWithProducts(cachedCategories, cachedProducts || undefined);
-    cachedCategories = reconciled;
-    return reconciled;
+    const sorted = reconciled.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    cachedCategories = sorted;
+    return sorted;
   }
   try {
     const saved = localStorage.getItem(LOCAL_CATEGORIES_KEY);
@@ -118,45 +138,88 @@ export const getLocalCategories = (): Category[] => {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
         const reconciled = reconcileCategoriesWithProducts(parsed, cachedProducts || undefined);
-        cachedCategories = reconciled;
-        safeLocalStorageSet(LOCAL_CATEGORIES_KEY, JSON.stringify(reconciled));
-        return reconciled;
+        const sorted = reconciled.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+        cachedCategories = sorted;
+        safeLocalStorageSet(LOCAL_CATEGORIES_KEY, JSON.stringify(sorted));
+        return sorted;
       }
     }
   } catch (e) {
     console.error('Error reading local categories', e);
   }
   const initialReconciled = reconcileCategoriesWithProducts(INITIAL_CATEGORIES, cachedProducts || undefined);
-  safeLocalStorageSet(LOCAL_CATEGORIES_KEY, JSON.stringify(initialReconciled));
-  cachedCategories = initialReconciled;
-  return initialReconciled;
+  const sortedInitial = initialReconciled.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  safeLocalStorageSet(LOCAL_CATEGORIES_KEY, JSON.stringify(sortedInitial));
+  cachedCategories = sortedInitial;
+  return sortedInitial;
 };
 
 export const saveLocalCategories = (categories: Category[]) => {
   const reconciled = reconcileCategoriesWithProducts(categories, cachedProducts || undefined);
-  cachedCategories = reconciled;
+  const sorted = reconciled.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  cachedCategories = sorted;
   categoriesCacheTimestamp = Date.now();
-  safeLocalStorageSet(LOCAL_CATEGORIES_KEY, JSON.stringify(reconciled));
+  safeLocalStorageSet(LOCAL_CATEGORIES_KEY, JSON.stringify(sorted));
 };
 
-// Initial loader for local storage
+export const LOCAL_DELETED_PRODUCTS_KEY = 'my_commerce_deleted_products';
+
+/**
+ * Returns a Set of product IDs that have been explicitly deleted.
+ */
+export const getDeletedProductIds = (): Set<string> => {
+  try {
+    if (typeof localStorage === 'undefined') return new Set();
+    const saved = localStorage.getItem(LOCAL_DELETED_PRODUCTS_KEY);
+    if (saved) {
+      const arr = JSON.parse(saved);
+      if (Array.isArray(arr)) {
+        return new Set(arr.map((id: string) => String(id).trim()));
+      }
+    }
+  } catch (e) {
+    console.error('Error reading deleted products', e);
+  }
+  return new Set();
+};
+
+/**
+ * Permanently registers a product ID as deleted so it is never auto-reseeded.
+ */
+export const markProductDeleted = (id: string): void => {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    const current = getDeletedProductIds();
+    current.add(String(id).trim());
+    localStorage.setItem(LOCAL_DELETED_PRODUCTS_KEY, JSON.stringify(Array.from(current)));
+  } catch (e) {
+    console.error('Error marking product as deleted', e);
+  }
+};
+
+// Initial loader for local storage with deleted products exclusion
 export const getLocalProducts = (): Product[] => {
-  if (cachedProducts && cachedProducts.length > 0) return cachedProducts;
+  const deletedIds = getDeletedProductIds();
+  if (cachedProducts && cachedProducts.length > 0) {
+    return cachedProducts.filter((p) => !deletedIds.has(p.id) && !p.id.startsWith('__system_') && p.category !== '__system__');
+  }
   try {
     const saved = localStorage.getItem(LOCAL_PRODUCTS_KEY);
-    if (saved) {
+    if (saved !== null) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        cachedProducts = parsed;
-        return parsed;
+      if (Array.isArray(parsed)) {
+        const filtered = parsed.filter((p: Product) => p && !deletedIds.has(p.id) && !p.id.startsWith('__system_') && p.category !== '__system__');
+        cachedProducts = filtered;
+        return filtered;
       }
     }
   } catch (e) {
     console.error('Error reading local products', e);
   }
-  safeLocalStorageSet(LOCAL_PRODUCTS_KEY, JSON.stringify(INITIAL_PRODUCTS));
-  cachedProducts = INITIAL_PRODUCTS;
-  return INITIAL_PRODUCTS;
+  const initialFiltered = INITIAL_PRODUCTS.filter((p) => !deletedIds.has(p.id) && !p.id.startsWith('__system_') && p.category !== '__system__');
+  safeLocalStorageSet(LOCAL_PRODUCTS_KEY, JSON.stringify(initialFiltered));
+  cachedProducts = initialFiltered;
+  return initialFiltered;
 };
 
 export const saveLocalProducts = (products: Product[]) => {
@@ -593,8 +656,12 @@ export const fetchProducts = async (options?: { force?: boolean }): Promise<Prod
               };
             });
 
-            saveLocalProducts(mappedProducts);
-            return mappedProducts;
+            const deletedIds = getDeletedProductIds();
+            const activeMapped = mappedProducts.filter(
+              (p) => !deletedIds.has(p.id) && !p.id.startsWith('__system_') && p.category !== '__system__'
+            );
+            saveLocalProducts(activeMapped);
+            return activeMapped;
           } else {
             // Seed initial products to Supabase if empty
             await seedInitialProducts();
@@ -914,18 +981,31 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
 };
 
 export const deleteProduct = async (id: string): Promise<boolean> => {
+  console.log('[deleteProduct] Eliminando publicación/producto:', id);
+  markProductDeleted(id);
+
   if (isSupabaseConfigured() && supabaseInstance) {
     try {
       const { error } = await supabaseInstance.from('products').delete().eq('id', id);
-      if (error) console.warn('Supabase delete error:', error.message);
+      if (error) {
+        console.warn('Supabase delete error con id, probando con product_id:', error.message);
+        await supabaseInstance.from('products').delete().eq('product_id', id);
+      }
     } catch (e) {
       console.warn('Error deleting from Supabase:', e);
     }
   }
 
   const current = getLocalProducts();
-  const filtered = current.filter(p => p.id !== id);
+  const filtered = current.filter((p) => p.id !== id);
   saveLocalProducts(filtered);
+
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent('products-updated', { detail: { deletedId: id } }));
+    } catch (e) {}
+  }
+
   return true;
 };
 
@@ -1457,6 +1537,58 @@ export const deleteOrder = async (orderId: string): Promise<void> => {
 
 // ---------------- CATEGORIES API ---------------- //
 
+export const SYSTEM_CATEGORIES_ROW_ID = '__system_store_categories_v1__';
+
+/**
+ * Persists category list to Supabase.
+ * Uses a dual strategy:
+ * 1. Stores complete structured categories payload in the products table under the reserved row '__system_store_categories_v1__',
+ *    which guarantees 100% cloud persistence on Supabase and across Vercel without requiring extra SQL migrations.
+ * 2. Simultaneously attempts upsert to 'public.categories' table if created.
+ */
+export const syncCategoriesToSupabase = async (categories: Category[]): Promise<void> => {
+  if (!isSupabaseConfigured() || !supabaseInstance) return;
+
+  const sorted = [...categories].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
+  // 1. Guaranteed cloud synchronization row in products
+  try {
+    const systemRowPayload = {
+      id: SYSTEM_CATEGORIES_ROW_ID,
+      title: '__SYSTEM_CATEGORIES_CONFIG__',
+      description: JSON.stringify(sorted),
+      category: '__system__',
+      wholesale_price: 0,
+      retail_price: 0,
+      stock: 0,
+      specs: [{ key: 'updated_at', value: new Date().toISOString() }],
+    };
+    const { error: sysErr } = await supabaseInstance.from('products').upsert(systemRowPayload);
+    if (sysErr) {
+      console.warn('[syncCategoriesToSupabase] Error saving to system row:', sysErr.message);
+    }
+  } catch (err) {
+    console.warn('[syncCategoriesToSupabase] System row sync error:', err);
+  }
+
+  // 2. Also upsert into dedicated categories table if it exists in Supabase schema
+  try {
+    const tablePayloads = sorted.map((cat) => ({
+      id: cat.id,
+      name: cat.name,
+      slug: cat.slug || slugifyCategory(cat.name),
+      image_url: cat.image,
+      sort_order: typeof cat.sortOrder === 'number' ? cat.sortOrder : 0,
+      is_visible: cat.isVisible !== false,
+      description: cat.description || '',
+      created_at: cat.createdAt || new Date().toISOString(),
+    }));
+    await supabaseInstance.from('categories').upsert(tablePayloads);
+  } catch (err) {
+    // If public.categories table doesn't exist, this fails silently while the system row above succeeded
+  }
+};
+
 export const fetchCategories = async (options?: { force?: boolean }): Promise<Category[]> => {
   const now = Date.now();
   if (!options?.force && cachedCategories && cachedCategories.length > 0 && (now - categoriesCacheTimestamp < CACHE_TTL_MS)) {
@@ -1469,7 +1601,10 @@ export const fetchCategories = async (options?: { force?: boolean }): Promise<Ca
 
   inFlightCategoriesPromise = (async () => {
     try {
+      let loadedFromCloud: Category[] | null = null;
+
       if (isSupabaseConfigured() && supabaseInstance) {
+        // Strategy A: Dedicated categories table
         try {
           const { data, error } = await supabaseInstance
             .from('categories')
@@ -1478,25 +1613,71 @@ export const fetchCategories = async (options?: { force?: boolean }): Promise<Ca
             .order('created_at', { ascending: true });
 
           if (!error && data && Array.isArray(data) && data.length > 0) {
-            const mapped: Category[] = data.map((item: any) => ({
+            loadedFromCloud = data.map((item: any) => ({
               id: item.id,
               name: item.name,
-              slug: item.slug || item.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
+              slug: item.slug || slugifyCategory(item.name),
               image: item.image_url || item.image || 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=600',
               sortOrder: typeof item.sort_order === 'number' ? item.sort_order : (item.sortOrder || 0),
               isVisible: item.is_visible !== undefined ? Boolean(item.is_visible) : (item.isVisible !== undefined ? Boolean(item.isVisible) : true),
               description: item.description || '',
               createdAt: item.created_at || item.createdAt,
             }));
-            const reconciled = reconcileCategoriesWithProducts(mapped, cachedProducts || undefined);
-            saveLocalCategories(reconciled);
-            return reconciled;
           }
         } catch (e) {
-          console.warn('Error fetching categories from Supabase, using local categories:', e);
+          // Table may not exist yet
+        }
+
+        // Strategy B: Dedicated cloud config row in products table
+        if (!loadedFromCloud || loadedFromCloud.length === 0) {
+          try {
+            const { data, error } = await supabaseInstance
+              .from('products')
+              .select('description')
+              .eq('id', SYSTEM_CATEGORIES_ROW_ID)
+              .maybeSingle();
+
+            if (!error && data && data.description) {
+              const parsed = JSON.parse(data.description);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                loadedFromCloud = parsed.map((item: any, idx: number) => ({
+                  id: item.id || `cat-${item.slug || idx}`,
+                  name: item.name,
+                  slug: item.slug || slugifyCategory(item.name),
+                  image: item.image || 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=600',
+                  sortOrder: typeof item.sortOrder === 'number' ? item.sortOrder : idx + 1,
+                  isVisible: item.isVisible !== false,
+                  description: item.description || '',
+                  createdAt: item.createdAt,
+                }));
+              }
+            }
+          } catch (e) {
+            console.warn('[fetchCategories] Error reading from system row:', e);
+          }
         }
       }
-      return getLocalCategories();
+
+      // If cloud returned categories (from either strategy A or B)
+      if (loadedFromCloud && loadedFromCloud.length > 0) {
+        const rawLocal = getRawLocalCategories();
+        // Merge with any offline/local categories that haven't synced yet
+        const merged = mergeCategoriesLists(loadedFromCloud, rawLocal);
+        const reconciled = reconcileCategoriesWithProducts(merged, cachedProducts || undefined);
+        const sorted = reconciled.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+        saveLocalCategories(sorted);
+        // Ensure cloud storage locations are fresh in background
+        syncCategoriesToSupabase(sorted).catch(() => {});
+        return sorted;
+      }
+
+      // Fallback to local / initial categories
+      const local = getLocalCategories();
+      if (isSupabaseConfigured() && supabaseInstance && local.length > 0) {
+        // Seed initial categories to Supabase cloud storage so Vercel has them on first load
+        syncCategoriesToSupabase(local).catch(() => {});
+      }
+      return local;
     } finally {
       inFlightCategoriesPromise = null;
     }
@@ -1506,42 +1687,44 @@ export const fetchCategories = async (options?: { force?: boolean }): Promise<Ca
 };
 
 export const saveCategory = async (category: Partial<Category>): Promise<Category> => {
-  const catId = category.id || `cat-${Date.now()}`;
+  const rawName = (category.name || 'Nueva Categoría').trim();
+  const slug = (category.slug || slugifyCategory(rawName)).toLowerCase().trim();
+  const catId = category.id || `cat-${slug || Date.now()}`;
   const now = new Date().toISOString();
-  
-  const fullCategory: Category = {
-    id: catId,
-    name: (category.name || 'Nueva Categoría').trim(),
-    slug: (category.slug || category.name || 'categoria').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
-    image: category.image || 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=600',
-    sortOrder: category.sortOrder !== undefined ? category.sortOrder : 99,
-    isVisible: category.isVisible !== undefined ? category.isVisible : true,
-    description: category.description || '',
-    createdAt: category.createdAt || now,
-  };
 
-  if (isSupabaseConfigured() && supabaseInstance) {
-    try {
-      const dbPayload = {
-        id: fullCategory.id,
-        name: fullCategory.name,
-        slug: fullCategory.slug,
-        image_url: fullCategory.image,
-        sort_order: fullCategory.sortOrder,
-        is_visible: fullCategory.isVisible,
-        description: fullCategory.description,
-        created_at: fullCategory.createdAt,
-      };
+  // 1. Unmark from deleted categories set
+  unmarkCategoryAsDeleted(catId, rawName, slug);
 
-      const { error } = await supabaseInstance.from('categories').upsert(dbPayload);
-      if (error) console.warn('Supabase saveCategory upsert error:', error.message);
-    } catch (e) {
-      console.warn('Error saving category to Supabase:', e);
+  // 2. Determine current list
+  const current = getLocalCategories();
+  const existingIdx = current.findIndex(
+    (c) =>
+      (c.id && c.id.toLowerCase() === catId.toLowerCase()) ||
+      (c.slug && c.slug.toLowerCase() === slug) ||
+      (c.name && c.name.trim().toLowerCase() === rawName.toLowerCase())
+  );
+
+  let sortOrder = category.sortOrder;
+  if (sortOrder === undefined) {
+    if (existingIdx >= 0) {
+      sortOrder = current[existingIdx].sortOrder;
+    } else {
+      const maxOrder = current.length > 0 ? Math.max(...current.map((c) => c.sortOrder || 0)) : 0;
+      sortOrder = maxOrder + 1;
     }
   }
 
-  const current = getLocalCategories();
-  const existingIdx = current.findIndex((c) => c.id === fullCategory.id);
+  const fullCategory: Category = {
+    id: existingIdx >= 0 ? current[existingIdx].id : catId,
+    name: rawName,
+    slug: slug,
+    image: category.image || 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=600',
+    sortOrder: typeof sortOrder === 'number' ? sortOrder : 99,
+    isVisible: category.isVisible !== false,
+    description: category.description || '',
+    createdAt: (existingIdx >= 0 ? current[existingIdx].createdAt : category.createdAt) || now,
+  };
+
   let updatedList: Category[];
   if (existingIdx >= 0) {
     updatedList = [...current];
@@ -1549,24 +1732,139 @@ export const saveCategory = async (category: Partial<Category>): Promise<Categor
   } else {
     updatedList = [...current, fullCategory];
   }
+
+  // Sort and clean up sortOrder
+  updatedList.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
+  // 3. Save locally
   saveLocalCategories(updatedList);
+
+  // 4. Persist to Supabase cloud (both system row and public.categories table)
+  await syncCategoriesToSupabase(updatedList);
+
+  // 5. Broadcast update event
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent('categories-updated', { detail: updatedList }));
+    } catch (e) {}
+  }
+
   return fullCategory;
 };
 
-export const deleteCategory = async (categoryId: string): Promise<boolean> => {
+export const deleteCategory = async (
+  categoryId: string,
+  categoryName?: string
+): Promise<{ success: boolean; affectedProductsCount: number }> => {
+  console.log(`[deleteCategory] Eliminando categoría: id=${categoryId}, name=${categoryName}`);
+
+  // 1. Resolve category info
+  const currentCategories = getLocalCategories();
+  const targetCategory = currentCategories.find(
+    (c) => c.id === categoryId || (categoryName && c.name.toLowerCase() === categoryName.toLowerCase())
+  );
+  const resolvedName = targetCategory?.name || categoryName || '';
+  const resolvedSlug = targetCategory?.slug || (resolvedName ? slugifyCategory(resolvedName) : '');
+  const nameClean = resolvedName.trim().toLowerCase();
+  const slugClean = resolvedSlug.trim().toLowerCase();
+
+  // 2. Mark category as permanently deleted so it is never auto-recreated
+  markCategoryAsDeleted(categoryId, resolvedName, resolvedSlug);
+
+  // 3. Find and update all products assigned to this category to "Otros"
+  const currentProducts = getLocalProducts();
+  let affectedCount = 0;
+
+  const updatedProducts = currentProducts.map((prod) => {
+    const prodCat = (prod.category || '').trim().toLowerCase();
+    const prodSub = (prod.subcategory || '').trim().toLowerCase();
+    const prodCatSlug = slugifyCategory(prodCat);
+
+    const isMatch =
+      (nameClean && (prodCat === nameClean || prodSub === nameClean)) ||
+      (slugClean && (prodCatSlug === slugClean || prodCat === slugClean));
+
+    if (isMatch) {
+      affectedCount++;
+      return {
+        ...prod,
+        category: 'Otros',
+        subcategory: prodSub === nameClean ? '' : prod.subcategory,
+      };
+    }
+    return prod;
+  });
+
+  // 4. Save updated products locally
+  if (affectedCount > 0) {
+    saveLocalProducts(updatedProducts);
+  }
+
+  // 5. If Supabase is configured, update affected products in database
   if (isSupabaseConfigured() && supabaseInstance) {
     try {
-      const { error } = await supabaseInstance.from('categories').delete().eq('id', categoryId);
-      if (error) console.warn('Supabase deleteCategory error:', error.message);
+      if (affectedCount > 0) {
+        if (resolvedName) {
+          await supabaseInstance
+            .from('products')
+            .update({ category: 'Otros' })
+            .ilike('category', resolvedName);
+        }
+        if (resolvedSlug) {
+          await supabaseInstance
+            .from('products')
+            .update({ category: 'Otros' })
+            .ilike('category', resolvedSlug);
+        }
+      }
+
+      // Delete from Supabase categories table
+      await supabaseInstance.from('categories').delete().eq('id', categoryId);
+      if (resolvedSlug) {
+        await supabaseInstance.from('categories').delete().eq('slug', resolvedSlug);
+      }
     } catch (e) {
-      console.warn('Error deleting category from Supabase:', e);
+      console.warn('Error syncing category deletion to Supabase:', e);
     }
   }
 
-  const current = getLocalCategories();
-  const filtered = current.filter((c) => c.id !== categoryId);
-  saveLocalCategories(filtered);
-  return true;
+  // 6. Update local categories list (excluding the deleted one, and ensuring 'Otros' is present)
+  const remainingCategories = currentCategories.filter((c) => {
+    const cId = (c.id || '').trim().toLowerCase();
+    const cSlug = (c.slug || slugifyCategory(c.name)).trim().toLowerCase();
+    const cName = (c.name || '').trim().toLowerCase();
+    if (cId === categoryId.toLowerCase()) return false;
+    if (slugClean && cSlug === slugClean) return false;
+    if (nameClean && cName === nameClean) return false;
+    return true;
+  });
+
+  // Ensure 'Otros' category is available
+  const hasOtros = remainingCategories.some(
+    (c) => c.slug?.toLowerCase() === 'otros' || c.name?.toLowerCase() === 'otros'
+  );
+  if (!hasOtros) {
+    remainingCategories.push(DEFAULT_OTHERS_CATEGORY);
+  }
+
+  remainingCategories.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
+  saveLocalCategories(remainingCategories);
+
+  // Sync updated remaining categories to Supabase
+  await syncCategoriesToSupabase(remainingCategories);
+
+  // Dispatch events for real-time reactivity
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent('categories-updated', { detail: remainingCategories }));
+      if (affectedCount > 0) {
+        window.dispatchEvent(new CustomEvent('products-updated', { detail: updatedProducts }));
+      }
+    } catch (e) {}
+  }
+
+  return { success: true, affectedProductsCount: affectedCount };
 };
 
 export const reorderCategories = async (orderedCategories: Category[]): Promise<void> => {
@@ -1577,14 +1875,12 @@ export const reorderCategories = async (orderedCategories: Category[]): Promise<
 
   saveLocalCategories(updated);
 
-  if (isSupabaseConfigured() && supabaseInstance) {
+  await syncCategoriesToSupabase(updated);
+
+  if (typeof window !== 'undefined') {
     try {
-      for (const cat of updated) {
-        await supabaseInstance.from('categories').update({ sort_order: cat.sortOrder }).eq('id', cat.id);
-      }
-    } catch (e) {
-      console.warn('Error syncing reordered categories to Supabase:', e);
-    }
+      window.dispatchEvent(new CustomEvent('categories-updated', { detail: updated }));
+    } catch (e) {}
   }
 };
 

@@ -270,7 +270,7 @@ export default function App() {
         setProducts(safeProds);
       }
       safeCats = reconcileCategoriesWithProducts(safeCats, safeProds.length > 0 ? safeProds : products);
-      setCategories(safeCats);
+      setCategories(safeCats.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)));
     } catch (e) {
       console.error('Error loading data:', e);
     } finally {
@@ -348,6 +348,31 @@ export default function App() {
 
   useEffect(() => {
     loadData();
+
+    const handleCategoriesUpdated = (event?: any) => {
+      if (event?.detail && Array.isArray(event.detail)) {
+        const sorted = [...event.detail].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+        setCategories(sorted);
+      } else {
+        loadData(true);
+      }
+    };
+
+    const handleProductsUpdated = (event?: any) => {
+      if (event?.detail && Array.isArray(event.detail)) {
+        setProducts(event.detail);
+      } else {
+        loadData(true);
+      }
+    };
+
+    window.addEventListener('categories-updated', handleCategoriesUpdated);
+    window.addEventListener('products-updated', handleProductsUpdated);
+
+    return () => {
+      window.removeEventListener('categories-updated', handleCategoriesUpdated);
+      window.removeEventListener('products-updated', handleProductsUpdated);
+    };
   }, []);
 
   // Redirigir a modo Compra Rápida si se accede mediante el enlace personalizado

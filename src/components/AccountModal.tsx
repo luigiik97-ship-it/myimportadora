@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, User, MapPin, Package, LogOut, Loader2, CheckCircle2, 
-  AlertCircle, ChevronRight, Clock, Truck, Store, ExternalLink, RefreshCw,
-  RotateCcw, ShoppingBag, AlertTriangle
+  AlertCircle, ChevronRight, Clock, Truck, Store, ExternalLink, RefreshCw
 } from 'lucide-react';
 import { UserProfile, Order, Product, CartItem } from '../types';
 import { saveUserProfile, signOutUser, fetchUserOrders } from '../services/auth';
-import { reorderOrderItems, ReorderResult } from '../services/reorder';
 
 interface AccountModalProps {
   isOpen: boolean;
@@ -50,10 +48,6 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   // Orders state
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
-
-  // Reorder states
-  const [reorderingOrderId, setReorderingOrderId] = useState<string | null>(null);
-  const [reorderResult, setReorderResult] = useState<ReorderResult | null>(null);
 
   // Status feedback
   const [isSaving, setIsSaving] = useState(false);
@@ -101,21 +95,6 @@ export const AccountModal: React.FC<AccountModalProps> = ({
       console.warn('Error loading orders:', e);
     } finally {
       setLoadingOrders(false);
-    }
-  };
-
-  const handleReorder = (order: Order) => {
-    setReorderingOrderId(order.id);
-    try {
-      const result = reorderOrderItems(order, products || [], cart || []);
-      if (result.totalUnitsAdded > 0 && onUpdateCart) {
-        onUpdateCart(result.updatedCart);
-      }
-      setReorderResult(result);
-    } catch (err) {
-      console.error('Error al volver a pedir:', err);
-    } finally {
-      setReorderingOrderId(null);
     }
   };
 
@@ -438,34 +417,14 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                           </div>
                         </div>
 
-                        {/* Order Card Actions: Volver a pedir */}
-                        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100">
+                        {/* Order Card Footer: Cantidad de productos */}
+                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-100">
                           <span className="text-xs text-gray-500 font-medium">
                             {order.items.reduce((acc, it) => acc + it.quantity, 0)}{' '}
                             {order.items.reduce((acc, it) => acc + it.quantity, 0) === 1
                               ? 'producto'
                               : 'productos en este pedido'}
                           </span>
-
-                          <button
-                            type="button"
-                            onClick={() => handleReorder(order)}
-                            disabled={reorderingOrderId === order.id}
-                            className="bg-[#0058bb] hover:bg-[#004bb0] text-white text-xs font-bold px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95 disabled:opacity-60"
-                            title="Volver a cargar automáticamente todos los productos de este pedido al carrito"
-                          >
-                            {reorderingOrderId === order.id ? (
-                              <>
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                <span>Cargando productos...</span>
-                              </>
-                            ) : (
-                              <>
-                                <RotateCcw className="w-3.5 h-3.5" />
-                                <span>Volver a pedir</span>
-                              </>
-                            )}
-                          </button>
                         </div>
                       </div>
                     );
@@ -681,139 +640,6 @@ export const AccountModal: React.FC<AccountModalProps> = ({
             </form>
           )}
         </div>
-
-        {/* Modal de Notificación de Reordenar */}
-        {reorderResult && (
-          <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100 flex flex-col gap-4">
-              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                <div className="flex items-center gap-2.5">
-                  {reorderResult.status === 'success' ? (
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                      <CheckCircle2 className="w-6 h-6" />
-                    </div>
-                  ) : reorderResult.status === 'partial' ? (
-                    <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                      <AlertTriangle className="w-6 h-6" />
-                    </div>
-                  ) : (
-                    <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-                      <AlertCircle className="w-6 h-6" />
-                    </div>
-                  )}
-                  <div>
-                    <h4 className="font-bold text-gray-900 text-base font-['Montserrat']">
-                      {reorderResult.status === 'success'
-                        ? '¡Productos agregados al carrito!'
-                        : reorderResult.status === 'partial'
-                        ? 'Productos agregados parcialmente'
-                        : 'No se pudieron agregar los productos'}
-                    </h4>
-                    <p className="text-xs text-gray-500">
-                      Pedido #{reorderResult.orderNumber}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setReorderResult(null)}
-                  className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Mensaje descriptivo */}
-              <p className="text-sm text-gray-600 leading-relaxed">
-                {reorderResult.message}
-              </p>
-
-              {/* Lista de productos agregados */}
-              {(reorderResult.addedItems || []).length > 0 && (
-                <div className="space-y-2">
-                  <div className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Agregados al carrito ({reorderResult.totalUnitsAdded} unid.)</span>
-                  </div>
-                  <div className="max-h-32 overflow-y-auto space-y-1.5 pr-1">
-                    {(reorderResult.addedItems || []).map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="text-xs bg-emerald-50/60 border border-emerald-100 text-emerald-900 rounded-lg p-2 flex items-center justify-between gap-2"
-                      >
-                        <div className="truncate">
-                          <span className="font-semibold">{item.title}</span>
-                          {item.variantText && (
-                            <span className="text-emerald-700 text-[11px] block truncate">
-                              {item.variantText}
-                            </span>
-                          )}
-                        </div>
-                        <span className="shrink-0 font-bold bg-emerald-200/70 text-emerald-900 px-2 py-0.5 rounded-full text-[11px]">
-                          x{item.quantity}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Lista de productos no disponibles */}
-              {(reorderResult.unavailableItems || []).length > 0 && (
-                <div className="space-y-2">
-                  <div className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Sin disponibilidad actual</span>
-                  </div>
-                  <div className="max-h-32 overflow-y-auto space-y-1.5 pr-1">
-                    {reorderResult.unavailableItems.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="text-xs bg-amber-50/70 border border-amber-200/80 text-amber-900 rounded-lg p-2 flex items-center justify-between gap-2"
-                      >
-                        <div className="truncate">
-                          <span className="font-medium">{item.title}</span>
-                          {item.variantText && (
-                            <span className="text-amber-700 text-[11px] block truncate">
-                              {item.variantText}
-                            </span>
-                          )}
-                        </div>
-                        <span className="shrink-0 text-[11px] font-semibold text-rose-600 bg-white px-2 py-0.5 rounded border border-rose-200">
-                          {item.reason}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Botones de acción */}
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setReorderResult(null)}
-                  className="px-4 py-2 text-xs sm:text-sm font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
-                >
-                  Cerrar
-                </button>
-                {reorderResult.totalUnitsAdded > 0 && onNavigateToCart && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setReorderResult(null);
-                      onNavigateToCart();
-                    }}
-                    className="bg-[#0058bb] hover:bg-[#004bb0] text-white px-4 py-2 text-xs sm:text-sm font-bold rounded-xl flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-                  >
-                    <ShoppingBag className="w-4 h-4" />
-                    <span>Ver Carrito</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

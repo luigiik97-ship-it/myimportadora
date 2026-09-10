@@ -141,6 +141,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
   const [isTestingDiagnostic, setIsTestingDiagnostic] = useState(false);
   const [isResendingOrderEmail, setIsResendingOrderEmail] = useState(false);
 
+  // In-app deletion modals (reliable, replaces blocked window.confirm)
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [isDeletingProduct, setIsDeletingProduct] = useState(false);
+  const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
+  const [isDeletingOrder, setIsDeletingOrder] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD || 'admin';
 
   const handleLogin = (e: React.FormEvent) => {
@@ -204,13 +211,32 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
       }
     };
 
+    const handleProductsUpdated = () => {
+      fetchProducts().then((prods) => {
+        setProducts(prods);
+      });
+    };
+
     window.addEventListener('my_commerce_orders_updated', handleOrdersUpdated);
+    window.addEventListener('products-updated', handleProductsUpdated);
+    window.addEventListener('categories-updated', handleProductsUpdated);
     window.addEventListener('storage', handleStorageChange);
     return () => {
       window.removeEventListener('my_commerce_orders_updated', handleOrdersUpdated);
+      window.removeEventListener('products-updated', handleProductsUpdated);
+      window.removeEventListener('categories-updated', handleProductsUpdated);
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (actionFeedback) {
+      const timer = setTimeout(() => {
+        setActionFeedback(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [actionFeedback]);
 
   // Filtered and Sorted Orders (single source of truth, most recent first)
   const filteredOrders = useMemo(() => {
@@ -479,10 +505,30 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
     }
   };
 
-  const handleDeleteProduct = async (id: string) => {
-    if (window.confirm('¿Estás seguro de que deseas eliminar esta publicación?')) {
+  const handleOpenDeleteProductModal = (prod: Product) => {
+    setProductToDelete(prod);
+  };
+
+  const confirmDeleteProduct = async () => {
+    if (!productToDelete) return;
+    setIsDeletingProduct(true);
+    try {
+      const id = productToDelete.id;
       await deleteProduct(id);
       setProducts((prev) => prev.filter((p) => p.id !== id));
+      setActionFeedback({
+        type: 'success',
+        text: `Publicación "${productToDelete.title}" eliminada correctamente del catálogo y base de datos.`,
+      });
+      setProductToDelete(null);
+    } catch (err: any) {
+      console.error('[AdminView handleDeleteProduct] Error:', err);
+      setActionFeedback({
+        type: 'error',
+        text: `Error al eliminar publicación: ${err.message || 'Error desconocido'}`,
+      });
+    } finally {
+      setIsDeletingProduct(false);
     }
   };
 
@@ -772,13 +818,33 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
     }
   };
 
-  const handleDeleteOrder = async (orderId: string) => {
-    if (window.confirm('¿Estás seguro de que deseas eliminar este pedido del registro?')) {
+  const handleOpenDeleteOrderModal = (order: Order) => {
+    setOrderToDelete(order);
+  };
+
+  const confirmDeleteOrder = async () => {
+    if (!orderToDelete) return;
+    setIsDeletingOrder(true);
+    try {
+      const orderId = orderToDelete.id;
       await deleteOrder(orderId);
       setOrders((prev) => prev.filter((o) => o.id !== orderId));
       if (selectedOrder && selectedOrder.id === orderId) {
         setSelectedOrder(null);
       }
+      setActionFeedback({
+        type: 'success',
+        text: `Pedido #${orderToDelete.orderNumber || orderId} eliminado del registro.`,
+      });
+      setOrderToDelete(null);
+    } catch (err: any) {
+      console.error('[AdminView handleDeleteOrder] Error:', err);
+      setActionFeedback({
+        type: 'error',
+        text: `Error al eliminar pedido: ${err.message || 'Error desconocido'}`,
+      });
+    } finally {
+      setIsDeletingOrder(false);
     }
   };
 
@@ -929,6 +995,32 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
           </button>
         </div>
       </div>
+
+      {/* Action Feedback Banner */}
+      {actionFeedback && (
+        <div
+          className={`p-3.5 rounded-xl border flex items-center justify-between text-xs font-semibold shadow-xs animate-fadeIn ${
+            actionFeedback.type === 'success'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              : 'bg-red-50 border-red-200 text-red-900'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {actionFeedback.type === 'success' ? (
+              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+            )}
+            <span>{actionFeedback.text}</span>
+          </div>
+          <button
+            onClick={() => setActionFeedback(null)}
+            className="p-1 hover:bg-black/5 rounded cursor-pointer transition-colors text-gray-500 hover:text-gray-700"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1238,7 +1330,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                             </button>
                             <button
                               id={`delete-prod-btn-${prod.id}`}
-                              onClick={() => handleDeleteProduct(prod.id)}
+                              onClick={() => handleOpenDeleteProductModal(prod)}
                               className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors cursor-pointer"
                               title="Eliminar publicación"
                             >
@@ -1532,7 +1624,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                                 Detalle
                               </button>
                               <button
-                                onClick={() => handleDeleteOrder(order.id)}
+                                onClick={() => handleOpenDeleteOrderModal(order)}
                                 className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1.5 rounded cursor-pointer transition-colors"
                                 title="Eliminar pedido del registro"
                               >
@@ -1686,8 +1778,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
         <CategoryManager
           products={products}
           onCategoriesUpdated={() => {
-            // Updated categories
+            loadData();
           }}
+          onProductsUpdated={loadData}
         />
       )}
 
@@ -2723,6 +2816,134 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                 className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold px-4 py-2 rounded-lg text-xs cursor-pointer transition-colors"
               >
                 Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Product In-App Modal */}
+      {productToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-100">
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-base font-bold text-gray-900 text-center font-['Montserrat']">
+              ¿Eliminar esta publicación?
+            </h3>
+            <p className="text-xs text-gray-500 text-center mt-1">
+              Esta acción eliminará el producto del catálogo y de la base de datos de manera definitiva.
+            </p>
+
+            {/* Product mini card preview */}
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-center gap-3">
+              <img
+                src={(productToDelete.images && productToDelete.images[0]) || 'https://via.placeholder.com/100'}
+                alt={productToDelete.title}
+                className="w-12 h-12 object-contain rounded bg-white border border-gray-200 p-1 shrink-0"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-gray-900 truncate">{productToDelete.title}</p>
+                <p className="text-[11px] text-gray-500">
+                  Categoría: <span className="font-semibold text-gray-700">{productToDelete.category}</span>
+                </p>
+                <p className="text-[11px] text-gray-700 font-medium">
+                  Mayorista: <span className="font-bold text-[#0058bb]">${productToDelete.wholesalePrice.toLocaleString('es-AR')}</span>
+                  {' · '}
+                  Minorista: <span className="font-bold text-gray-900">${productToDelete.retailPrice.toLocaleString('es-AR')}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 mt-6 pt-4 border-t border-gray-100">
+              <button
+                type="button"
+                disabled={isDeletingProduct}
+                onClick={() => setProductToDelete(null)}
+                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                id="confirm-delete-product-btn"
+                disabled={isDeletingProduct}
+                onClick={confirmDeleteProduct}
+                className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-xs font-bold px-4 py-2 rounded-lg cursor-pointer shadow-sm transition-colors flex items-center gap-1.5"
+              >
+                {isDeletingProduct ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Eliminando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Confirmar Eliminación</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Order In-App Modal */}
+      {orderToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-100">
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-base font-bold text-gray-900 text-center font-['Montserrat']">
+              ¿Eliminar el pedido #{orderToDelete.orderNumber || orderToDelete.id}?
+            </h3>
+            <p className="text-xs text-gray-500 text-center mt-1">
+              Esta acción eliminará el pedido del registro de ventas y del historial del panel.
+            </p>
+
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200 text-xs text-gray-700 space-y-1">
+              <p>
+                <span className="font-semibold text-gray-900">Cliente:</span> {orderToDelete.customerName}
+              </p>
+              <p>
+                <span className="font-semibold text-gray-900">Total:</span> ${orderToDelete.total.toLocaleString('es-AR')}
+              </p>
+              <p>
+                <span className="font-semibold text-gray-900">Artículos:</span> {orderToDelete.items?.length || 0} producto(s)
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 mt-6 pt-4 border-t border-gray-100">
+              <button
+                type="button"
+                disabled={isDeletingOrder}
+                onClick={() => setOrderToDelete(null)}
+                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                id="confirm-delete-order-btn"
+                disabled={isDeletingOrder}
+                onClick={confirmDeleteOrder}
+                className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white text-xs font-bold px-4 py-2 rounded-lg cursor-pointer shadow-sm transition-colors flex items-center gap-1.5"
+              >
+                {isDeletingOrder ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Eliminando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Confirmar Eliminación</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
