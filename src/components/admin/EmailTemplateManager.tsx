@@ -228,10 +228,9 @@ export const EmailTemplateManager: React.FC<EmailTemplateManagerProps> = ({ orde
     { tag: '{{{payment_info}}}', desc: 'Alias compatible para el bloque de pago del cliente' },
     { tag: '{{{delivery_info}}}', desc: 'Detalle de retiro en local o dirección de envío formateada' },
     { tag: '{{{delivery_address}}}', desc: 'Dirección de entrega o local con horario' },
-    { tag: '{{{wa_order_link}}}', desc: 'Enlace universal de WhatsApp oficial con mensaje prellenado del pedido (*Pedido #...*) para evitar pérdida de parámetros' },
-    { tag: '{{wa_chat_link}}', desc: 'Enlace directo de chat de WhatsApp con el cliente' },
     { tag: '{{forma_entrega}}', desc: 'Texto simple: Retiro en Local o Envío a Domicilio' },
     { tag: '{{forma_pago}}', desc: 'Texto simple: Efectivo o Transferencia' },
+    { tag: '{{{whatsapp_order_link}}}', desc: 'Enlace universal directo a WhatsApp (+54 9 11 6690-4678) con mensaje automático con número de pedido' },
   ];
 
   const adminVariables = [
@@ -249,7 +248,6 @@ export const EmailTemplateManager: React.FC<EmailTemplateManagerProps> = ({ orde
     { tag: '{{transfer_equivalent_total}}', desc: 'Monto total equivalente a cobrar por transferencia (cuando el pedido es en efectivo)' },
     { tag: '{{cash_equivalent_total}}', desc: 'Monto total equivalente en efectivo calculado con los precios en efectivo de las publicaciones (cuando el pedido es por transferencia)' },
     { tag: '{{internal_notes}}', desc: 'Nota interna con detalle y desglose de equivalencia' },
-    { tag: '{{{wa_order_link}}}', desc: 'Enlace universal de WhatsApp oficial con mensaje prellenado del pedido' },
     { tag: '{{wa_chat_link}}', desc: 'Enlace directo de chat de WhatsApp con el cliente' },
     { tag: '{{{delivery_info}}}', desc: 'Detalle de retiro en local o dirección de envío formateada' },
     { tag: '{{{delivery_address}}}', desc: 'Dirección de entrega o local con horario' },

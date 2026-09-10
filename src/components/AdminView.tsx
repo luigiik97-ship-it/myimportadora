@@ -20,6 +20,7 @@ import {
   deleteProduct,
   uploadProductImage,
   uploadProductImages,
+  deleteStorageImageIfUnused,
   fetchOrders,
   updateOrderStatus,
   updateOrderEmailStatus,
@@ -173,9 +174,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [prods, ords] = await Promise.all([fetchProducts(), fetchOrders()]);
+      const [prods, ords, cats] = await Promise.all([
+        fetchProducts(),
+        fetchOrders(),
+        fetchCategories({ force: true }),
+      ]);
       setProducts(prods);
       setOrders(ords);
+      if (cats && cats.length > 0) {
+        setAdminCategories(cats);
+      }
     } catch (e) {
       console.error('Error cargando datos del admin:', e);
     } finally {
@@ -225,14 +233,25 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
       });
     };
 
+    const handleCategoriesUpdated = (event?: any) => {
+      if (event?.detail && Array.isArray(event.detail) && event.detail.length > 0) {
+        setAdminCategories(event.detail);
+      }
+      fetchCategories({ force: true }).then((cats) => {
+        if (cats && cats.length > 0) {
+          setAdminCategories(cats);
+        }
+      });
+    };
+
     window.addEventListener('my_commerce_orders_updated', handleOrdersUpdated);
     window.addEventListener('products-updated', handleProductsUpdated);
-    window.addEventListener('categories-updated', handleProductsUpdated);
+    window.addEventListener('categories-updated', handleCategoriesUpdated);
     window.addEventListener('storage', handleStorageChange);
     return () => {
       window.removeEventListener('my_commerce_orders_updated', handleOrdersUpdated);
       window.removeEventListener('products-updated', handleProductsUpdated);
-      window.removeEventListener('categories-updated', handleProductsUpdated);
+      window.removeEventListener('categories-updated', handleCategoriesUpdated);
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [isAuthenticated]);
@@ -338,8 +357,45 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
     setOrderDeliveryFilter('all');
   };
 
+  // Categories loaded from Supabase for the selector dropdown
+  const categoryOptions = useMemo(() => {
+    const list: string[] = [];
+    const seen = new Set<string>();
+
+    // 1. Existing categories from Supabase (adminCategories)
+    adminCategories.forEach((c) => {
+      const name = (c.name || '').trim();
+      if (name && !seen.has(name.toLowerCase())) {
+        seen.add(name.toLowerCase());
+        list.push(name);
+      }
+    });
+
+    // 2. If editing a product whose current category is not in list, preserve it
+    if (editingProduct?.category) {
+      const currentCat = editingProduct.category.trim();
+      if (currentCat && !seen.has(currentCat.toLowerCase())) {
+        seen.add(currentCat.toLowerCase());
+        list.push(currentCat);
+      }
+    }
+
+    return list;
+  }, [adminCategories, editingProduct?.category]);
+
   // Product CRUD
-  const handleOpenCreateProduct = () => {
+  const handleOpenCreateProduct = async () => {
+    let availableCategories = adminCategories;
+    try {
+      const freshCats = await fetchCategories();
+      if (freshCats && freshCats.length > 0) {
+        availableCategories = freshCats;
+        setAdminCategories(freshCats);
+      }
+    } catch (e) {
+      console.warn('Error syncing categories before creating product:', e);
+    }
+
     const initialVariantTypes: VariantType[] = [
       {
         id: `vt-color-${Date.now()}`,
@@ -354,7 +410,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
     setEditingProduct({
       title: '',
       description: '',
-      category: adminCategories[0]?.name || 'Otros',
+      category: availableCategories[0]?.name || 'Otros',
       subcategory: '',
       images: [],
       additionalImage: '',
@@ -629,8 +685,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
 
   const handleRemoveImage = (index: number) => {
     if (editingProduct && editingProduct.images) {
+      const removedUrl = editingProduct.images[index];
       const updatedImages = editingProduct.images.filter((_, i) => i !== index);
       setEditingProduct({ ...editingProduct, images: updatedImages });
+      if (removedUrl) {
+        deleteStorageImageIfUnused(removedUrl, products, adminCategories);
+      }
     }
   };
 
@@ -638,6 +698,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
     const file = e.target.files?.[0];
     if (!file || !editingProduct || !editingProduct.images) return;
 
+    const oldUrl = editingProduct.images[index];
     setIsUploadingImage(true);
     setUploadProgress({ current: 1, total: 1 });
 
@@ -659,6 +720,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
         setEditingProduct({ ...editingProduct, images: newImages });
         setLastOptimizationSummary('✓ Imagen reemplazada y optimizada automáticamente en formato WebP.');
         setTimeout(() => setLastOptimizationSummary(null), 4000);
+
+        if (oldUrl && oldUrl !== uploadedUrl) {
+          deleteStorageImageIfUnused(oldUrl, products, adminCategories);
+        }
       }
     } catch (err: any) {
       alert('Error reemplazando imagen: ' + err.message);
@@ -674,6 +739,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
     const file = e.target.files?.[0];
     if (!file || !editingProduct) return;
 
+    const oldUrl = editingProduct.additionalImage;
     setIsUploadingAdditionalImage(true);
     try {
       const uploadedUrl = await uploadProductImage(file, { isCover: true, maxDimension: 1600 });
@@ -682,6 +748,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
         setAdditionalImageInputUrl(uploadedUrl);
         setLastOptimizationSummary('✓ Imagen adicional / banner optimizada automáticamente en formato WebP.');
         setTimeout(() => setLastOptimizationSummary(null), 4000);
+
+        if (oldUrl && oldUrl !== uploadedUrl) {
+          deleteStorageImageIfUnused(oldUrl, products, adminCategories);
+        }
       }
     } catch (err: any) {
       alert('Error subiendo imagen adicional: ' + err.message);
@@ -701,11 +771,15 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
 
   const handleRemoveAdditionalImage = () => {
     if (!editingProduct) return;
+    const oldUrl = editingProduct.additionalImage;
     setEditingProduct({
       ...editingProduct,
       additionalImage: '',
     });
     setAdditionalImageInputUrl('');
+    if (oldUrl) {
+      deleteStorageImageIfUnused(oldUrl, products, adminCategories);
+    }
   };
 
   // Reviews & Rating handling
@@ -1785,7 +1859,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
       {activeTab === 'categories' && (
         <CategoryManager
           products={products}
-          onCategoriesUpdated={() => {
+          onCategoriesUpdated={(updatedCats) => {
+            if (updatedCats && updatedCats.length > 0) {
+              setAdminCategories(updatedCats);
+            }
             loadData();
           }}
           onProductsUpdated={loadData}
@@ -1851,21 +1928,25 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                 </div>
 
                 <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Categoría *</label>
-                  <input
-                    type="text"
+                  <label htmlFor="product-edit-category" className="font-semibold text-gray-700 block mb-1">
+                    Categoría *
+                  </label>
+                  <select
+                    id="product-edit-category"
                     required
-                    list="admin-categories-datalist"
                     value={editingProduct.category || ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })}
-                    placeholder="Ej: cubanas, Bricks, pulsera, anillos..."
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-[#0058bb]"
-                  />
-                  <datalist id="admin-categories-datalist">
-                    {Array.from(new Set([...adminCategories.map((c) => c.name), ...products.map((p) => p.category).filter(Boolean)])).map((cat) => (
-                      <option key={cat} value={cat} />
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs bg-white focus:ring-1 focus:ring-[#0058bb] focus:border-[#0058bb] cursor-pointer"
+                  >
+                    <option value="" disabled>
+                      Seleccionar categoría...
+                    </option>
+                    {categoryOptions.map((catName) => (
+                      <option key={catName} value={catName}>
+                        {catName}
+                      </option>
                     ))}
-                  </datalist>
+                  </select>
                 </div>
 
                 <div>

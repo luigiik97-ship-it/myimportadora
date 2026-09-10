@@ -321,10 +321,13 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   // Touch swipe support for mobile gallery
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
+  const isSwipingMobile = useRef<boolean>(false);
+  const lastTouchOpenTime = useRef<number>(0);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
+    isSwipingMobile.current = false;
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
@@ -334,6 +337,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
     // Check if horizontal swipe is significant and dominant over vertical scroll
     if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 35) {
+      isSwipingMobile.current = true;
       if (deltaX < 0) {
         // Swiped left -> Next image
         if (activeImages.length > 1) {
@@ -345,8 +349,10 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
           setActiveImageIndex((prev) => (prev > 0 ? prev - 1 : activeImages.length - 1));
         }
       }
-    } else if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) {
+    } else if (Math.abs(deltaX) < 14 && Math.abs(deltaY) < 14) {
       // Direct tap without swipe opens fullscreen lightbox
+      isSwipingMobile.current = false;
+      lastTouchOpenTime.current = Date.now();
       setIsLightboxOpen(true);
     }
     touchStartX.current = null;
@@ -404,7 +410,14 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
           {/* Main Large Image with touch swipe support and full-width presence */}
           <div
             className="flex-1 bg-white -mx-2 sm:mx-0 rounded-none sm:rounded-xl border-b border-gray-100 sm:border flex items-center justify-center p-2 sm:p-4 min-h-[330px] sm:min-h-[380px] md:min-h-[480px] max-h-[520px] overflow-hidden relative group select-none touch-pan-y cursor-zoom-in"
-            onClick={() => setIsLightboxOpen(true)}
+            onClick={() => {
+              // Ignore synthetic click if touch just handled the tap or if user was swiping
+              if (Date.now() - lastTouchOpenTime.current < 600 || isSwipingMobile.current) {
+                isSwipingMobile.current = false;
+                return;
+              }
+              setIsLightboxOpen(true);
+            }}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
           >

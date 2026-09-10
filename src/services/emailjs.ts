@@ -1,6 +1,5 @@
 import emailjs from '@emailjs/browser';
 import { Order } from '../types';
-import { buildOrderWhatsAppUrl } from './quickBuyLink';
 
 // Environment configurations
 const env = (typeof import.meta !== 'undefined' && import.meta.env)
@@ -14,9 +13,9 @@ const templateAdmin = env.VITE_EMAILJS_TEMPLATE_ID_ADMIN || singleTemplate || 't
 const publicKey = env.VITE_EMAILJS_PUBLIC_KEY || env.VITE_EMAILJS_USER_ID || '';
 const adminEmail = env.VITE_ADMIN_EMAIL || 'admin@myimportadora.com';
 
-// Local storage keys for custom edited templates (v6 to guarantee fresh defaults with universal WhatsApp links)
+// Local storage keys for custom edited templates (v5 to guarantee fresh defaults)
 export const STORAGE_KEY_CUSTOMER_TEMPLATE = 'my_emailjs_template_customer_v6';
-export const STORAGE_KEY_ADMIN_TEMPLATE = 'my_emailjs_template_admin_v6';
+export const STORAGE_KEY_ADMIN_TEMPLATE = 'my_emailjs_template_admin_v5';
 
 export const isEmailJsConfigured = (): boolean => {
   return !!(
@@ -284,7 +283,7 @@ export const DEFAULT_CUSTOMER_TEMPLATE = `<!DOCTYPE html>
           <!-- WHATSAPP CONTACT BUTTON -->
           <tr>
             <td align="center" style="padding: 0 24px 24px 24px;">
-              <a href="{{{wa_order_link}}}"
+              <a href="{{{whatsapp_order_link}}}"
                  target="_blank"
                  style="display: inline-block; background-color: #00a650; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 800; padding: 12px 24px; border-radius: 30px; box-shadow: 0 3px 10px rgba(0,166,80,0.25);">
                 💬 Contactar por WhatsApp (+54 9 11 6690-4678)
@@ -506,6 +505,7 @@ export const sanitizeAndUpgradeTemplateHtml = (html: string): string => {
 
   // 2. Automatically upgrade HTML-bearing variables to triple curly braces for unescaped HTML in EmailJS
   const htmlVariables = [
+    'whatsapp_order_link',
     'customer_payment_info',
     'admin_payment_info',
     'payment_info',
@@ -518,9 +518,6 @@ export const sanitizeAndUpgradeTemplateHtml = (html: string): string => {
     'html_content',
     'order_html',
     'content',
-    'wa_order_link',
-    'whatsapp_order_link',
-    'wa_comprobante_link',
   ];
 
   for (const v of htmlVariables) {
@@ -529,10 +526,11 @@ export const sanitizeAndUpgradeTemplateHtml = (html: string): string => {
     cleaned = cleaned.replace(doubleBraceRegex, `{{{${v}}}}`);
   }
 
-  // 3. Automatically upgrade any legacy WhatsApp links in saved custom templates to {{{wa_order_link}}}
-  // This completely eliminates broken /message/ links that drop ?text= query parameters
-  cleaned = cleaned.replace(/href=["']https?:\/\/wa\.me\/message\/[^"']*["']/gi, 'href="{{{wa_order_link}}}"');
-  cleaned = cleaned.replace(/href=["']https?:\/\/wa\.me\/5491166904678[^"']*["']/gi, 'href="{{{wa_order_link}}}"');
+  // 3. Upgrade legacy wa.me links to the universal {{{whatsapp_order_link}}}
+  cleaned = cleaned.replace(
+    /href=["']https:\/\/wa\.me\/(?:message\/TSF5H4YUIQJOC1|5491166904678)[^"']*["']/g,
+    'href="{{{whatsapp_order_link}}}"'
+  );
 
   return cleaned;
 };
@@ -582,7 +580,6 @@ export const saveAdminTemplate = (html: string): void => {
 export const resetCustomerTemplate = (): string => {
   if (typeof window !== 'undefined' && window.localStorage) {
     localStorage.removeItem(STORAGE_KEY_CUSTOMER_TEMPLATE);
-    localStorage.removeItem('my_emailjs_template_customer_v5');
   }
   return DEFAULT_CUSTOMER_TEMPLATE;
 };
@@ -590,7 +587,6 @@ export const resetCustomerTemplate = (): string => {
 export const resetAdminTemplate = (): string => {
   if (typeof window !== 'undefined' && window.localStorage) {
     localStorage.removeItem(STORAGE_KEY_ADMIN_TEMPLATE);
-    localStorage.removeItem('my_emailjs_template_admin_v5');
   }
   return DEFAULT_ADMIN_TEMPLATE;
 };
@@ -674,7 +670,7 @@ export const generateCustomerPaymentInfoHtml = (order: Order): string => {
         </tr>
       </table>
       <div style="text-align: center;">
-        <a href="${buildOrderWhatsAppUrl(order)}"
+        <a href="https://api.whatsapp.com/send?phone=5491166904678&text=${encodeURIComponent(`Pedido #${order.orderNumber} Hola buenas acabo de realizar un pedido por la pagina michy.com.ar. Adjunto comprobante de transferencia bancaria por $${(order.total || 0).toLocaleString('es-AR')}.`)}"
            target="_blank"
            style="display: inline-block; background-color: #25d366; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 800; padding: 10px 20px; border-radius: 24px; box-shadow: 0 2px 6px rgba(37,211,102,0.3);">
           📤 Enviar Comprobante por WhatsApp (1166904678)
@@ -849,22 +845,13 @@ export const buildCustomerTemplateParams = (order: Order): Record<string, any> =
   const paymentMethodText = isCash ? 'Efectivo' : 'Transferencia';
   const customerPaymentInfoHtml = generateCustomerPaymentInfoHtml(currentOrder);
 
+  // Enlace oficial de WhatsApp para que el cliente contacte a la tienda sobre su pedido
+  const defaultCustomerWaMsg = `Pedido #${currentOrder.orderNumber} Hola buenas acabo de realizar un pedido por la pagina michy.com.ar`;
+  const whatsappOrderLink = `https://api.whatsapp.com/send?phone=5491166904678&text=${encodeURIComponent(defaultCustomerWaMsg)}`;
+
   const rawPhone = currentOrder.customerWhatsapp || '';
   const cleanPhone = rawPhone.replace(/\D/g, '');
-  const waChatLink = cleanPhone
-    ? `https://api.whatsapp.com/send?phone=${cleanPhone.startsWith('54') ? cleanPhone : `549${cleanPhone}`}&text=Hola%20${encodeURIComponent(currentOrder.customerName || '')},%20nos%20comunicamos%20de%20MY%20Importadora%20por%20tu%20pedido%20%23${currentOrder.orderNumber}`
-    : `https://api.whatsapp.com/send?phone=5491166904678&text=Hola,%20nos%20comunicamos%20de%20MY%20Importadora%20por%20el%20pedido%20%23${currentOrder.orderNumber}`;
-
-  const waOrderLink = buildOrderWhatsAppUrl({
-    orderNumber: currentOrder.orderNumber,
-    items: orderItems,
-    total: currentOrder.total,
-    paymentMethod: currentOrder.paymentMethod,
-    deliveryOption: currentOrder.deliveryOption,
-    shippingMethodName: currentOrder.shippingMethodName,
-    shippingCost: currentOrder.shippingCost,
-    customerName: currentOrder.customerName,
-  });
+  const waChatLink = `https://api.whatsapp.com/send?phone=${cleanPhone.startsWith('54') ? cleanPhone : `549${cleanPhone}`}&text=Hola%20${encodeURIComponent(currentOrder.customerName || '')},%20nos%20comunicamos%20de%20MY%20Importadora%20por%20tu%20pedido%20%23${currentOrder.orderNumber}`;
 
   const productRowsHtml = generateProductsTableRowsHtml(orderItems);
   const totalItemsCount = orderItems.reduce((acc, it) => acc + (it.quantity || 0), 0);
@@ -933,10 +920,10 @@ export const buildCustomerTemplateParams = (order: Order): Record<string, any> =
       : 'Titular: Silvia Lembo | Alias: hola.retiro | CVU: 0000003100087788243612',
 
     wa_chat_link: waChatLink,
-    wa_order_link: waOrderLink,
-    whatsapp_order_link: waOrderLink,
-    whatsapp_link: waOrderLink,
-    wa_comprobante_link: waOrderLink,
+    whatsapp_order_link: whatsappOrderLink,
+    whatsapp_link: whatsappOrderLink,
+    wa_order_link: whatsappOrderLink,
+    customer_whatsapp_url: whatsappOrderLink,
     company_name: 'MY Importadora Mayorista',
     company_whatsapp: '+54 9 11 6690-4678',
     company_address: 'Av. San Pedrito 28, Local 4, Flores, CABA',
@@ -1017,20 +1004,7 @@ export const buildAdminTemplateParams = (order: Order): Record<string, any> => {
 
   const rawPhone = currentOrder.customerWhatsapp || '';
   const cleanPhone = rawPhone.replace(/\D/g, '');
-  const waChatLink = cleanPhone
-    ? `https://api.whatsapp.com/send?phone=${cleanPhone.startsWith('54') ? cleanPhone : `549${cleanPhone}`}&text=Hola%20${encodeURIComponent(currentOrder.customerName || '')},%20nos%20comunicamos%20de%20MY%20Importadora%20por%20tu%20pedido%20%23${currentOrder.orderNumber}`
-    : `https://api.whatsapp.com/send?phone=5491166904678&text=Hola,%20nos%20comunicamos%20de%20MY%20Importadora%20por%20el%20pedido%20%23${currentOrder.orderNumber}`;
-
-  const waOrderLink = buildOrderWhatsAppUrl({
-    orderNumber: currentOrder.orderNumber,
-    items: orderItems,
-    total: currentOrder.total,
-    paymentMethod: currentOrder.paymentMethod,
-    deliveryOption: currentOrder.deliveryOption,
-    shippingMethodName: currentOrder.shippingMethodName,
-    shippingCost: currentOrder.shippingCost,
-    customerName: currentOrder.customerName,
-  });
+  const waChatLink = `https://api.whatsapp.com/send?phone=${cleanPhone.startsWith('54') ? cleanPhone : `549${cleanPhone}`}&text=Hola%20${encodeURIComponent(currentOrder.customerName || '')},%20nos%20comunicamos%20de%20MY%20Importadora%20por%20tu%20pedido%20%23${currentOrder.orderNumber}`;
 
   const productRowsHtml = generateProductsTableRowsHtml(orderItems);
   const totalItemsCount = orderItems.reduce((acc, it) => acc + (it.quantity || 0), 0);
@@ -1093,10 +1067,6 @@ export const buildAdminTemplateParams = (order: Order): Record<string, any> => {
       : `Total a verificar por transferencia: $${(currentOrder.total || 0).toLocaleString('es-AR')} | Importe equivalente en efectivo: $${Math.round(cashEquivalentTotal).toLocaleString('es-AR')} (Subtotal efectivo: $${Math.round(cashEquivalentSubtotal).toLocaleString('es-AR')} + Envío: $${(currentOrder.shippingCost || 0).toLocaleString('es-AR')})`,
 
     wa_chat_link: waChatLink,
-    wa_order_link: waOrderLink,
-    whatsapp_order_link: waOrderLink,
-    whatsapp_link: waOrderLink,
-    wa_comprobante_link: waOrderLink,
     company_name: 'MY Importadora Mayorista',
     company_whatsapp: '+54 9 11 6690-4678',
     company_address: 'Av. San Pedrito 28, Local 4, Flores, CABA',
@@ -1173,12 +1143,6 @@ const applyTemplateSubstitutions = (templateHtml: string, params: Record<string,
       const doubleRegex = new RegExp(`\\{\\{${escapedKey}\\}\\}`, 'g');
       rendered = rendered.replace(doubleRegex, valStr);
     }
-  }
-
-  // 4. Guaranteed universal replacement for any legacy or short WhatsApp links in custom templates
-  if (params.wa_order_link) {
-    rendered = rendered.replace(/href=["']https?:\/\/wa\.me\/message\/[^"']*["']/gi, `href="${params.wa_order_link}"`);
-    rendered = rendered.replace(/href=["']https?:\/\/wa\.me\/5491166904678[^"']*["']/gi, `href="${params.wa_order_link}"`);
   }
 
   return rendered;
@@ -1341,8 +1305,8 @@ export const sendOrderEmails = async (order: Order): Promise<EmailSendResult> =>
     '{{{delivery_info}}}': safeCustomerParams.delivery_info,
     '{{{delivery_address}}}': safeCustomerParams.delivery_address,
     '{{{customer_payment_info}}}': safeCustomerParams.customer_payment_info,
+    '{{{whatsapp_order_link}}}': safeCustomerParams.whatsapp_order_link,
     '{{wa_chat_link}}': safeCustomerParams.wa_chat_link,
-    '{{{wa_order_link}}}': safeCustomerParams.wa_order_link,
     '{{total_items_count}}': safeCustomerParams.total_items_count,
   });
   console.info('Objeto de parámetros completo (Cliente):', safeCustomerParams);
@@ -1370,7 +1334,6 @@ export const sendOrderEmails = async (order: Order): Promise<EmailSendResult> =>
     '{{cash_equivalent_total}}': safeAdminParams.cash_equivalent_total,
     '{{internal_notes}}': safeAdminParams.internal_notes,
     '{{wa_chat_link}}': safeAdminParams.wa_chat_link,
-    '{{{wa_order_link}}}': safeAdminParams.wa_order_link,
     '{{total_items_count}}': safeAdminParams.total_items_count,
   });
   console.info('Objeto de parámetros completo (Administrador):', safeAdminParams);

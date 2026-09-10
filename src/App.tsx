@@ -431,6 +431,12 @@ export default function App() {
 
         const finalQty = maxAvailableStock > 0 ? Math.min(quantity, maxAvailableStock) : quantity;
 
+        const rawVariantList: string[] =
+          selectedVariants && Object.keys(selectedVariants).length > 0
+            ? (Object.values(selectedVariants).filter(Boolean) as string[])
+            : ([selectedColor, selectedSizeVariant?.name].filter(Boolean) as string[]);
+        const variantText = Array.from(new Set(rawVariantList)).join(', ');
+
         const newItem: CartItem = {
           id: itemKey,
           productId: product.id,
@@ -443,6 +449,7 @@ export default function App() {
           unitPrice: wholesaleUnitPrice,
           isWholesale: true,
           totalPrice: wholesaleUnitPrice * finalQty,
+          variantText,
         };
         return [...prev, newItem];
       }
@@ -598,57 +605,62 @@ export default function App() {
   };
 
   const handleSaveOrderToSupabaseAndEmail = async (orderPayload: any): Promise<Order> => {
-    // 1. Save to Supabase (and local storage)
+    // 1. Guardar de inmediato el pedido en Supabase (y local storage)
     const savedOrder = await saveOrder(orderPayload);
 
-    // 2. Deduct stock according to independent variant vs shared inventory rules
+    // 2. Descontar stock acumulando por producto y actualizando en paralelo
     try {
       if (savedOrder.items && savedOrder.items.length > 0) {
-        const updatedProds: Product[] = [];
+        const prodMap = new Map<string, Product>();
         for (const item of savedOrder.items) {
-          const currentProd = products.find((p) => p.id === item.productId);
-          if (currentProd) {
+          const baseProd = prodMap.get(item.productId) || products.find((p) => p.id === item.productId);
+          if (baseProd) {
             const cartMatch = cart.find((c) => c.productId === item.productId || c.id === item.id);
             const selectedVariants = cartMatch?.selectedVariants || {};
             const updatedProd = deductStockFromProduct(
-              currentProd,
+              baseProd,
               item.quantity,
               selectedVariants,
               cartMatch?.selectedSizeVariant
             );
-
-            await updateProduct(updatedProd.id, {
-              stock: updatedProd.stock,
-              soldCount: updatedProd.soldCount,
-              variantTypes: updatedProd.variantTypes,
-              sizeVariants: updatedProd.sizeVariants,
-            });
-            updatedProds.push(updatedProd);
+            prodMap.set(item.productId, updatedProd);
           }
         }
 
+        const updatedProds = Array.from(prodMap.values());
         if (updatedProds.length > 0) {
+          // Actualización instantánea en el estado de React para que la interfaz responda sin esperas
           setProducts((prev) =>
-            prev.map((p) => {
-              const u = updatedProds.find((up) => up.id === p.id);
-              return u || p;
-            })
+            prev.map((p) => prodMap.get(p.id) || p)
           );
+
+          // Sincronización concurrente en Supabase en paralelo sin bloquear la finalización
+          Promise.all(
+            updatedProds.map((p) =>
+              updateProduct(p.id, {
+                stock: p.stock,
+                soldCount: p.soldCount,
+                variantTypes: p.variantTypes,
+                sizeVariants: p.sizeVariants,
+              })
+            )
+          ).catch((err) => console.warn('Error actualizando stock en Supabase tras pedido:', err));
         }
       }
     } catch (err) {
-      console.warn('Error updating inventory stock after order save:', err);
+      console.warn('Error actualizando stock tras guardar pedido:', err);
     }
 
-    // 3. Send email via EmailJS (customer receipt + admin notification)
-    try {
-      const emailResult = await sendOrderEmails(savedOrder);
-      savedOrder.emailSentToCustomer = emailResult.customerSuccess;
-      savedOrder.emailSentToAdmin = emailResult.adminSuccess;
-      await updateOrderEmailStatus(savedOrder.id, emailResult.customerSuccess, emailResult.adminSuccess);
-    } catch (e) {
-      console.warn('Error sending emails with EmailJS:', e);
-    }
+    // 3. Envío asíncrono en segundo plano de EmailJS para no bloquear la redirección ni el enlace de WhatsApp
+    sendOrderEmails(savedOrder)
+      .then(async (emailResult) => {
+        savedOrder.emailSentToCustomer = emailResult.customerSuccess;
+        savedOrder.emailSentToAdmin = emailResult.adminSuccess;
+        await updateOrderEmailStatus(savedOrder.id, emailResult.customerSuccess, emailResult.adminSuccess);
+      })
+      .catch((e) => {
+        console.warn('Error enviando correos con EmailJS en segundo plano:', e);
+      });
 
     return savedOrder;
   };

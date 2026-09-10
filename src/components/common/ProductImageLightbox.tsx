@@ -35,6 +35,8 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
   const currentDeltaXRef = useRef<number>(0);
   const lastTouchTimeRef = useRef<number>(0);
   const isImageTargetRef = useRef<boolean>(false);
+  const openTimeRef = useRef<number>(0);
+  const lastZoomToggleTimeRef = useRef<number>(0);
 
   // Keep isZoomedRef in sync
   useEffect(() => {
@@ -44,6 +46,7 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
   // Sync index and reset states when initialIndex changes or modal opens
   useEffect(() => {
     if (isOpen) {
+      openTimeRef.current = Date.now();
       const validIndex = Math.max(0, Math.min(initialIndex, Math.max(0, images.length - 1)));
       setCurrentIndex(validIndex);
       setIsZoomed(false);
@@ -65,6 +68,11 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
       document.body.style.overflow = originalOverflow;
     };
   }, [isOpen]);
+
+  // Helper to filter out synthetic/ghost mouse events triggered by mobile touch
+  const isSyntheticOrRecentTouch = () => {
+    return Date.now() - lastTouchTimeRef.current < 1000 || Date.now() - openTimeRef.current < 400;
+  };
 
   // Handle image index change and notify parent
   const handleIndexChange = useCallback(
@@ -157,19 +165,26 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
     const movedDist = dragDistanceRef.current;
     const finalDeltaX = currentDeltaXRef.current;
     const clickedOnImage = isImageTargetRef.current;
+    const elapsed = Date.now() - dragStartRef.current.time;
+
+    // Distinguish between a clean tap and a drag/swipe:
+    // On mobile touchscreens, normal finger taps produce minor displacement (up to 14px) and complete quickly.
+    const isTap = movedDist <= 12 || (movedDist <= 18 && elapsed < 280);
 
     if (isZoomedRef.current) {
       // IN ZOOM 2.0x:
-      // If user dragged (movedDist > 8): KEEP ZOOM 2.0X! DO NOT EXIT, DO NOT CHANGE IMAGES!
-      // If user clicked without dragging (movedDist <= 8): EXIT ZOOM 2.0x and return to Pantalla completa!
-      if (movedDist <= 8) {
+      // If user dragged/panned (not a tap): KEEP ZOOM 2.0X! DO NOT EXIT, DO NOT CHANGE IMAGES!
+      // If user clicked/tapped without dragging: EXIT ZOOM 2.0x and return to Pantalla completa!
+      if (isTap) {
+        if (Date.now() - lastZoomToggleTimeRef.current < 250) return;
+        lastZoomToggleTimeRef.current = Date.now();
         setIsZoomed(false);
         setPanPosition({ x: 0, y: 0 });
       }
     } else {
       // IN FULLSCREEN (1.0x):
-      // If user dragged (movedDist > 8):
-      if (movedDist > 8) {
+      // If user dragged/swiped:
+      if (!isTap && movedDist > 12) {
         if (images.length > 1) {
           if (finalDeltaX < -40) {
             // Dragged left -> Next image
@@ -184,7 +199,9 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
         // User clicked/tapped without dragging:
         setSlideOffset(0);
         if (clickedOnImage) {
-          // Click on image -> ENTER ZOOM 2.0X!
+          // Tap/click on image -> ENTER ZOOM 2.0X!
+          if (Date.now() - lastZoomToggleTimeRef.current < 250) return;
+          lastZoomToggleTimeRef.current = Date.now();
           setIsZoomed(true);
           setPanPosition({ x: 0, y: 0 });
         } else {
@@ -200,10 +217,12 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
     if (!isDragging) return;
 
     const handleWindowMouseMove = (e: MouseEvent) => {
+      if (isSyntheticOrRecentTouch()) return;
       moveGesture(e.clientX, e.clientY);
     };
 
     const handleWindowMouseUp = (e: MouseEvent) => {
+      if (isSyntheticOrRecentTouch()) return;
       endGesture();
     };
 
@@ -218,14 +237,20 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
 
   // Touch Handlers
   const handleTouchStart = (e: React.TouchEvent, onImage: boolean) => {
+    lastTouchTimeRef.current = Date.now();
+    // Guard against touch events immediately right as the modal mounts
+    if (Date.now() - openTimeRef.current < 350) return;
+
     if (e.touches.length === 1) {
-      lastTouchTimeRef.current = Date.now();
       const touch = e.touches[0];
       startGesture(touch.clientX, touch.clientY, onImage);
     }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
+    lastTouchTimeRef.current = Date.now();
+    if (Date.now() - openTimeRef.current < 350) return;
+
     if (e.touches.length === 1 && isDraggingRef.current) {
       // Prevent browser bounce / scroll while interacting
       if (e.cancelable) e.preventDefault();
@@ -236,6 +261,12 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     lastTouchTimeRef.current = Date.now();
+    if (Date.now() - openTimeRef.current < 350) {
+      isDraggingRef.current = false;
+      setIsDragging(false);
+      setSlideOffset(0);
+      return;
+    }
     endGesture();
   };
 
@@ -249,6 +280,7 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
       id="product-image-lightbox"
       className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-xs flex items-center justify-center select-none overflow-hidden animate-in fade-in duration-200"
       onMouseDown={(e) => {
+        if (isSyntheticOrRecentTouch()) return;
         // Click on outer backdrop
         if (e.button === 0 && e.target === e.currentTarget) {
           startGesture(e.clientX, e.clientY, false);
@@ -298,6 +330,7 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
       <div
         className="relative w-full h-full flex items-center justify-center p-2 sm:p-6 overflow-hidden"
         onMouseDown={(e) => {
+          if (isSyntheticOrRecentTouch()) return;
           if (e.button === 0 && e.target === e.currentTarget) {
             startGesture(e.clientX, e.clientY, false);
           }
@@ -317,6 +350,7 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
               cursor: isDragging ? 'grabbing' : 'grab',
             }}
             onMouseDown={(e) => {
+              if (isSyntheticOrRecentTouch()) return;
               if (e.button === 0) {
                 e.stopPropagation();
                 startGesture(e.clientX, e.clientY, true);

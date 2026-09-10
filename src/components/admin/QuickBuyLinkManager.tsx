@@ -140,7 +140,8 @@ export const QuickBuyLinkManager: React.FC<QuickBuyLinkManagerProps> = ({
   // Mensaje de WhatsApp de ejemplo para la vista previa
   const sampleOrderNumber = '1001';
   const sampleItems = [
-    { title: 'Remera Algodón Premium', quantity: 2, variantText: 'Negro / L', unitPrice: 12500, totalPrice: 25000 },
+    { title: 'Remera Algodón Premium', quantity: 1, variantText: 'Negro, L, 13mm', unitPrice: 10000, totalPrice: 10000 },
+    { title: 'Remera Algodón Premium', quantity: 1, variantText: 'Negro, M', unitPrice: 15000, totalPrice: 15000 },
     { title: 'Gorra Clásica Gabardina', quantity: 1, variantText: 'Azul Marino', unitPrice: 8500, totalPrice: 8500 },
   ];
   const sampleTotal = 33500;

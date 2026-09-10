@@ -81,6 +81,7 @@ export interface CartItem {
   selectedSizeVariant?: SizeVariant;
   selectedVariants?: Record<string, string>; // e.g. { "Color": "Dorado", "Tamaño": "Grande" }
   selectedImage?: string; // The exact image corresponding to the selected variant
+  variantText?: string;
   quantity: number;
   // Computed values
   unitPrice: number;

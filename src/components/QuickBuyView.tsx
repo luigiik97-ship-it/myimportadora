@@ -437,12 +437,21 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
             ? cashUnitPrice
             : unitPrice;
 
+        // Reutilizar la misma fuente de variantes que ya existe en el pedido y carrito
+        const rawVariantList: string[] =
+          item.selectedVariants && Object.keys(item.selectedVariants).length > 0
+            ? (Object.values(item.selectedVariants).filter(Boolean) as string[])
+            : item.variantText
+            ? [item.variantText]
+            : ([item.selectedColor, item.selectedSizeVariant?.name].filter(Boolean) as string[]);
+        const resolvedVariantText = Array.from(new Set(rawVariantList)).join(', ');
+
         return {
           id: item.id,
           productId: item.productId,
           title: item.product.title,
           image: item.selectedImage || (item.product.images && item.product.images[0]) || '',
-          variantText: item.variantText || '',
+          variantText: resolvedVariantText || item.variantText || '',
           quantity: item.quantity,
           unitPrice: unitPrice,
           cashUnitPrice: cashUnitPrice,
@@ -517,9 +526,13 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
       // 7. Construir mensaje formateado para WhatsApp (comienza con #pedido, sigue listado de productos, cantidades y el total)
       const config = getQuickBuyLinkConfig();
       const confirmedOrderNumber = savedOrder.orderNumber || orderNumber;
+      const orderItemsForWa = (savedOrder.items && savedOrder.items.length > 0)
+        ? savedOrder.items
+        : processedItems;
+
       const whatsappMessage = buildQuickBuyWhatsAppMessage({
         orderNumber: confirmedOrderNumber,
-        items: processedItems.map((p) => ({
+        items: orderItemsForWa.map((p: any) => ({
           title: p.title,
           quantity: p.quantity,
           variantText: p.variantText,

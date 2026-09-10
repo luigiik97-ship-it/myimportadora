@@ -198,13 +198,11 @@ export const resolveWhatsAppPhone = (inputUrlOrPhone?: string): string => {
  * Compatible al 100% con Android, iPhone (iOS Safari / Universal Links), Windows, Mac y WhatsApp Web.
  * Evita la pérdida del parámetro de texto (?text=) que provocaba el enlace corto /message/TSF5H4YUIQJOC1.
  */
-export const buildQuickBuyWhatsAppUrl = (
+export const buildUniversalWhatsAppUrl = (
   message: string,
   customWaDestination?: string
 ): string => {
-  const config = getQuickBuyLinkConfig();
-  const destination = customWaDestination || config.whatsappUrl;
-  const phone = resolveWhatsAppPhone(destination);
+  const phone = resolveWhatsAppPhone(customWaDestination);
   const encodedText = encodeURIComponent(message);
 
   // La API oficial de WhatsApp (api.whatsapp.com/send) es el estándar universal que abre directamente
@@ -212,11 +210,41 @@ export const buildQuickBuyWhatsAppUrl = (
   return `https://api.whatsapp.com/send?phone=${phone}&text=${encodedText}`;
 };
 
+export const buildQuickBuyWhatsAppUrl = (
+  message: string,
+  customWaDestination?: string
+): string => {
+  const config = getQuickBuyLinkConfig();
+  const destination = customWaDestination || config.whatsappUrl;
+  return buildUniversalWhatsAppUrl(message, destination);
+};
+
 /**
- * Formatea el mensaje de WhatsApp conforme a los requerimientos:
- * - Comienza estrictamente con el número de pedido correlativo único
- * - Sigue con el listado completo de productos y cantidades
- * - Incluye el total
+ * Normaliza el texto de variantes para que se muestre separado por coma y espacio ("Negro, L, 13mm")
+ */
+export const normalizeVariantText = (variantText?: string): string => {
+  if (!variantText) return '';
+  const parts = variantText
+    .split(/[/•|,]+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const uniqueParts: string[] = [];
+  parts.forEach((p) => {
+    if (!uniqueParts.some((u) => u.toLowerCase() === p.toLowerCase())) {
+      uniqueParts.push(p);
+    }
+  });
+  return uniqueParts.join(', ');
+};
+
+/**
+ * Formatea el mensaje de WhatsApp conforme a la estructura requerida:
+ * - Inicia con *Pedido #1001*
+ * - *Detalle de productos:* con viñeta • por título de producto y cada variante en su línea (1x Variante - $ Precio)
+ * - *Total:* $ Importe
+ * - *Método de pago:* Efectivo / Transferencia
+ * - *Entrega:* Retiro en el local (Flores) / Envío a coordinar
+ * - Mensaje final de coordinación
  */
 export const buildQuickBuyWhatsAppMessage = (params: {
   orderNumber: string;
@@ -235,27 +263,57 @@ export const buildQuickBuyWhatsAppMessage = (params: {
 
   const lines: string[] = [];
 
-  // 1. Inicia estrictamente con el número de pedido correlativo único
-  lines.push(`*Pedido #${orderNumber} Hola buenas acabo de realizar un pedido por su pagina www.michy.ar*`);
+  // 1. Inicia con el número de pedido
+  lines.push(`*Pedido #${orderNumber}*`);
   lines.push('');
 
-  // 2. Listado completo de productos, variantes y cantidades
+  // 2. Detalle de productos agrupados por título con sus variantes
   lines.push('*Detalle de productos:*');
   if (items && items.length > 0) {
+    const groups: Array<{ title: string; items: typeof items }> = [];
     items.forEach((item) => {
-      const variantDesc = item.variantText ? ` (${item.variantText})` : '';
-      const itemTotal = item.totalPrice ?? item.unitPrice * item.quantity;
-      lines.push(`• ${item.quantity}x ${item.title}${variantDesc} - $ ${Math.round(itemTotal).toLocaleString('es-AR')}`);
+      const cleanTitle = (item.title || 'Producto').trim();
+      let existingGroup = groups.find(
+        (g) => g.title.toLowerCase() === cleanTitle.toLowerCase()
+      );
+      if (!existingGroup) {
+        existingGroup = { title: cleanTitle, items: [] };
+        groups.push(existingGroup);
+      }
+      existingGroup.items.push(item);
+    });
+
+    groups.forEach((group) => {
+      lines.push(`•${group.title}`);
+      group.items.forEach((item) => {
+        const itemTotal = item.totalPrice ?? item.unitPrice * item.quantity;
+        const formattedPrice = Math.round(itemTotal).toLocaleString('es-AR');
+        const cleanVariant = normalizeVariantText(item.variantText);
+        if (cleanVariant) {
+          lines.push(`${item.quantity}x ${cleanVariant} - $ ${formattedPrice}`);
+        } else {
+          lines.push(`${item.quantity}x - $ ${formattedPrice}`);
+        }
+      });
     });
   } else {
-    lines.push('• (Sin productos)');
+    lines.push('•(Sin productos)');
   }
   lines.push('');
 
   // 3. Total general del pedido
   lines.push(`*Total:* $ ${Math.round(total).toLocaleString('es-AR')}`);
 
-  // 4. Datos adicionales de método de entrega y pago
+  // 4. Método de pago
+  if (paymentMethod) {
+    const paymentText =
+      paymentMethod === 'cash'
+        ? 'Efectivo'
+        : 'Transferencia Bancaria';
+    lines.push(`*Método de pago:* ${paymentText}`);
+  }
+
+  // 5. Entrega
   if (deliveryOption) {
     const deliveryText =
       deliveryOption === 'pickup'
@@ -263,98 +321,9 @@ export const buildQuickBuyWhatsAppMessage = (params: {
         : 'Envío a coordinar';
     lines.push(`*Entrega:* ${deliveryText}`);
   }
-  if (paymentMethod) {
-    const paymentText =
-      paymentMethod === 'cash'
-        ? 'Efectivo en local'
-        : 'Transferencia Bancaria';
-    lines.push(`*Método de pago:* ${paymentText}`);
-  }
 
   lines.push('');
-  lines.push('Adjunto el comprobante de pago para coordinar la entrega. ¡Muchas gracias!');
+  lines.push('Hola buenas, te paso mi pedido por la pagina *MY* para coordinar el pago y la entrega. ¡Muchas gracias!');
 
   return lines.join('\n');
-};
-
-export interface OrderWhatsAppDetails {
-  orderNumber: string;
-  items?: Array<{
-    title: string;
-    quantity: number;
-    variantText?: string;
-    unitPrice?: number;
-    totalPrice?: number;
-    isWholesale?: boolean;
-  }>;
-  total?: number;
-  paymentMethod?: string;
-  deliveryOption?: string;
-  shippingMethodName?: string;
-  shippingCost?: number;
-  customerName?: string;
-}
-
-/**
- * Formatea el mensaje oficial de WhatsApp para pedidos de la tienda.
- * Inicia estrictamente con el número de pedido correlativo único:
- * *Pedido #<orderNumber> Hola buenas acabo de realizar un pedido por su pagina www.michy.ar*
- */
-export const buildOrderWhatsAppMessage = (order: OrderWhatsAppDetails): string => {
-  const lines: string[] = [];
-
-  // Inicia estrictamente con el número de pedido correlativo único
-  lines.push(`*Pedido #${order.orderNumber} Hola buenas acabo de realizar un pedido por su pagina www.michy.ar*`);
-  lines.push('');
-
-  // Detalle de productos
-  if (order.items && order.items.length > 0) {
-    lines.push('*Detalle:*');
-    order.items.forEach((item) => {
-      const variantSuffix = item.variantText ? `, ${item.variantText}` : '';
-      const pricingSuffix = item.isWholesale !== undefined ? ` (${item.isWholesale ? 'mayorista' : 'minorista'})` : '';
-      const itemTotal = item.totalPrice ?? ((item.unitPrice || 0) * (item.quantity || 1));
-      lines.push(`• ${item.quantity}x ${item.title}${variantSuffix}${pricingSuffix} - $${Math.round(itemTotal).toLocaleString('es-AR')}`);
-    });
-    lines.push('');
-  }
-
-  if (order.total !== undefined) {
-    lines.push(`*Total:* $${Math.round(order.total).toLocaleString('es-AR')}`);
-  }
-
-  if (order.paymentMethod) {
-    const isCash = order.paymentMethod === 'cash' || String(order.paymentMethod).toLowerCase().includes('efectivo');
-    lines.push(`*Método de Pago:* ${isCash ? 'Efectivo en local' : 'Transferencia Bancaria'}`);
-  }
-
-  if (order.deliveryOption) {
-    const isPickup = order.deliveryOption === 'pickup';
-    const deliveryDetail = isPickup
-      ? 'Retiro en Local San Pedrito (Flores)'
-      : `Envío a domicilio (${order.shippingMethodName || 'Envío'}${order.shippingCost !== undefined ? ` - $${order.shippingCost.toLocaleString('es-AR')}` : ''})`;
-    lines.push(`*Entrega:* ${deliveryDetail}`);
-  }
-
-  if (order.customerName) {
-    lines.push(`*Nombre:* ${order.customerName}`);
-  }
-
-  lines.push('');
-  lines.push('Adjunto el comprobante de pago para coordinar la entrega. ¡Muchas gracias!');
-
-  return lines.join('\n');
-};
-
-/**
- * Construye la URL universal de WhatsApp (https://api.whatsapp.com/send?phone=...&text=...)
- * con el mensaje del pedido prellenado e iniciado con el número de pedido.
- * Evita redirecciones intermedias de WhatsApp Business que descartaban el texto prellenado.
- */
-export const buildOrderWhatsAppUrl = (
-  order: OrderWhatsAppDetails,
-  customWaDestination?: string
-): string => {
-  const message = buildOrderWhatsAppMessage(order);
-  return buildQuickBuyWhatsAppUrl(message, customWaDestination);
 };

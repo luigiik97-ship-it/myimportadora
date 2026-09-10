@@ -1007,8 +1007,20 @@ export const deleteProduct = async (id: string): Promise<boolean> => {
   }
 
   const current = getLocalProducts();
+  const prodToDelete = current.find((p) => p.id === id);
   const filtered = current.filter((p) => p.id !== id);
   saveLocalProducts(filtered);
+
+  // Limpieza segura de imágenes de Supabase Storage únicamente si no se usan en otros productos ni categorías
+  if (prodToDelete) {
+    const imagesToCheck: string[] = [
+      ...(prodToDelete.images || []),
+      ...(prodToDelete.additionalImage ? [prodToDelete.additionalImage] : []),
+    ];
+    imagesToCheck.forEach((imgUrl) => {
+      deleteStorageImageIfUnused(imgUrl, filtered);
+    });
+  }
 
   if (typeof window !== 'undefined') {
     try {
@@ -1060,6 +1072,13 @@ export const seedInitialProducts = async (): Promise<void> => {
 
 // ---------------- SUPABASE STORAGE (Image Upload con Optimización Automática) ---------------- //
 
+// Caché en memoria de archivos ya subidos para reutilizar URLs existentes y evitar duplicados en Supabase Storage
+const uploadedFileCache = new Map<string, string>();
+
+const getFileFingerprint = (file: File): string => {
+  return `${file.name}_${file.size}_${file.lastModified}`;
+};
+
 export interface UploadProductImageOptions extends ImageOptimizationOptions {
   onOptimized?: (result: OptimizationResult) => void;
 }
@@ -1068,6 +1087,14 @@ export const uploadProductImage = async (
   file: File,
   options?: UploadProductImageOptions
 ): Promise<string> => {
+  // Evitar subir de nuevo si el archivo ya fue subido en esta sesión y no cambió
+  const fingerprint = getFileFingerprint(file);
+  if (uploadedFileCache.has(fingerprint)) {
+    const cachedUrl = uploadedFileCache.get(fingerprint)!;
+    console.log(`[IMAGE UPLOAD] Reutilizando URL existente para archivo no modificado: "${file.name}" -> ${cachedUrl}`);
+    return cachedUrl;
+  }
+
   console.log(`[IMAGE UPLOAD] Iniciando procesamiento de archivo: "${file.name}" (${file.type || 'desconocido'}, ${(file.size / 1024).toFixed(1)} KB)`);
 
   // 1. Optimizar automáticamente la imagen (redimensionado inteligente 1200-1600px, compresión WebP, pesos óptimos)
@@ -1107,6 +1134,7 @@ export const uploadProductImage = async (
 
         if (data?.publicUrl) {
           console.log(`[IMAGE UPLOAD] ✓ Archivo optimizado subido con éxito. URL Pública:`, data.publicUrl);
+          uploadedFileCache.set(fingerprint, data.publicUrl);
           return data.publicUrl;
         } else {
           console.warn('[IMAGE UPLOAD] Subida completada pero no se pudo obtener publicUrl.');
@@ -1125,7 +1153,9 @@ export const uploadProductImage = async (
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
-      resolve(reader.result as string);
+      const resultUrl = reader.result as string;
+      uploadedFileCache.set(fingerprint, resultUrl);
+      resolve(resultUrl);
     };
     reader.onerror = (error) => reject(error);
     reader.readAsDataURL(fileToUpload);
@@ -1149,11 +1179,10 @@ export const uploadProductImages = async (
   if (!files || !Array.isArray(files) || files.length === 0) {
     return [];
   }
-  console.log(`\n================== [UPLOAD PRODUCT IMAGES - OPTIMIZACIÓN EN LOTE] ==================`);
-  console.log(`[UPLOAD PRODUCT IMAGES] Cantidad de archivos a procesar: ${files.length}`);
-  const urls: string[] = [];
+  console.log(`[UPLOAD PRODUCT IMAGES] Procesando ${files.length} imágenes concurrentemente...`);
 
-  for (let i = 0; i < files.length; i++) {
+  let completed = 0;
+  const uploadPromises = files.map((file, i) => {
     const isCover = options?.areAllSecondary
       ? false
       : options?.isFirstImageCover !== undefined
@@ -1161,24 +1190,111 @@ export const uploadProductImages = async (
       : i === 0;
 
     let lastResult: OptimizationResult | undefined;
-    const url = await uploadProductImage(files[i], {
+    return uploadProductImage(file, {
       isCover,
       onOptimized: (res) => {
         lastResult = res;
       },
+    }).then((url) => {
+      completed++;
+      if (onProgress) {
+        onProgress(completed, files.length, lastResult);
+      }
+      return url;
     });
+  });
 
-    if (onProgress) {
-      onProgress(i + 1, files.length, lastResult);
+  const urls = await Promise.all(uploadPromises);
+  console.log('[UPLOAD PRODUCT IMAGES] Subida concurrente completada con éxito.');
+  return urls;
+};
+
+/**
+ * Extrae la ruta relativa dentro del bucket 'product-images' si la URL pertenece a Supabase Storage.
+ */
+export const extractStoragePath = (url?: string): string | null => {
+  if (!url || typeof url !== 'string') return null;
+  const match = url.match(/\/product-images\/(.+?)(?:\?.*)?$/);
+  if (match && match[1]) {
+    return decodeURIComponent(match[1]);
+  }
+  return null;
+};
+
+/**
+ * Comprueba de forma conservadora si una URL de imagen está siendo utilizada en algún producto o categoría.
+ */
+export const isImageUrlInUse = (
+  imageUrl: string,
+  products?: Product[],
+  categories?: Category[]
+): boolean => {
+  if (!imageUrl || typeof imageUrl !== 'string') return false;
+  const targetUrl = imageUrl.trim();
+
+  // Consultar productos si se proporcionan (o desde caché / local)
+  const prodsToCheck = (products && products.length > 0) ? products : getLocalProducts();
+  for (const prod of prodsToCheck) {
+    if (prod.images && prod.images.includes(targetUrl)) return true;
+    if (prod.additionalImage && prod.additionalImage === targetUrl) return true;
+    if (prod.variantTypes) {
+      for (const vt of prod.variantTypes) {
+        if (vt.options) {
+          for (const opt of vt.options) {
+            if (opt.images && opt.images.includes(targetUrl)) return true;
+          }
+        }
+      }
     }
-
-    console.log(`[UPLOAD PRODUCT IMAGES] [${i + 1}/${files.length}] URL resuelta:`, url);
-    urls.push(url);
+    if (prod.sizeVariants) {
+      for (const sv of prod.sizeVariants) {
+        if (sv.images && sv.images.includes(targetUrl)) return true;
+      }
+    }
   }
 
-  console.log('[UPLOAD PRODUCT IMAGES] Array final de URLs generadas:', urls);
-  console.log(`================== [UPLOAD PRODUCT IMAGES - FIN] ==================\n`);
-  return urls;
+  // Consultar categorías
+  const catsToCheck = (categories && categories.length > 0) ? categories : getCachedCategories();
+  for (const cat of catsToCheck) {
+    if (cat.image && cat.image === targetUrl) return true;
+  }
+
+  return false;
+};
+
+/**
+ * Elimina una imagen de Supabase Storage únicamente si ya no está en uso en ninguna parte.
+ */
+export const deleteStorageImageIfUnused = async (
+  imageUrl: string,
+  products?: Product[],
+  categories?: Category[]
+): Promise<boolean> => {
+  if (!imageUrl || !isSupabaseConfigured() || !supabaseInstance) return false;
+
+  const storagePath = extractStoragePath(imageUrl);
+  if (!storagePath) return false; // No es una imagen alojada en Supabase Storage
+
+  // Si la imagen todavía se utiliza en algún producto o categoría, no eliminarla
+  if (isImageUrlInUse(imageUrl, products, categories)) {
+    return false;
+  }
+
+  try {
+    const { error } = await supabaseInstance.storage
+      .from('product-images')
+      .remove([storagePath]);
+
+    if (error) {
+      console.warn(`[STORAGE] Error eliminando imagen huérfana "${storagePath}":`, error.message);
+      return false;
+    }
+    console.log(`[STORAGE] ✓ Imagen huérfana eliminada de Supabase Storage: "${storagePath}"`);
+    return true;
+  } catch (err) {
+    console.warn(`[STORAGE] Excepción al eliminar imagen "${storagePath}":`, err);
+    return false;
+  }
 };
 
 // ---------------- ORDERS API ---------------- //
@@ -1213,14 +1329,14 @@ export const getNextCorrelativeOrderNumber = async (): Promise<string> => {
     });
   } catch (e) {}
 
-  // 3. Escanear pedidos en Supabase si está disponible
+  // 3. Escanear pedidos en Supabase de forma liviana (últimos 10 en lugar de 50)
   if (isSupabaseConfigured() && supabaseInstance) {
     try {
       const { data } = await supabaseInstance
         .from('orders')
         .select('order_number')
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(10);
       if (data && Array.isArray(data)) {
         data.forEach((row: any) => {
           if (row.order_number) {
@@ -1864,6 +1980,11 @@ export const deleteCategory = async (
   // Sync updated remaining categories to Supabase
   await syncCategoriesToSupabase(remainingCategories);
 
+  // Limpieza segura de la imagen de categoría si estaba en Storage y no se usa en productos ni otras categorías
+  if (targetCategory?.image) {
+    deleteStorageImageIfUnused(targetCategory.image, updatedProducts, remainingCategories);
+  }
+
   // Dispatch events for real-time reactivity
   if (typeof window !== 'undefined') {
     try {
@@ -1895,6 +2016,14 @@ export const reorderCategories = async (orderedCategories: Category[]): Promise<
 };
 
 export const uploadCategoryImage = async (file: File): Promise<string> => {
+  // Evitar subir de nuevo si el archivo ya fue subido en esta sesión
+  const fingerprint = `cat_${file.name}_${file.size}_${file.lastModified}`;
+  if (uploadedFileCache.has(fingerprint)) {
+    const cachedUrl = uploadedFileCache.get(fingerprint)!;
+    console.log(`[CATEGORY IMAGE] Reutilizando URL existente para imagen de categoría: "${file.name}" -> ${cachedUrl}`);
+    return cachedUrl;
+  }
+
   // Optimizar automáticamente imagen de categoría (1200px, WebP, ~150-250KB)
   const optimization = await optimizeProductImage(file, { isCover: false, maxDimension: 1200 });
   const fileToUpload = optimization.file;
@@ -1916,7 +2045,10 @@ export const uploadCategoryImage = async (file: File): Promise<string> => {
 
       if (!uploadError) {
         const { data } = supabaseInstance.storage.from('product-images').getPublicUrl(filePath);
-        if (data?.publicUrl) return data.publicUrl;
+        if (data?.publicUrl) {
+          uploadedFileCache.set(fingerprint, data.publicUrl);
+          return data.publicUrl;
+        }
       }
     } catch (e) {
       console.warn('Error uploading category image to Supabase Storage, using data URL:', e);
@@ -1925,7 +2057,11 @@ export const uploadCategoryImage = async (file: File): Promise<string> => {
 
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
+    reader.onload = () => {
+      const res = reader.result as string;
+      uploadedFileCache.set(fingerprint, res);
+      resolve(res);
+    };
     reader.onerror = reject;
     reader.readAsDataURL(fileToUpload);
   });

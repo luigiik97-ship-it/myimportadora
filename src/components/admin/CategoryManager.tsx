@@ -6,6 +6,7 @@ import {
   deleteCategory,
   reorderCategories,
   uploadCategoryImage,
+  deleteStorageImageIfUnused,
   isSupabaseConfigured,
 } from '../../services/supabase';
 import { slugifyCategory, countProductsInCategory } from '../../utils/categoryHelpers';
@@ -129,6 +130,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
     const file = e.target.files?.[0];
     if (!file || !editingCategory) return;
 
+    const previousImage = editingCategory.image;
     setIsUploading(true);
     try {
       const uploadedUrl = await uploadCategoryImage(file);
@@ -138,6 +140,10 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
       });
       setImageUrlInput(uploadedUrl);
       showFeedback('success', 'Imagen subida correctamente');
+
+      if (previousImage && previousImage !== uploadedUrl) {
+        deleteStorageImageIfUnused(previousImage, products, categories);
+      }
     } catch (err: any) {
       console.error('[CategoryManager] Error uploading category image:', err);
       showFeedback('error', `Error al subir la imagen: ${err.message || 'Desconocido'}`);

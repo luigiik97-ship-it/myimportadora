@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { UserProfile, Order, Product, CartItem } from '../types';
 import { saveUserProfile, signOutUser, fetchUserOrders } from '../services/auth';
+import { buildUniversalWhatsAppUrl } from '../services/quickBuyLink';
 
 interface AccountModalProps {
   isOpen: boolean;
@@ -404,11 +405,11 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                               Pago: {order.paymentMethod === 'cash' ? 'Efectivo en local' : 'Transferencia'}
                             </span>
                             <a
-                              href={`https://wa.me/5491136916892?text=${encodeURIComponent(
-                                `Hola! Quisiera consultar sobre el estado de mi pedido #${order.orderNumber}`
-                              )}`}
+                              href={buildUniversalWhatsAppUrl(
+                                `Hola buenas, quiero consultar por mi pedido #${order.orderNumber}`
+                              )}
                               target="_blank"
-                              rel="noreferrer"
+                              rel="noopener noreferrer"
                               className="text-[#0058bb] hover:underline font-semibold flex items-center gap-1 ml-auto"
                             >
                               <span>Consultar por WhatsApp</span>
