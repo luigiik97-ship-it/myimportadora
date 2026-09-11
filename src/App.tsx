@@ -7,13 +7,13 @@ import {
   useLocation,
 } from 'react-router-dom';
 import { Product, CartItem, Order, SizeVariant, ViewMode, Category, UserProfile } from './types';
-import { fetchProducts, fetchCategories, getCachedProducts, getCachedCategories, saveOrder, updateProduct, updateOrderEmailStatus, getSupabase, isSupabaseConfigured } from './services/supabase';
+import { fetchProducts, fetchCategories, getCachedProducts, getCachedCategories, saveOrder, updateProduct, updateOrderEmailStatus, getSupabase, isSupabaseConfigured, subscribeToProductsAndSystemConfig } from './services/supabase';
 import { getLocalAuthUser, fetchUserProfile } from './services/auth';
-import { sendOrderEmails } from './services/emailjs';
+import { sendOrderEmails, fetchEmailTemplatesFromSupabase } from './services/emailjs';
 import { getActiveVariantImages, getItemEffectiveNormalPrice, getSelectedVariantStock, deductStockFromProduct } from './utils/variantHelpers';
 import { slugifyCategory, reconcileCategoriesWithProducts } from './utils/categoryHelpers';
 import { recordSiteVisit } from './services/analytics';
-import { isQuickBuyCustomLinkActive } from './services/quickBuyLink';
+import { isQuickBuyCustomLinkActive, fetchQuickBuyLinkConfigFromSupabase } from './services/quickBuyLink';
 import {
   ProductDetailRouteWrapper,
   CategoryRouteWrapper,
@@ -369,10 +369,31 @@ export default function App() {
     window.addEventListener('categories-updated', handleCategoriesUpdated);
     window.addEventListener('products-updated', handleProductsUpdated);
 
+    // Suscripción en tiempo real a cambios en Supabase (propagación instantánea entre dispositivos y Vercel)
+    const unsubscribeRealtime = subscribeToProductsAndSystemConfig({
+      onProductsChanged: (newProds) => {
+        setProducts(newProds);
+      },
+      onCategoriesChanged: (newCats) => {
+        setCategories(newCats);
+      },
+      onSystemConfigChanged: () => {
+        fetchQuickBuyLinkConfigFromSupabase().catch(() => {});
+        fetchEmailTemplatesFromSupabase().catch(() => {});
+      },
+    });
+
     return () => {
       window.removeEventListener('categories-updated', handleCategoriesUpdated);
       window.removeEventListener('products-updated', handleProductsUpdated);
+      unsubscribeRealtime();
     };
+  }, []);
+
+  // Cargar configuraciones compartidas desde Supabase (Compra Rápida y Plantillas de Email)
+  useEffect(() => {
+    fetchQuickBuyLinkConfigFromSupabase().catch(() => {});
+    fetchEmailTemplatesFromSupabase().catch(() => {});
   }, []);
 
   // Redirigir a modo Compra Rápida si se accede mediante el enlace personalizado

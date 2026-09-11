@@ -22,6 +22,8 @@ import {
   uploadProductImages,
   deleteStorageImageIfUnused,
   fetchOrders,
+  subscribeToOrders,
+  subscribeToProductsAndSystemConfig,
   updateOrderStatus,
   updateOrderEmailStatus,
   deleteOrder,
@@ -198,6 +200,47 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
       loadData();
     }
 
+    // Suscripción en tiempo real a la tabla 'orders' de Supabase (cross-device instantáneo)
+    const unsubscribeOrders = subscribeToOrders((latestOrders) => {
+      setOrders(latestOrders);
+    });
+
+    // Suscripción en tiempo real a la tabla 'products' de Supabase (productos, categorías y configuraciones)
+    const unsubscribeProductsAndConfig = subscribeToProductsAndSystemConfig({
+      onProductsChanged: (newProds) => {
+        setProducts(newProds);
+      },
+      onCategoriesChanged: (newCats) => {
+        if (newCats && newCats.length > 0) {
+          setAdminCategories(newCats);
+        }
+      },
+    });
+
+    // Sondeo de respaldo periódico (cada 12 segundos) para mantener sincronizado en móviles aún si suspenden websockets
+    const pollInterval = setInterval(() => {
+      if (isAuthenticated) {
+        fetchOrders().then((ords) => setOrders(ords));
+      }
+    }, 12000);
+
+    // Refresco inmediato al volver a enfocar la ventana o desbloquear el móvil
+    const handleWindowFocus = () => {
+      if (isAuthenticated) {
+        fetchOrders().then((ords) => setOrders(ords));
+        fetchProducts({ force: true }).then((prods) => setProducts(prods));
+        fetchCategories({ force: true }).then((cats) => {
+          if (cats && cats.length > 0) setAdminCategories(cats);
+        });
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        handleWindowFocus();
+      }
+    };
+
     const handleOrdersUpdated = (event?: any) => {
       // Optimistic update if order is included in the event detail
       const incomingOrder = (event?.detail?.order || event?.detail) as Order | undefined;
@@ -246,11 +289,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
       });
     };
 
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('my_commerce_orders_updated', handleOrdersUpdated);
     window.addEventListener('products-updated', handleProductsUpdated);
     window.addEventListener('categories-updated', handleCategoriesUpdated);
     window.addEventListener('storage', handleStorageChange);
+
     return () => {
+      unsubscribeOrders();
+      unsubscribeProductsAndConfig();
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('my_commerce_orders_updated', handleOrdersUpdated);
       window.removeEventListener('products-updated', handleProductsUpdated);
       window.removeEventListener('categories-updated', handleCategoriesUpdated);

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Order, Product } from '../../types';
 import {
   isEmailJsConfigured,
@@ -10,6 +10,7 @@ import {
   resetAdminTemplate,
   isCustomerTemplateCustomized,
   isAdminTemplateCustomized,
+  fetchEmailTemplatesFromSupabase,
   renderOrderTemplate,
   cleanEmailHtml,
   sendOrderEmails,
@@ -54,6 +55,20 @@ export const EmailTemplateManager: React.FC<EmailTemplateManagerProps> = ({ orde
   const [isCopied, setIsCopied] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Sincronizar plantillas guardadas en Supabase al abrir el administrador
+  useEffect(() => {
+    fetchEmailTemplatesFromSupabase().then((res) => {
+      if (res.customerTemplate) {
+        setCustomerCode(res.customerTemplate);
+        setHasCustomerCustom(isCustomerTemplateCustomized());
+      }
+      if (res.adminTemplate) {
+        setAdminCode(res.adminTemplate);
+        setHasAdminCustom(isAdminTemplateCustomized());
+      }
+    });
+  }, []);
 
   // Active code being edited/previewed
   const currentCode = activeTemplateTab === 'customer' ? customerCode : adminCode;

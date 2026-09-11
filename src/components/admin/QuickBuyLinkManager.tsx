@@ -18,6 +18,7 @@ import {
 import { Order } from '../../types';
 import {
   getQuickBuyLinkConfig,
+  fetchQuickBuyLinkConfigFromSupabase,
   saveQuickBuyLinkConfig,
   generateUniqueToken,
   buildQuickBuyUrl,
@@ -56,6 +57,12 @@ export const QuickBuyLinkManager: React.FC<QuickBuyLinkManagerProps> = ({
   const [customTokenInput, setCustomTokenInput] = useState(config.token);
   const [whatsappUrlInput, setWhatsappUrlInput] = useState(config.whatsappUrl);
   const [isEditingSettings, setIsEditingSettings] = useState(false);
+
+  useEffect(() => {
+    fetchQuickBuyLinkConfigFromSupabase().then((remoteConfig) => {
+      setConfig(remoteConfig);
+    });
+  }, []);
 
   useEffect(() => {
     setCustomTokenInput(config.token);

@@ -1468,6 +1468,7 @@ export const saveOrder = async (
         email_sent_to_admin: Boolean(newOrder.emailSentToAdmin),
       };
 
+      let insertedSuccessfully = false;
       const { error } = await supabaseInstance.from('orders').insert([dbPayload]);
       if (error) {
         console.warn('Supabase saveOrder error, reintentando con payload de rescate:', error.message);
@@ -1495,16 +1496,24 @@ export const saveOrder = async (
         if (retryErr) {
           console.error('CRITICAL: No se pudo guardar el pedido en Supabase:', retryErr.message);
         } else {
+          insertedSuccessfully = true;
           console.log('Pedido guardado exitosamente en Supabase (rescate)');
         }
+      } else {
+        insertedSuccessfully = true;
+        console.log('Pedido guardado exitosamente en Supabase');
+      }
+
+      if (!insertedSuccessfully) {
+        (newOrder as any).isPendingSync = true;
       }
     } catch (e) {
       console.warn('Error guardando pedido en Supabase:', e);
+      (newOrder as any).isPendingSync = true;
     }
   }
 
   // Guardar en local storage desduplicando ÚNICAMENTE por ID único (id)
-  // Jamás descartar ni sobrescribir pedidos por orderNumber
   const currentOrders = getLocalOrders();
   const filtered = currentOrders.filter((o) => o.id !== newOrder.id);
   const updatedOrders = [newOrder, ...filtered];
@@ -1546,7 +1555,7 @@ export const fetchOrders = async (): Promise<Order[]> => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.warn('Supabase fetchOrders error, fallback local:', error.message);
+        console.warn('Supabase fetchOrders error, fallback a caché local:', error.message);
       } else if (data && Array.isArray(data)) {
         dbOrders = data.map((item: any) => ({
           id: item.id,
@@ -1587,31 +1596,148 @@ export const fetchOrders = async (): Promise<Order[]> => {
     }
   }
 
-  const localOrders = getLocalOrders();
+  // Si Supabase respondió con éxito, la base de datos de Supabase es la ÚNICA fuente de verdad
+  if (dbOrders !== null) {
+    // Si algún pedido quedó guardado en local en modo offline (isPendingSync), sincronizarlo a Supabase
+    const localOrders = getLocalOrders();
+    const dbOrderIds = new Set(dbOrders.map((o) => o.id));
+    const unsyncedOrders = localOrders.filter((o) => !dbOrderIds.has(o.id) && (o as any).isPendingSync);
 
-  // Fusionar pedidos de Supabase y locales desduplicando ESTRICTAMENTE por id único (UUID)
-  const orderMap = new Map<string, Order>();
-
-  if (dbOrders && dbOrders.length > 0) {
-    for (const ord of dbOrders) {
-      orderMap.set(ord.id, ord);
+    if (unsyncedOrders.length > 0 && supabaseInstance) {
+      for (const unsynced of unsyncedOrders) {
+        try {
+          const dbPayload: any = {
+            id: unsynced.id,
+            order_number: String(unsynced.orderNumber),
+            customer_name: String(unsynced.customerName || `Cliente #${unsynced.orderNumber}`),
+            customer_email: String(unsynced.customerEmail || `cliente.${unsynced.orderNumber}@tienda.com`),
+            customer_whatsapp: String(unsynced.customerWhatsapp || 'WhatsApp'),
+            delivery_option: String(unsynced.deliveryOption || 'pickup'),
+            delivery_address: typeof unsynced.deliveryAddress === 'object' && unsynced.deliveryAddress !== null ? unsynced.deliveryAddress : {},
+            shipping_method_name: unsynced.shippingMethodName ? String(unsynced.shippingMethodName) : null,
+            payment_method: String(unsynced.paymentMethod || 'cash'),
+            items: Array.isArray(unsynced.items) ? unsynced.items : [],
+            subtotal: Number(unsynced.subtotal || 0),
+            wholesale_discount: Number(unsynced.wholesaleDiscount || 0),
+            cash_discount: Number(unsynced.cashDiscount || 0),
+            shipping_cost: Number(unsynced.shippingCost || 0),
+            total: Number(unsynced.total || 0),
+            status: String(unsynced.status || 'pending_payment'),
+            created_at: unsynced.createdAt,
+            email_sent_to_customer: Boolean(unsynced.emailSentToCustomer),
+            email_sent_to_admin: Boolean(unsynced.emailSentToAdmin),
+          };
+          const { error: pushErr } = await supabaseInstance.from('orders').insert([dbPayload]);
+          if (!pushErr) {
+            delete (unsynced as any).isPendingSync;
+            dbOrders.unshift(unsynced);
+          }
+        } catch (syncErr) {
+          console.warn('Error subiendo pedido offline a Supabase:', syncErr);
+        }
+      }
     }
+
+    // Ordenar los más recientes primero
+    dbOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    // Actualizar la caché local para que sea exactamente un reflejo fiel de Supabase
+    saveLocalOrders(dbOrders);
+
+    return dbOrders;
   }
 
-  for (const ord of localOrders) {
-    if (!orderMap.has(ord.id)) {
-      orderMap.set(ord.id, ord);
-    }
+  // Fallback de contingencia sólo si Supabase está inalcanzable o sin conexión
+  return getLocalOrders();
+};
+
+/**
+ * Suscribe a eventos en tiempo real en la tabla de pedidos de Supabase.
+ * Permite que cualquier pedido creado en un móvil o navegador aparezca de inmediato en todos los demás.
+ */
+export const subscribeToOrders = (onOrdersChanged: (orders: Order[]) => void): (() => void) => {
+  if (!isSupabaseConfigured() || !supabaseInstance) {
+    return () => {};
   }
 
-  const combinedOrders = Array.from(orderMap.values());
-  // Ordenar los más recientes primero
-  combinedOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const channelName = `realtime_orders_${Math.random().toString(36).substring(2, 9)}`;
+  const channel = supabaseInstance
+    .channel(channelName)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'orders' },
+      async () => {
+        try {
+          const latestOrders = await fetchOrders();
+          onOrdersChanged(latestOrders);
+        } catch (e) {
+          console.warn('Error refrescando pedidos en tiempo real:', e);
+        }
+      }
+    )
+    .subscribe();
 
-  // Cachear lista sincronizada en local storage
-  saveLocalOrders(combinedOrders);
+  return () => {
+    if (supabaseInstance) {
+      supabaseInstance.removeChannel(channel);
+    }
+  };
+};
 
-  return combinedOrders;
+/**
+ * Suscribe a eventos en tiempo real en la tabla 'products' de Supabase.
+ * Permite que cualquier cambio en productos, stock, precios, categorías o configuraciones
+ * del sistema se propague automáticamente a todos los dispositivos abiertos.
+ */
+export const subscribeToProductsAndSystemConfig = (callbacks: {
+  onProductsChanged?: (products: Product[]) => void;
+  onCategoriesChanged?: (categories: Category[]) => void;
+  onSystemConfigChanged?: () => void;
+}): (() => void) => {
+  if (!isSupabaseConfigured() || !supabaseInstance) {
+    return () => {};
+  }
+
+  const channelName = `realtime_products_${Math.random().toString(36).substring(2, 9)}`;
+  const channel = supabaseInstance
+    .channel(channelName)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'products' },
+      async (payload) => {
+        try {
+          const changedId = (payload.new as any)?.id || (payload.old as any)?.id;
+          if (changedId === SYSTEM_CATEGORIES_ROW_ID) {
+            if (callbacks.onCategoriesChanged) {
+              const freshCats = await fetchCategories({ force: true });
+              callbacks.onCategoriesChanged(freshCats);
+            }
+          } else if (
+            changedId === '__system_quick_buy_config_v1__' ||
+            changedId === '__system_email_templates_v1__'
+          ) {
+            if (callbacks.onSystemConfigChanged) {
+              callbacks.onSystemConfigChanged();
+            }
+          } else {
+            // Producto estándar (stock, precio, creación, edición o eliminación)
+            if (callbacks.onProductsChanged) {
+              const freshProducts = await fetchProducts({ force: true });
+              callbacks.onProductsChanged(freshProducts);
+            }
+          }
+        } catch (e) {
+          console.warn('Error en realtime de productos/sistema:', e);
+        }
+      }
+    )
+    .subscribe();
+
+  return () => {
+    if (supabaseInstance) {
+      supabaseInstance.removeChannel(channel);
+    }
+  };
 };
 
 export const updateOrderStatus = async (orderId: string, status: Order['status']): Promise<void> => {
@@ -1892,14 +2018,11 @@ export const fetchCategories = async (options?: { force?: boolean }): Promise<Ca
 
       // If cloud returned categories (from either strategy A or B)
       if (loadedFromCloud && loadedFromCloud.length > 0) {
-        const rawLocal = getRawLocalCategories();
-        // Merge with any offline/local categories that haven't synced yet
-        const merged = mergeCategoriesLists(loadedFromCloud, rawLocal);
-        const reconciled = reconcileCategoriesWithProducts(merged, cachedProducts || undefined);
+        // Supabase es la fuente única autoritativa de categorías.
+        // Reconciliamos únicamente contra los productos activos para no resucitar categorías eliminadas en otros dispositivos.
+        const reconciled = reconcileCategoriesWithProducts(loadedFromCloud, cachedProducts || undefined);
         const sorted = reconciled.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
         saveLocalCategories(sorted);
-        // Ensure cloud storage locations are fresh in background
-        syncCategoriesToSupabase(sorted).catch(() => {});
         return sorted;
       }
 

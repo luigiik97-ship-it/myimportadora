@@ -84,6 +84,18 @@ export const fetchUserProfile = async (userId: string, email?: string): Promise<
         saveLocalProfile(mapped);
         return mapped;
       }
+
+      // Si la tabla profiles no existe o no tiene el registro, leer metadata en Supabase Auth
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        if (authData?.user) {
+          const meta = authData.user.user_metadata;
+          if (meta?.profile_data) {
+            saveLocalProfile(meta.profile_data);
+            return meta.profile_data;
+          }
+        }
+      } catch (authErr) {}
     } catch (e) {
       console.warn('Error fetching user profile from Supabase:', e);
     }
@@ -126,13 +138,21 @@ export const saveUserProfile = async (profile: UserProfile): Promise<UserProfile
         updated_at: now,
       };
 
-      const { error } = await supabase.from('profiles').upsert(dbPayload, { onConflict: 'id' });
-      if (error) {
-        console.warn('Supabase saveUserProfile error (trying fallback):', error.message);
-      }
+      await supabase.from('profiles').upsert(dbPayload, { onConflict: 'id' });
     } catch (e) {
-      console.warn('Error updating profile in Supabase:', e);
+      console.warn('Error updating profile in Supabase profiles table:', e);
     }
+
+    // Persistir también en user_metadata de Supabase Auth para garantizar sincronización en la nube entre dispositivos
+    try {
+      await supabase.auth.updateUser({
+        data: {
+          full_name: fullProfile.fullName,
+          phone: fullProfile.phone || '',
+          profile_data: fullProfile,
+        },
+      });
+    } catch (authErr) {}
   }
 
   saveLocalProfile(fullProfile);
@@ -357,6 +377,7 @@ export const fetchUserOrders = async (userId: string, email: string): Promise<Or
   const supabase = getSupabase();
   const cleanEmail = email.trim().toLowerCase();
   const orderMap = new Map<string, Order>();
+  let supabaseSuccess = false;
 
   if (isSupabaseConfigured() && supabase) {
     try {
@@ -373,6 +394,7 @@ export const fetchUserOrders = async (userId: string, email: string): Promise<Or
       const { data, error } = await query;
 
       if (!error && data && Array.isArray(data)) {
+        supabaseSuccess = true;
         data.forEach((item: any) => {
           const ord: Order = {
             id: item.id,
@@ -406,27 +428,29 @@ export const fetchUserOrders = async (userId: string, email: string): Promise<Or
     }
   }
 
-  // Check local storage for user's orders and merge
-  try {
-    const raw = localStorage.getItem('my_commerce_orders');
-    if (raw) {
-      const localOrders: Order[] = JSON.parse(raw);
-      if (Array.isArray(localOrders)) {
-        localOrders
-          .filter(
-            (o) =>
-              (o.userId && o.userId === userId) ||
-              (cleanEmail && o.customerEmail && o.customerEmail.toLowerCase() === cleanEmail)
-          )
-          .forEach((ord) => {
-            if (!orderMap.has(ord.id)) {
-              orderMap.set(ord.id, ord);
-            }
-          });
+  // Si Supabase tuvo éxito, es la fuente única autoritativa (no revivir pedidos borrados de localStorage)
+  if (!supabaseSuccess) {
+    try {
+      const raw = localStorage.getItem('my_commerce_orders');
+      if (raw) {
+        const localOrders: Order[] = JSON.parse(raw);
+        if (Array.isArray(localOrders)) {
+          localOrders
+            .filter(
+              (o) =>
+                (o.userId && o.userId === userId) ||
+                (cleanEmail && o.customerEmail && o.customerEmail.toLowerCase() === cleanEmail)
+            )
+            .forEach((ord) => {
+              if (!orderMap.has(ord.id)) {
+                orderMap.set(ord.id, ord);
+              }
+            });
+        }
       }
+    } catch (e) {
+      console.warn('Error filtering local user orders:', e);
     }
-  } catch (e) {
-    console.warn('Error filtering local user orders:', e);
   }
 
   const userOrdersList = Array.from(orderMap.values());

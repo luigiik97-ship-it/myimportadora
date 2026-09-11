@@ -1,3 +1,5 @@
+import { getSupabase, isSupabaseConfigured } from './supabase';
+
 /**
  * Servicio de Configuración y Gestión del Enlace Personalizado de Compra Rápida
  */
@@ -15,6 +17,7 @@ export interface QuickBuyLinkConfig {
 
 const STORAGE_KEY = 'my_commerce_quick_buy_link_config';
 const SESSION_ACTIVE_KEY = 'my_commerce_quick_buy_link_session_active';
+const SYSTEM_QUICK_BUY_ROW_ID = '__system_quick_buy_config_v1__';
 
 const DEFAULT_CONFIG: QuickBuyLinkConfig = {
   id: 'quick_buy_wa',
@@ -28,7 +31,7 @@ const DEFAULT_CONFIG: QuickBuyLinkConfig = {
 };
 
 /**
- * Obtiene la configuración actual del enlace
+ * Obtiene la configuración actual del enlace desde caché local o memoria
  */
 export const getQuickBuyLinkConfig = (): QuickBuyLinkConfig => {
   try {
@@ -47,7 +50,49 @@ export const getQuickBuyLinkConfig = (): QuickBuyLinkConfig => {
 };
 
 /**
- * Guarda la configuración del enlace
+ * Consulta y sincroniza la configuración de Compra Rápida directamente desde Supabase
+ */
+export const fetchQuickBuyLinkConfigFromSupabase = async (): Promise<QuickBuyLinkConfig> => {
+  const supabase = getSupabase();
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('description')
+        .eq('id', SYSTEM_QUICK_BUY_ROW_ID)
+        .maybeSingle();
+
+      if (!error && data && data.description) {
+        try {
+          const parsed = JSON.parse(data.description);
+          if (parsed && typeof parsed === 'object') {
+            const merged: QuickBuyLinkConfig = {
+              ...DEFAULT_CONFIG,
+              ...parsed,
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(
+                new CustomEvent('my_commerce_quick_buy_config_updated', {
+                  detail: merged,
+                })
+              );
+            }
+            return merged;
+          }
+        } catch (parseErr) {
+          console.warn('Error parseando configuración remota de compra rápida:', parseErr);
+        }
+      }
+    } catch (e) {
+      console.warn('Error consultando configuración de compra rápida en Supabase:', e);
+    }
+  }
+  return getQuickBuyLinkConfig();
+};
+
+/**
+ * Guarda la configuración del enlace tanto en local como en la base compartida de Supabase
  */
 export const saveQuickBuyLinkConfig = (config: Partial<QuickBuyLinkConfig>): QuickBuyLinkConfig => {
   try {
@@ -59,7 +104,7 @@ export const saveQuickBuyLinkConfig = (config: Partial<QuickBuyLinkConfig>): Qui
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 
-    // Notificar a componentes en tiempo real
+    // Notificar a componentes locales en tiempo real
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
         new CustomEvent('my_commerce_quick_buy_config_updated', {
@@ -67,6 +112,33 @@ export const saveQuickBuyLinkConfig = (config: Partial<QuickBuyLinkConfig>): Qui
         })
       );
     }
+
+    // Persistencia centralizada en Supabase para todos los dispositivos
+    const supabase = getSupabase();
+    if (isSupabaseConfigured() && supabase) {
+      (async () => {
+        try {
+          const { error } = await supabase
+            .from('products')
+            .upsert({
+              id: SYSTEM_QUICK_BUY_ROW_ID,
+              title: '__SYSTEM_QUICK_BUY_CONFIG__',
+              description: JSON.stringify(updated),
+              category: '__system__',
+              wholesale_price: 0,
+              retail_price: 0,
+              stock: 0,
+              specs: [{ key: 'updated_at', value: updated.lastUpdated }],
+            });
+          if (error) {
+            console.warn('Advertencia al sincronizar configuración de compra rápida en Supabase:', error.message);
+          }
+        } catch (err) {
+          console.warn('Error de red al sincronizar configuración en Supabase:', err);
+        }
+      })();
+    }
+
     return updated;
   } catch (e) {
     console.error('Error guardando configuración de enlace rápido:', e);

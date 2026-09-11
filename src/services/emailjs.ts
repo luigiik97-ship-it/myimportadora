@@ -1,5 +1,6 @@
 import emailjs from '@emailjs/browser';
 import { Order } from '../types';
+import { getSupabase, isSupabaseConfigured } from './supabase';
 
 // Environment configurations
 const env = (typeof import.meta !== 'undefined' && import.meta.env)
@@ -563,10 +564,98 @@ export const getAdminTemplate = (): string => {
   return DEFAULT_ADMIN_TEMPLATE;
 };
 
+export const SYSTEM_EMAIL_TEMPLATES_ROW_ID = '__system_email_templates_v1__';
+
+/**
+ * Carga las plantillas personalizadas desde Supabase para compartirlas entre todos los dispositivos
+ */
+export const fetchEmailTemplatesFromSupabase = async (): Promise<{ customerTemplate?: string; adminTemplate?: string }> => {
+  const supabase = getSupabase();
+  if (!isSupabaseConfigured() || !supabase) {
+    return {
+      customerTemplate: getCustomerTemplate(),
+      adminTemplate: getAdminTemplate(),
+    };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .select('description')
+      .eq('id', SYSTEM_EMAIL_TEMPLATES_ROW_ID)
+      .maybeSingle();
+
+    if (!error && data?.description) {
+      const parsed = JSON.parse(data.description);
+      if (parsed.customerTemplate && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem(STORAGE_KEY_CUSTOMER_TEMPLATE, parsed.customerTemplate);
+      }
+      if (parsed.adminTemplate && typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem(STORAGE_KEY_ADMIN_TEMPLATE, parsed.adminTemplate);
+      }
+      return {
+        customerTemplate: parsed.customerTemplate || getCustomerTemplate(),
+        adminTemplate: parsed.adminTemplate || getAdminTemplate(),
+      };
+    }
+  } catch (e) {
+    console.warn('Error cargando plantillas de email desde Supabase:', e);
+  }
+
+  return {
+    customerTemplate: getCustomerTemplate(),
+    adminTemplate: getAdminTemplate(),
+  };
+};
+
+/**
+ * Guarda las plantillas en Supabase para sincronización global entre dispositivos
+ */
+export const syncEmailTemplatesToSupabase = async (templates?: { customerTemplate?: string | null; adminTemplate?: string | null }): Promise<void> => {
+  const supabase = getSupabase();
+  if (!isSupabaseConfigured() || !supabase) return;
+
+  try {
+    const cust = templates?.customerTemplate !== undefined
+      ? templates.customerTemplate
+      : (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_CUSTOMER_TEMPLATE) : null);
+
+    const adm = templates?.adminTemplate !== undefined
+      ? templates.adminTemplate
+      : (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_ADMIN_TEMPLATE) : null);
+
+    const payload = {
+      customerTemplate: cust,
+      adminTemplate: adm,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from('products')
+      .upsert({
+        id: SYSTEM_EMAIL_TEMPLATES_ROW_ID,
+        title: '__SYSTEM_EMAIL_TEMPLATES__',
+        description: JSON.stringify(payload),
+        category: '__system__',
+        wholesale_price: 0,
+        retail_price: 0,
+        stock: 0,
+        specs: [{ key: 'updated_at', value: payload.updatedAt }],
+      });
+
+    if (error) {
+      console.warn('Advertencia al sincronizar plantillas de email en Supabase:', error.message);
+    }
+  } catch (e) {
+    console.warn('Error al persistir plantillas de email en Supabase:', e);
+  }
+};
+
 export const saveCustomerTemplate = (html: string): void => {
   if (typeof window !== 'undefined' && window.localStorage) {
     const cleaned = sanitizeAndUpgradeTemplateHtml(html);
     localStorage.setItem(STORAGE_KEY_CUSTOMER_TEMPLATE, cleaned);
+    syncEmailTemplatesToSupabase({ customerTemplate: cleaned }).catch(() => {});
   }
 };
 
@@ -574,12 +663,14 @@ export const saveAdminTemplate = (html: string): void => {
   if (typeof window !== 'undefined' && window.localStorage) {
     const cleaned = sanitizeAndUpgradeTemplateHtml(html);
     localStorage.setItem(STORAGE_KEY_ADMIN_TEMPLATE, cleaned);
+    syncEmailTemplatesToSupabase({ adminTemplate: cleaned }).catch(() => {});
   }
 };
 
 export const resetCustomerTemplate = (): string => {
   if (typeof window !== 'undefined' && window.localStorage) {
     localStorage.removeItem(STORAGE_KEY_CUSTOMER_TEMPLATE);
+    syncEmailTemplatesToSupabase({ customerTemplate: null }).catch(() => {});
   }
   return DEFAULT_CUSTOMER_TEMPLATE;
 };
@@ -587,6 +678,7 @@ export const resetCustomerTemplate = (): string => {
 export const resetAdminTemplate = (): string => {
   if (typeof window !== 'undefined' && window.localStorage) {
     localStorage.removeItem(STORAGE_KEY_ADMIN_TEMPLATE);
+    syncEmailTemplatesToSupabase({ adminTemplate: null }).catch(() => {});
   }
   return DEFAULT_ADMIN_TEMPLATE;
 };
