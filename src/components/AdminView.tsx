@@ -6,6 +6,7 @@ import {
   getProductTotalStock,
   isProductCompletelyOutOfStock,
   getOptionStock,
+  getResolvedProductPrices,
 } from '../utils/variantHelpers';
 import { VariantManager } from './admin/VariantManager';
 import { BulkPriceUpdate } from './admin/BulkPriceUpdate';
@@ -26,6 +27,7 @@ import {
   subscribeToProductsAndSystemConfig,
   updateOrderStatus,
   updateOrderEmailStatus,
+  updateOrder,
   deleteOrder,
   isSupabaseConfigured,
   SUPABASE_SQL_SETUP_SCHEMA,
@@ -79,6 +81,64 @@ import {
   BarChart3,
   ArrowUpRight,
 } from 'lucide-react';
+
+export const resolveOrderItemPrices = (
+  it: Order['items'][number],
+  paymentMethod: 'transfer' | 'cash',
+  productsList: Product[]
+) => {
+  const isCash = paymentMethod === 'cash';
+  const matchedProduct = productsList.find(
+    (p) => p.id === it.productId || (p.title && it.title && p.title.trim().toLowerCase() === it.title.trim().toLowerCase())
+  );
+
+  // Normal unit price (Transfer / List price)
+  let normalUnitPrice = it.unitPrice || 0;
+  if (matchedProduct) {
+    const resolved = getResolvedProductPrices(matchedProduct, undefined, undefined);
+    const baseNormal = it.isWholesale ? resolved.wholesalePrice : resolved.retailPrice;
+    if (baseNormal > 0 && (!normalUnitPrice || normalUnitPrice === it.cashUnitPrice)) {
+      normalUnitPrice = baseNormal;
+    }
+  }
+
+  // Cash unit price (Efectivo mayorista o minorista)
+  let cashUnitPrice = it.cashUnitPrice && it.cashUnitPrice > 0 ? it.cashUnitPrice : 0;
+  if (!cashUnitPrice && matchedProduct) {
+    const resolved = getResolvedProductPrices(matchedProduct, undefined, undefined);
+    const baseCash = it.isWholesale
+      ? (resolved.wholesaleCashPrice || resolved.cashPrice || resolved.wholesalePrice)
+      : (resolved.retailCashPrice || resolved.cashPrice || resolved.retailPrice);
+    if (baseCash > 0) {
+      cashUnitPrice = baseCash;
+    }
+  }
+
+  // Fallback if product not in catalog and no cashUnitPrice
+  if (!cashUnitPrice) {
+    if (it.totalCashPrice && it.quantity > 0) {
+      cashUnitPrice = Math.round(it.totalCashPrice / it.quantity);
+    } else {
+      cashUnitPrice = normalUnitPrice;
+    }
+  }
+
+  const effectiveUnitPrice = isCash ? (cashUnitPrice > 0 ? cashUnitPrice : normalUnitPrice) : normalUnitPrice;
+  const effectiveTotalPrice = effectiveUnitPrice * it.quantity;
+
+  const pricingLabel = isCash
+    ? (it.isWholesale ? 'Efectivo Mayorista' : 'Efectivo Minorista')
+    : (it.isWholesale ? 'Mayorista' : 'Minorista');
+
+  return {
+    normalUnitPrice,
+    cashUnitPrice,
+    effectiveUnitPrice,
+    effectiveTotalPrice,
+    pricingLabel,
+    isCash,
+  };
+};
 
 interface AdminViewProps {
   onExitAdmin: () => void;
@@ -968,6 +1028,69 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
     setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o)));
     if (selectedOrder && selectedOrder.id === orderId) {
       setSelectedOrder({ ...selectedOrder, status: newStatus });
+    }
+  };
+
+  const handleUpdateOrderPaymentMethod = async (order: Order, newMethod: 'transfer' | 'cash') => {
+    if (order.paymentMethod === newMethod) return;
+
+    // Recalculate item prices based on the new payment method
+    const updatedItems = order.items.map((it) => {
+      const { normalUnitPrice, cashUnitPrice, effectiveUnitPrice, effectiveTotalPrice } = resolveOrderItemPrices(
+        it,
+        newMethod,
+        products
+      );
+      return {
+        ...it,
+        unitPrice: newMethod === 'cash' ? cashUnitPrice : normalUnitPrice,
+        cashUnitPrice: cashUnitPrice,
+        totalPrice: effectiveTotalPrice,
+        totalCashPrice: cashUnitPrice * it.quantity,
+      };
+    });
+
+    const isNewCash = newMethod === 'cash';
+    let transferProductsSubtotal = 0;
+    let cashProductsSubtotal = 0;
+
+    order.items.forEach((it) => {
+      const { normalUnitPrice, cashUnitPrice } = resolveOrderItemPrices(it, newMethod, products);
+      transferProductsSubtotal += normalUnitPrice * it.quantity;
+      cashProductsSubtotal += cashUnitPrice * it.quantity;
+    });
+
+    const shipping = order.shippingCost || 0;
+    const newCashDiscount = isNewCash ? Math.max(0, transferProductsSubtotal - cashProductsSubtotal) : 0;
+    const newSubtotal = transferProductsSubtotal > 0 ? transferProductsSubtotal : order.subtotal;
+    const newTotal = (isNewCash ? cashProductsSubtotal : transferProductsSubtotal) + shipping;
+
+    const updatedOrder: Order = {
+      ...order,
+      paymentMethod: newMethod,
+      items: updatedItems,
+      subtotal: newSubtotal,
+      cashDiscount: newCashDiscount,
+      total: newTotal,
+    };
+
+    setSelectedOrder(updatedOrder);
+    setOrders((prev) => prev.map((o) => (o.id === order.id ? updatedOrder : o)));
+
+    try {
+      await updateOrder(order.id, {
+        paymentMethod: newMethod,
+        items: updatedItems,
+        subtotal: newSubtotal,
+        cashDiscount: newCashDiscount,
+        total: newTotal,
+      });
+      setActionFeedback({
+        type: 'success',
+        message: `Medio de pago actualizado a ${newMethod === 'cash' ? 'Efectivo' : 'Transferencia'} y precios recalculados.`,
+      });
+    } catch (err) {
+      console.warn('Error updating order payment method:', err);
     }
   };
 
@@ -2889,10 +3012,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                   )}
                 </div>
                 <div>
-                  <span className="text-gray-400 block">Medio de Pago:</span>
-                  <strong className="text-gray-900">
-                    {selectedOrder.paymentMethod === 'transfer' ? 'Transferencia Bancaria' : 'Efectivo'}
-                  </strong>
+                  <span className="text-gray-400 block mb-0.5">Medio de Pago:</span>
+                  <select
+                    value={selectedOrder.paymentMethod}
+                    onChange={(e) => handleUpdateOrderPaymentMethod(selectedOrder, e.target.value as 'transfer' | 'cash')}
+                    className="text-xs font-bold rounded border border-gray-300 bg-white px-2 py-1 text-gray-900 shadow-sm focus:outline-none focus:ring-1 focus:ring-[#0058bb] cursor-pointer"
+                    title="Actualizar medio de pago y recalcular precios de los productos"
+                  >
+                    <option value="cash">Efectivo (Precio Efectivo)</option>
+                    <option value="transfer">Transferencia Bancaria</option>
+                  </select>
                 </div>
                 <div>
                   <span className="text-gray-400 block">Canal / Origen:</span>
@@ -2942,13 +3071,22 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
 
               {/* Item breakdown */}
               <div className="space-y-2">
-                <span className="font-bold text-gray-800 block text-xs">
-                  Productos del Pedido ({selectedOrder.items.reduce((acc, it) => acc + it.quantity, 0)} u.):
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-gray-800 block text-xs">
+                    Productos del Pedido ({selectedOrder.items.reduce((acc, it) => acc + it.quantity, 0)} u.):
+                  </span>
+                  {selectedOrder.paymentMethod === 'cash' && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      Precios en Efectivo
+                    </span>
+                  )}
+                </div>
                 <div className="divide-y divide-gray-100">
                   {selectedOrder.items.map((it) => {
+                    const resolved = resolveOrderItemPrices(it, selectedOrder.paymentMethod, products);
                     const variantSuffix = it.variantText ? `, ${it.variantText}` : '';
-                    const pricingSuffix = ` (${it.isWholesale ? 'Mayorista' : 'Minorista'})`;
+                    const hasDiscount = resolved.isCash && resolved.normalUnitPrice > resolved.effectiveUnitPrice;
+
                     return (
                       <div
                         key={it.id}
@@ -2968,13 +3106,24 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                               {it.quantity}x {it.title}
                             </span>
                             <span className="text-[10px] text-gray-500 block mt-0.5">
-                              {variantSuffix ? variantSuffix.replace(/^, /, '') : ''}
-                              {pricingSuffix} - ${it.unitPrice.toLocaleString('es-AR')} c/u
+                              {variantSuffix ? variantSuffix.replace(/^, /, '') + ' · ' : ''}
+                              <span className={resolved.isCash ? "text-emerald-700 font-semibold" : "text-gray-600 font-medium"}>
+                                {resolved.pricingLabel}
+                              </span>
+                              {' · '}
+                              {hasDiscount && (
+                                <span className="line-through text-gray-400 mr-1">
+                                  ${resolved.normalUnitPrice.toLocaleString('es-AR')}
+                                </span>
+                              )}
+                              <span className={resolved.isCash ? "text-emerald-800 font-bold" : "text-gray-900 font-semibold"}>
+                                ${resolved.effectiveUnitPrice.toLocaleString('es-AR')} c/u
+                              </span>
                             </span>
                           </div>
                         </div>
-                        <strong className="text-gray-900 shrink-0 text-xs font-bold text-right">
-                          ${it.totalPrice.toLocaleString('es-AR')}
+                        <strong className={resolved.isCash ? "text-emerald-800 shrink-0 text-xs font-bold text-right" : "text-gray-900 shrink-0 text-xs font-bold text-right"}>
+                          ${resolved.effectiveTotalPrice.toLocaleString('es-AR')}
                         </strong>
                       </div>
                     );
@@ -2983,36 +3132,61 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
               </div>
 
               {/* Pricing Totals */}
-              <div className="border-t border-gray-200 pt-2 space-y-1">
-                <div className="flex justify-between text-gray-600">
-                  <span>Subtotal:</span>
-                  <span>${selectedOrder.subtotal.toLocaleString('es-AR')}</span>
-                </div>
-                {selectedOrder.wholesaleDiscount > 0 && (
-                  <div className="flex justify-between text-emerald-600 font-medium">
-                    <span>Ahorro Mayorista:</span>
-                    <span>-${selectedOrder.wholesaleDiscount.toLocaleString('es-AR')}</span>
+              {(() => {
+                const isCash = selectedOrder.paymentMethod === 'cash';
+                let transferItemsTotal = 0;
+                let cashItemsTotal = 0;
+
+                selectedOrder.items.forEach((it) => {
+                  const res = resolveOrderItemPrices(it, selectedOrder.paymentMethod, products);
+                  transferItemsTotal += res.normalUnitPrice * it.quantity;
+                  cashItemsTotal += res.cashUnitPrice * it.quantity;
+                });
+
+                const effectiveItemsTotal = isCash ? cashItemsTotal : transferItemsTotal;
+                const shipping = selectedOrder.shippingCost || 0;
+                const calculatedCashDiscount = isCash ? Math.max(0, transferItemsTotal - cashItemsTotal) : 0;
+                const displayCashDiscount = isCash
+                  ? (selectedOrder.cashDiscount > 0 ? selectedOrder.cashDiscount : calculatedCashDiscount)
+                  : 0;
+                const displaySubtotal = isCash && displayCashDiscount > 0
+                  ? (transferItemsTotal > 0 ? transferItemsTotal : selectedOrder.subtotal)
+                  : (selectedOrder.subtotal || effectiveItemsTotal);
+                const displayTotal = isCash
+                  ? (displaySubtotal - displayCashDiscount + shipping)
+                  : (selectedOrder.total || displaySubtotal + shipping);
+
+                return (
+                  <div className="border-t border-gray-200 pt-2 space-y-1">
+                    <div className="flex justify-between text-gray-600">
+                      <span>Subtotal{isCash && displayCashDiscount > 0 ? ' (Lista / Transferencia)' : ''}:</span>
+                      <span>${displaySubtotal.toLocaleString('es-AR')}</span>
+                    </div>
+                    {selectedOrder.wholesaleDiscount > 0 && (
+                      <div className="hidden" style={{ display: 'none' }} aria-hidden="true">
+                        <span>Ahorro Mayorista:</span>
+                        <span>-${selectedOrder.wholesaleDiscount.toLocaleString('es-AR')}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-gray-600">
+                      <span>Costo de Envío:</span>
+                      <span>
+                        {shipping === 0 ? 'Gratis' : `$${shipping.toLocaleString('es-AR')}`}
+                      </span>
+                    </div>
+                    {isCash && displayCashDiscount > 0 && (
+                      <div className="flex justify-between text-emerald-600 font-semibold">
+                        <span>Descuento Efectivo:</span>
+                        <span>-${displayCashDiscount.toLocaleString('es-AR')}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-bold text-sm text-gray-900 pt-2 border-t">
+                      <span>Total Final{isCash ? ' (Efectivo)' : ''}:</span>
+                      <span className="text-[#0058bb] text-base">${displayTotal.toLocaleString('es-AR')}</span>
+                    </div>
                   </div>
-                )}
-                <div className="flex justify-between text-gray-600">
-                  <span>Costo de Envío:</span>
-                  <span>
-                    {selectedOrder.shippingCost === 0
-                      ? 'Gratis'
-                      : `$${selectedOrder.shippingCost.toLocaleString('es-AR')}`}
-                  </span>
-                </div>
-                {selectedOrder.cashDiscount > 0 && (
-                  <div className="flex justify-between text-emerald-600 font-semibold">
-                    <span>Descuento Efectivo:</span>
-                    <span>-${selectedOrder.cashDiscount.toLocaleString('es-AR')}</span>
-                  </div>
-                )}
-                <div className="flex justify-between font-bold text-sm text-gray-900 pt-2 border-t">
-                  <span>Total Final:</span>
-                  <span className="text-[#0058bb] text-base">${selectedOrder.total.toLocaleString('es-AR')}</span>
-                </div>
-              </div>
+                );
+              })()}
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-gray-200">
