@@ -5,6 +5,12 @@ import { getStorefrontCategories } from '../utils/categoryHelpers';
 import { Truck, ArrowRight, ArrowLeftRight, Banknote, MapPin, Building2, Store, ChevronLeft, ChevronRight, Sparkles, ShieldCheck, Tag } from 'lucide-react';
 import { ImageWithSkeleton } from './common/ImageWithSkeleton';
 import { ProductGridSkeleton } from './common/ProductCardSkeleton';
+import {
+  getStoreBannersConfig,
+  DEFAULT_STORE_BANNERS,
+  StoreBannersConfig,
+  fetchStoreBannersFromSupabase,
+} from '../services/storeBanners';
 
 interface HomeViewProps {
   products: Product[];
@@ -28,6 +34,25 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [currentIndex, setCurrentIndex] = useState(1);
   const [isTransitioning, setIsTransitioning] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
+  const [storeBanners, setStoreBanners] = useState<StoreBannersConfig>(() => getStoreBannersConfig());
+
+  // Sincronizar banners desde Supabase y escuchar eventos locales
+  useEffect(() => {
+    fetchStoreBannersFromSupabase()
+      .then((b) => setStoreBanners(b))
+      .catch(() => {});
+
+    const handleBannersUpdate = (e: CustomEvent<StoreBannersConfig>) => {
+      if (e.detail) {
+        setStoreBanners(e.detail);
+      }
+    };
+
+    window.addEventListener('my_commerce_banners_updated' as any, handleBannersUpdate as any);
+    return () => {
+      window.removeEventListener('my_commerce_banners_updated' as any, handleBannersUpdate as any);
+    };
+  }, []);
 
   const firstCat = categories && categories[0] ? categories[0].name : 'Todo';
   const secondCat = categories && categories[1] ? categories[1].name : firstCat;
@@ -45,6 +70,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
       ctaText: 'Ver Catálogo',
       categoryTarget: 'Todo',
       bgGradient: 'from-slate-100 via-gray-50 to-slate-200',
+      customImage: storeBanners.heroBanner1,
+      showText: storeBanners.heroBanner1ShowText !== false,
       images: [
         {
           src: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=500&auto=format&fit=crop&q=80',
@@ -79,6 +106,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
       ctaText: firstCat !== 'Todo' ? `Ver ${firstCat}` : 'Ver Catálogo',
       categoryTarget: firstCat,
       bgGradient: 'from-blue-50 via-indigo-50/50 to-slate-100',
+      customImage: storeBanners.heroBanner2,
+      showText: storeBanners.heroBanner2ShowText !== false,
       images: [
         {
           src: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=500&auto=format&fit=crop&q=80',
@@ -108,6 +137,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
       ctaText: secondCat !== 'Todo' ? `Ver ${secondCat}` : 'Ver Novedades',
       categoryTarget: secondCat,
       bgGradient: 'from-amber-50/80 via-orange-50/50 to-slate-100',
+      customImage: storeBanners.heroBanner3,
+      showText: storeBanners.heroBanner3ShowText !== false,
       images: [
         {
           src: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=500&auto=format&fit=crop&q=80',
@@ -232,97 +263,123 @@ export const HomeView: React.FC<HomeViewProps> = ({
   };
 
   return (
-    <div className="max-w-[1240px] mx-auto px-2 sm:px-4 py-3 sm:py-6 space-y-6 sm:space-y-10">
-      {/* 1. Hero Promo Carousel (3 Banners, sliding from right to left every 3s) */}
-      <div
-        id="hero-banner-carousel"
-        className="relative overflow-hidden rounded-xl sm:rounded-2xl border-0 sm:border border-gray-200 shadow-xs sm:shadow-sm min-h-[250px] sm:min-h-[280px] md:min-h-[300px] flex items-center group transition-all"
-        onMouseEnter={() => setIsPaused(true)}
-        onMouseLeave={() => setIsPaused(false)}
-      >
-        {/* Horizontal Slider Track */}
+    <div className="w-full">
+      {/* 1. Hero Promo Carousel (Extremo a extremo sin bordes de tarjeta, sin sombras ni esquinas redondeadas) */}
+      <section className="w-full max-w-[1240px] mx-auto">
         <div
-          className={`flex w-full h-full min-h-[250px] sm:min-h-[280px] md:min-h-[300px] ${
-            isTransitioning ? 'transition-transform duration-700 ease-in-out' : ''
-          }`}
-          style={{ transform: `translateX(-${currentIndex * 100}%)` }}
-          onTransitionEnd={handleTransitionEnd}
+          id="hero-banner-carousel"
+          className="relative w-full overflow-hidden border-0 shadow-none rounded-none min-h-[255px] sm:min-h-[290px] md:min-h-[330px] flex items-center group select-none"
+          onMouseEnter={() => setIsPaused(true)}
+          onMouseLeave={() => setIsPaused(false)}
         >
-          {extendedBanners.map((banner, index) => {
-            return (
-              <div
-                key={`${banner.id}-slide-${index}`}
-                className={`w-full min-w-full h-full min-h-[250px] sm:min-h-[280px] md:min-h-[300px] relative bg-gradient-to-r ${banner.bgGradient} flex items-center shrink-0`}
-              >
-                {/* Left Copy Info */}
-                <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/80 to-transparent z-10 p-4 sm:p-6 md:p-10 flex flex-col justify-center max-w-xl">
-                  <div
-                    className={`inline-block ${banner.badgeBg} text-white text-xs md:text-sm font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-2 w-max shadow-xs`}
-                  >
-                    {banner.badge}
-                  </div>
-                  <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 leading-tight font-['Montserrat']">
-                    {banner.title}
-                  </h1>
-                  <p className="text-base sm:text-lg md:text-xl font-bold text-gray-700 mt-1">
-                    {banner.subtitleText}{' '}
-                    <span className="text-[#0058bb]">{banner.subtitleHighlight}</span>
-                  </p>
-                  <p className="text-xs md:text-sm text-gray-600 mt-1.5 sm:mt-2 font-medium max-w-md">
-                    {banner.description}
-                  </p>
-                  <div className="mt-3 sm:mt-4 flex items-center gap-3">
-                    <button
-                      onClick={() => onSelectCategory(banner.categoryTarget)}
-                      className="inline-flex items-center gap-2 bg-[#0058bb] hover:bg-[#004494] text-white text-xs md:text-sm font-bold px-4 sm:px-5 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer min-h-[42px]"
-                    >
-                      <span>{banner.ctaText}</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
-                    <span className="text-xs text-gray-400 font-medium uppercase tracking-wider hidden sm:inline-block">
-                      Cambio cada 3s
-                    </span>
-                  </div>
-                </div>
-
-                {/* Banner Visual Collage Images */}
-                <div className="absolute right-0 top-0 bottom-0 w-full md:w-3/4 flex items-center justify-end gap-2 md:gap-4 pr-4 md:pr-12 opacity-85 pointer-events-none">
-                  {banner.images.map((img, imgIdx) => (
+          {/* Horizontal Slider Track */}
+          <div
+            className={`flex w-full h-full min-h-[255px] sm:min-h-[290px] md:min-h-[330px] ${
+              isTransitioning ? 'transition-transform duration-700 ease-in-out' : ''
+            }`}
+            style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+            onTransitionEnd={handleTransitionEnd}
+          >
+            {extendedBanners.map((banner, index) => {
+              return (
+                <div
+                  key={`${banner.id}-slide-${index}`}
+                  className={`w-full min-w-full h-full min-h-[255px] sm:min-h-[290px] md:min-h-[330px] relative bg-gradient-to-r ${banner.bgGradient} flex items-center shrink-0 overflow-hidden`}
+                >
+                  {/* Custom Hero Banner Image (if configured in Admin) */}
+                  {banner.customImage ? (
                     <img
-                      key={imgIdx}
-                      src={img.src}
-                      alt={img.alt}
-                      className={img.className}
+                      src={banner.customImage}
+                      alt={banner.title}
+                      className="absolute inset-0 w-full h-full object-cover z-0"
                     />
-                  ))}
+                  ) : null}
+
+                  {/* Left Copy Info - shown if showText is true */}
+                  {banner.showText !== false && (
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/85 sm:via-white/70 to-transparent z-10 px-4 py-5 sm:px-8 sm:py-6 md:px-12 md:py-8 flex flex-col justify-center max-w-xl md:max-w-2xl">
+                      <div
+                        className={`inline-block ${banner.badgeBg} text-white text-[11px] sm:text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-2 sm:mb-2.5 w-max shadow-xs`}
+                      >
+                        {banner.badge}
+                      </div>
+                      <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 leading-tight font-['Montserrat'] tracking-tight">
+                        {banner.title}
+                      </h1>
+                      <p className="text-base sm:text-lg md:text-xl font-bold text-gray-700 mt-1">
+                        {banner.subtitleText}{' '}
+                        <span className="text-[#0058bb]">{banner.subtitleHighlight}</span>
+                      </p>
+                      <p className="text-xs sm:text-sm text-gray-600 mt-1.5 sm:mt-2 font-medium max-w-md line-clamp-2 sm:line-clamp-none">
+                        {banner.description}
+                      </p>
+                      <div className="mt-3.5 sm:mt-5 flex items-center gap-3">
+                        <button
+                          onClick={() => onSelectCategory(banner.categoryTarget)}
+                          className="inline-flex items-center gap-2 bg-[#0058bb] hover:bg-[#004494] text-white text-xs sm:text-sm font-bold px-5 sm:px-6 py-2.5 rounded-lg shadow-xs hover:shadow-md transition-all cursor-pointer min-h-[42px]"
+                        >
+                          <span>{banner.ctaText}</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                        <span className="text-xs text-gray-400 font-medium uppercase tracking-wider hidden sm:inline-block">
+                          Cambio cada 3s
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* If text is hidden and customImage exists, entire slide is clickable */}
+                  {banner.showText === false && banner.customImage && (
+                    <div
+                      onClick={() => onSelectCategory(banner.categoryTarget)}
+                      className="absolute inset-0 z-10 cursor-pointer"
+                      title={banner.ctaText}
+                    />
+                  )}
+
+                  {/* Banner Visual Collage Images (only shown when no custom image is configured) */}
+                  {!banner.customImage && (
+                    <div className="absolute right-0 top-0 bottom-0 w-3/5 sm:w-2/3 md:w-3/5 flex items-center justify-end gap-2 md:gap-4 pr-3 sm:pr-8 md:pr-12 opacity-85 sm:opacity-90 pointer-events-none overflow-hidden">
+                      {banner.images.map((img, imgIdx) => (
+                        <img
+                          key={imgIdx}
+                          src={img.src}
+                          alt={img.alt}
+                          className={img.className}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+
+          {/* Previous Button */}
+          <button
+            id="btn-banner-prev"
+            onClick={handlePrevBanner}
+            className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/80 hover:bg-white text-gray-800 shadow-sm flex items-center justify-center border border-gray-200/80 hover:scale-105 active:scale-95 transition-all opacity-70 sm:opacity-0 group-hover:opacity-100 cursor-pointer"
+            aria-label="Banner anterior"
+          >
+            <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
+          </button>
+
+          {/* Next Button */}
+          <button
+            id="btn-banner-next"
+            onClick={handleNextBanner}
+            className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/80 hover:bg-white text-gray-800 shadow-sm flex items-center justify-center border border-gray-200/80 hover:scale-105 active:scale-95 transition-all opacity-70 sm:opacity-0 group-hover:opacity-100 cursor-pointer"
+            aria-label="Siguiente banner"
+          >
+            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
+          </button>
         </div>
+      </section>
 
-        {/* Previous Button */}
-        <button
-          id="btn-banner-prev"
-          onClick={handlePrevBanner}
-          className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-9 h-9 md:w-11 md:h-11 rounded-full bg-white/90 hover:bg-white text-gray-800 shadow-md flex items-center justify-center border border-gray-200 hover:scale-105 active:scale-95 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
-          aria-label="Banner anterior"
-        >
-          <ChevronLeft className="w-5 h-5 text-gray-700" />
-        </button>
-
-        {/* Next Button */}
-        <button
-          id="btn-banner-next"
-          onClick={handleNextBanner}
-          className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-9 h-9 md:w-11 md:h-11 rounded-full bg-white/90 hover:bg-white text-gray-800 shadow-md flex items-center justify-center border border-gray-200 hover:scale-105 active:scale-95 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
-          aria-label="Siguiente banner"
-        >
-          <ChevronRight className="w-5 h-5 text-gray-700" />
-        </button>
-      </div>
-
-      {/* 2. Categorías principales (Fila horizontal desplazable) */}
+      {/* Main Content Area */}
+      <div className="max-w-[1240px] mx-auto px-2 sm:px-4 py-3 sm:py-6 space-y-6 sm:space-y-10">
+        {/* 2. Categorías principales (Fila horizontal desplazable) */}
       <section id="categorias-principales" className="space-y-3">
         <div className="hidden">
           <div>
@@ -456,9 +513,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
       {/* 4. Middle Promotional Banners */}
       <section id="promo-banners-mid" className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-        <div className="relative rounded-xl overflow-hidden shadow-xs sm:shadow-sm h-44 sm:h-48 md:h-56 bg-neutral-900 flex items-center justify-between p-4 sm:p-6 text-white group cursor-pointer">
+        <div
+          onClick={() => onSelectCategory('Todo')}
+          className="relative rounded-xl overflow-hidden shadow-xs sm:shadow-sm h-44 sm:h-48 md:h-56 bg-neutral-900 flex items-center justify-between p-4 sm:p-6 text-white group cursor-pointer"
+        >
           <img
-            src="https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800&auto=format&fit=crop&q=80"
+            src={storeBanners.secondaryBanner1 || DEFAULT_STORE_BANNERS.secondaryBanner1}
             alt="Accessories"
             className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-500"
           />
@@ -476,9 +536,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
         </div>
 
-        <div className="relative rounded-xl overflow-hidden shadow-xs sm:shadow-sm h-44 sm:h-48 md:h-56 bg-neutral-900 flex items-center justify-between p-4 sm:p-6 text-white group cursor-pointer">
+        <div
+          onClick={() => onSelectCategory(secondCat || 'Todo')}
+          className="relative rounded-xl overflow-hidden shadow-xs sm:shadow-sm h-44 sm:h-48 md:h-56 bg-neutral-900 flex items-center justify-between p-4 sm:p-6 text-white group cursor-pointer"
+        >
           <img
-            src="https://images.unsplash.com/photo-1611591475152-47eac9806830?w=800&auto=format&fit=crop&q=80"
+            src={storeBanners.secondaryBanner2 || DEFAULT_STORE_BANNERS.secondaryBanner2}
             alt="Gothic Fantasy"
             className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-500"
           />
@@ -686,13 +749,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </h3>
           <div className="h-[210px] rounded-xl overflow-hidden shadow-sm border border-gray-200">
             <img
-              src="https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=600&auto=format&fit=crop&q=80"
+              src={storeBanners.showroomImage || DEFAULT_STORE_BANNERS.showroomImage}
               alt="Anillos y piedras finas"
               className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
             />
           </div>
         </div>
       </section>
+      </div>
     </div>
   );
 };

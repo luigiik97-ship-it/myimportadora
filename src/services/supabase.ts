@@ -1714,7 +1714,8 @@ export const subscribeToProductsAndSystemConfig = (callbacks: {
             }
           } else if (
             changedId === '__system_quick_buy_config_v1__' ||
-            changedId === '__system_email_templates_v1__'
+            changedId === '__system_email_templates_v1__' ||
+            changedId === '__system_store_banners_v1__'
           ) {
             if (callbacks.onSystemConfigChanged) {
               callbacks.onSystemConfigChanged();
@@ -2281,6 +2282,60 @@ export const uploadCategoryImage = async (file: File): Promise<string> => {
       }
     } catch (e) {
       console.warn('Error uploading category image to Supabase Storage, using data URL:', e);
+    }
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const res = reader.result as string;
+      uploadedFileCache.set(fingerprint, res);
+      resolve(res);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(fileToUpload);
+  });
+};
+
+export const uploadBannerImage = async (file: File): Promise<string> => {
+  // Evitar subir de nuevo si el archivo ya fue subido en esta sesión
+  const fingerprint = `banner_${file.name}_${file.size}_${file.lastModified}`;
+  if (uploadedFileCache.has(fingerprint)) {
+    const cachedUrl = uploadedFileCache.get(fingerprint)!;
+    console.log(`[BANNER IMAGE] Reutilizando URL existente para imagen de banner: "${file.name}" -> ${cachedUrl}`);
+    return cachedUrl;
+  }
+
+  // Optimizar automáticamente imagen de banner (1920px máximo, WebP con alta calidad)
+  const optimization = await optimizeProductImage(file, { isCover: true, maxDimension: 1920 });
+  const fileToUpload = optimization.file;
+
+  if (isSupabaseConfigured() && supabaseInstance) {
+    try {
+      const fileExt = fileToUpload.name.split('.').pop() || (fileToUpload.type === 'image/webp' ? 'webp' : 'jpg');
+      const cleanExt = fileExt.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const fileName = `banner-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${cleanExt}`;
+      const filePath = `banners/${fileName}`;
+
+      const { error: uploadError } = await supabaseInstance.storage
+        .from('product-images')
+        .upload(filePath, fileToUpload, {
+          cacheControl: '31536000',
+          upsert: true,
+          contentType: fileToUpload.type || 'image/webp',
+        });
+
+      if (!uploadError) {
+        const { data } = supabaseInstance.storage.from('product-images').getPublicUrl(filePath);
+        if (data?.publicUrl) {
+          uploadedFileCache.set(fingerprint, data.publicUrl);
+          return data.publicUrl;
+        }
+      } else {
+        console.warn('Error en upload de Supabase Storage para banner:', uploadError.message);
+      }
+    } catch (e) {
+      console.warn('Error subiendo imagen de banner a Supabase Storage, usando fallback local:', e);
     }
   }
 

@@ -41,6 +41,7 @@ import {
 import { OptimizationResult } from '../utils/imageOptimizer';
 import { EmailTemplateManager } from './admin/EmailTemplateManager';
 import { AnalyticsDashboard } from './admin/AnalyticsDashboard';
+import { BannerManager } from './admin/BannerManager';
 import { QuickBuyLinkManager, OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
 import { isQuickBuyOrder } from '../services/quickBuyLink';
 import {
@@ -153,7 +154,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'orders' | 'bulk_price_update' | 'integrations' | 'analytics' | 'quick_buy_link'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'banners' | 'orders' | 'bulk_price_update' | 'integrations' | 'analytics' | 'quick_buy_link'>('products');
 
   // Data states
   const [products, setProducts] = useState<Product[]>([]);
@@ -1383,6 +1384,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
         </button>
 
         <button
+          onClick={() => setActiveTab('banners')}
+          className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 cursor-pointer transition-colors border-b-2 whitespace-nowrap ${
+            activeTab === 'banners'
+              ? 'border-[#0058bb] text-[#0058bb]'
+              : 'border-transparent text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <ImageIcon className="w-4 h-4" />
+          Banners y Portada
+        </button>
+
+        <button
           onClick={() => setActiveTab('analytics')}
           className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 cursor-pointer transition-colors border-b-2 whitespace-nowrap ${
             activeTab === 'analytics'
@@ -2109,6 +2122,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
           }}
           onProductsUpdated={loadData}
         />
+      )}
+
+      {/* TAB 3: BANNERS Y PORTADA DE LA TIENDA */}
+      {activeTab === 'banners' && (
+        <BannerManager />
       )}
 
       {/* TAB 4: ACTUALIZACIÓN MASIVA DE PRECIOS */}
