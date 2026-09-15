@@ -90,53 +90,69 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
 
   return (
     <div className="max-w-[1240px] mx-auto px-2 sm:px-4 py-3 sm:py-6 space-y-4 sm:space-y-8 animate-fadeIn">
-      {/* Breadcrumb Navigation & Back button */}
-      <div className="flex items-center justify-between border-b border-gray-200/80 pb-2.5 sm:pb-3">
-        <div className="flex items-center gap-2 text-xs md:text-sm text-gray-500">
-          <button
-            onClick={onBack}
-            className="hover:text-[#0058bb] font-medium transition-colors flex items-center gap-1 cursor-pointer"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Inicio</span>
-          </button>
-          <span>/</span>
-          <span className="text-gray-400">Categorías</span>
-          <span>/</span>
-          <span className="font-semibold text-gray-900 capitalize">{categoryName}</span>
-        </div>
-      </div>
-
-      {/* Category Hero Header with Full Background Category Image */}
-      <div className="bg-gray-950 rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 text-white shadow-xs sm:shadow-md relative overflow-hidden flex flex-col justify-center min-h-[140px] sm:min-h-[160px] md:min-h-[180px]">
-        {/* Full Background Category Image with 50% opacity */}
+      {/* Category Hero Header with Dynamic Multi-layered Background & Accents */}
+      <div className="group bg-gradient-to-r from-slate-950 via-slate-900 to-[#0b2545] rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 text-white shadow-sm sm:shadow-md relative overflow-hidden flex items-center justify-between min-h-[100px] sm:min-h-[120px] md:min-h-[140px] border border-white/5">
+        {/* Full Background Category Image with Dynamic Hover Zoom & Multi-stop Gradient */}
         {(currentCatObj?.image || categoryProducts[0]?.images?.[0]) && (
-          <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
             <img
               src={currentCatObj?.image || categoryProducts[0]?.images?.[0]}
               alt={categoryName}
-              className="w-full h-full object-cover opacity-50"
+              className="w-full h-full object-cover opacity-45 group-hover:scale-105 transition-transform duration-700 ease-out"
             />
-            {/* Subtle gradient overlay to enhance text readability */}
-            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
+            {/* Multi-stop gradient overlay for depth and high contrast text readability */}
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/75 to-transparent" />
           </div>
         )}
 
-        <div className="relative z-10 max-w-2xl space-y-2">
-          <div className="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-xs text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
-            <span>Categoría de Productos</span>
+        {/* Ambient Glowing Orbs for Modern Visual Depth */}
+        <div className="absolute -right-8 -bottom-8 w-44 h-44 rounded-full bg-[#0058bb]/25 blur-2xl pointer-events-none" />
+        <div className="absolute right-1/3 -top-10 w-36 h-36 rounded-full bg-[#ff7733]/15 blur-2xl pointer-events-none" />
+
+        {/* Category Title & Dynamic Indicator */}
+        <div className="relative z-10 max-w-xl flex items-center gap-3 sm:gap-3.5">
+          {/* Vibrant vertical accent bar */}
+          <div className="w-1.5 h-7 sm:h-9 bg-gradient-to-b from-[#ff7733] to-[#ff5500] rounded-full shrink-0 shadow-xs" />
+
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-black font-['Montserrat'] tracking-tight capitalize text-white drop-shadow-xs">
+              {categoryName}
+            </h1>
+            {categoryProducts.length > 0 && (
+              <span className="text-[11px] sm:text-xs font-semibold text-gray-300 tracking-wide block mt-0.5">
+                {categoryProducts.length} {categoryProducts.length === 1 ? 'producto disponible' : 'productos disponibles'}
+              </span>
+            )}
           </div>
-
-          <h1 className="text-2xl sm:text-3xl font-black font-['Montserrat'] tracking-tight capitalize text-white drop-shadow-xs">
-            {categoryName}
-          </h1>
-
-          <p className="text-xs sm:text-sm md:text-base text-gray-100 font-normal max-w-xl drop-shadow-xs leading-relaxed">
-            {currentCatObj?.description ||
-              `Mostrando todos los productos disponibles en ${categoryName} con precios mayoristas directos de fábrica.`}
-          </p>
         </div>
+
+        {/* Dynamic Floating Product Preview Tiles on the right (Tablet & Desktop) */}
+        {categoryProducts.length > 0 && (
+          <div className="relative z-10 hidden sm:flex items-center gap-2 md:gap-2.5 pr-2 pointer-events-none">
+            {categoryProducts.slice(0, 3).map((prod, idx) => {
+              const imgUrl = (prod.images && prod.images[0]) || '';
+              if (!imgUrl) return null;
+              return (
+                <div
+                  key={prod.id}
+                  className={`w-12 h-12 md:w-16 md:h-16 rounded-xl overflow-hidden border-2 border-white/20 shadow-md bg-white/10 backdrop-blur-xs transition-transform duration-500 group-hover:translate-y-[-2px] ${
+                    idx === 0
+                      ? '-rotate-6 scale-90 opacity-75'
+                      : idx === 1
+                      ? 'rotate-2 scale-100 z-10 opacity-95 shadow-lg border-white/40'
+                      : '-rotate-3 scale-90 opacity-80'
+                  }`}
+                >
+                  <img
+                    src={imgUrl}
+                    alt={prod.title}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Quick Category Navigation Pills (Horizontal Row) */}
@@ -292,17 +308,19 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
 
                   <div className="pt-0.5 sm:pt-1">
                     {/* Wholesale Price Highlight */}
-                    <div className="flex items-baseline gap-1 sm:gap-1.5 flex-wrap">
-                      <span className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat']">
+                    <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap min-w-0">
+                      <span className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat'] shrink-0">
                         ${product.wholesalePrice.toLocaleString('es-AR')}
                       </span>
                       {isOutOfStock ? (
-                        <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
+                        <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded shrink-0">
                           Sin stock
                         </span>
                       ) : (
-                        <span className="text-xs font-semibold text-[#00a650]">
-                          min. {product.minWholesaleQty} u.
+                        <span className="inline-flex items-center text-[11px] sm:text-[13.2px] font-semibold bg-[#00a650] text-white px-1 py-0.5 rounded leading-tight shrink min-w-0">
+                          <span className="overflow-hidden whitespace-nowrap text-clip block min-w-0">
+                            min. {product.minWholesaleQty} unids.
+                          </span>
                         </span>
                       )}
                     </div>

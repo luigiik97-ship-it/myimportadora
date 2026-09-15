@@ -905,9 +905,11 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               </div>
               <div>
                 <h4 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 mb-1">{rel.title}</h4>
-                <div className="flex items-baseline gap-1 sm:gap-1.5 flex-wrap">
-                  <span className="text-sm sm:text-base font-bold text-gray-900">${rel.wholesalePrice.toLocaleString('es-AR')}</span>
-                  <span className="text-xs text-[#00a650] font-semibold">min. {rel.minWholesaleQty} u.</span>
+                <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap min-w-0">
+                  <span className="text-sm sm:text-base font-bold text-gray-900 shrink-0">${rel.wholesalePrice.toLocaleString('es-AR')}</span>
+                  <span className="inline-flex items-center text-[11px] sm:text-[13.2px] font-semibold bg-[#00a650] text-white px-1 py-0.5 rounded leading-tight shrink min-w-0">
+                    <span className="overflow-hidden whitespace-nowrap text-clip block min-w-0">min. {rel.minWholesaleQty} unids.</span>
+                  </span>
                 </div>
                 <span className="text-xs text-gray-500">${rel.retailPrice.toLocaleString('es-AR')} x1 unidad</span>
               </div>

@@ -622,12 +622,12 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
                   Imagen Propia de la Categoría (Independiente de los productos)
                 </label>
                 <p className="text-[11px] text-gray-500">
-                  Esta imagen se mostrará en la fila horizontal deslizable de la portada y en la cabecera de la categoría.
+                  Esta imagen se mostrará en la fila horizontal deslizable de la portada y en la cabecera de la categoría (formato vertical 3:4).
                 </p>
 
                 {/* Image Preview & Upload Controls */}
                 <div className="flex items-start gap-4 pt-1">
-                  <div className="w-24 h-24 rounded-xl overflow-hidden border border-gray-300 bg-white shrink-0 flex items-center justify-center shadow-xs">
+                  <div className="w-[84px] aspect-[3/4] rounded-xl overflow-hidden border border-gray-300 bg-white shrink-0 flex items-center justify-center shadow-xs">
                     {editingCategory.image ? (
                       <img
                         src={editingCategory.image}

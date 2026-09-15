@@ -178,6 +178,91 @@ export const HomeView: React.FC<HomeViewProps> = ({
     return () => clearInterval(interval);
   }, [isPaused]);
 
+  // Interactive Touch & Drag swipe handling for mobile
+  const [dragOffset, setDragOffset] = useState<number>(0);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const dragStartX = useRef<number>(0);
+  const dragCurrentX = useRef<number>(0);
+  const isPointerDown = useRef<boolean>(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    isPointerDown.current = true;
+    const clientX = e.targetTouches[0].clientX;
+    dragStartX.current = clientX;
+    dragCurrentX.current = clientX;
+    setIsDragging(true);
+    setIsPaused(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isPointerDown.current) return;
+    const clientX = e.targetTouches[0].clientX;
+    dragCurrentX.current = clientX;
+    const delta = clientX - dragStartX.current;
+    setDragOffset(delta);
+  };
+
+  const handleTouchEnd = () => {
+    if (!isPointerDown.current) return;
+    isPointerDown.current = false;
+    setIsDragging(false);
+    setIsPaused(false);
+
+    const delta = dragCurrentX.current - dragStartX.current;
+    const containerWidth = carouselRef.current?.offsetWidth || window.innerWidth;
+    const minSwipeDistance = Math.min(40, containerWidth * 0.12);
+
+    setDragOffset(0);
+
+    if (delta < -minSwipeDistance) {
+      handleNextBanner();
+    } else if (delta > minSwipeDistance) {
+      handlePrevBanner();
+    } else {
+      setIsTransitioning(true);
+    }
+  };
+
+  // Mouse drag support for desktop emulation of mobile gestures
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    isPointerDown.current = true;
+    dragStartX.current = e.clientX;
+    dragCurrentX.current = e.clientX;
+    setIsDragging(true);
+    setIsPaused(true);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isPointerDown.current) return;
+    const clientX = e.clientX;
+    dragCurrentX.current = clientX;
+    const delta = clientX - dragStartX.current;
+    setDragOffset(delta);
+  };
+
+  const handleMouseUp = () => {
+    if (!isPointerDown.current) return;
+    isPointerDown.current = false;
+    setIsDragging(false);
+    setIsPaused(false);
+
+    const delta = dragCurrentX.current - dragStartX.current;
+    const containerWidth = carouselRef.current?.offsetWidth || window.innerWidth;
+    const minSwipeDistance = Math.min(40, containerWidth * 0.12);
+
+    setDragOffset(0);
+
+    if (delta < -minSwipeDistance) {
+      handleNextBanner();
+    } else if (delta > minSwipeDistance) {
+      handlePrevBanner();
+    } else {
+      setIsTransitioning(true);
+    }
+  };
+
   const handlePrevBanner = () => {
     setIsTransitioning(true);
     setCurrentIndex((prev) => prev - 1);
@@ -264,34 +349,64 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   return (
     <div className="w-full">
+      {/* Franja Informativa Superior (Imagen de alta definición sin pixelado) */}
+      <section
+        id="franja-informativa-inicio"
+        className="w-full bg-[#F3D72D] border-b border-black/10 flex items-center justify-center overflow-hidden py-0.5"
+      >
+        <div className="w-full max-w-[1240px] mx-auto flex items-center justify-center px-2">
+          <img
+            src="https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/yjgjghkyuytiti.jpg?v=3"
+            alt="Información mayorista y minorista | Tienda oficial"
+            className="w-auto h-auto max-w-full max-h-[46px] min-[400px]:max-h-[52px] object-contain mx-auto select-none pointer-events-none"
+            draggable={false}
+          />
+        </div>
+      </section>
+
       {/* 1. Hero Promo Carousel (Extremo a extremo sin bordes de tarjeta, sin sombras ni esquinas redondeadas) */}
       <section className="w-full max-w-[1240px] mx-auto">
         <div
           id="hero-banner-carousel"
-          className="relative w-full overflow-hidden border-0 shadow-none rounded-none min-h-[255px] sm:min-h-[290px] md:min-h-[330px] flex items-center group select-none"
+          ref={carouselRef}
+          className="relative w-full overflow-hidden border-0 shadow-none rounded-none aspect-[1920/910] sm:aspect-auto min-h-0 sm:min-h-[290px] md:min-h-[330px] flex items-center group select-none touch-pan-y cursor-grab active:cursor-grabbing"
           onMouseEnter={() => setIsPaused(true)}
-          onMouseLeave={() => setIsPaused(false)}
+          onMouseLeave={() => {
+            if (isPointerDown.current) handleMouseUp();
+            setIsPaused(false);
+          }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
         >
           {/* Horizontal Slider Track */}
           <div
-            className={`flex w-full h-full min-h-[255px] sm:min-h-[290px] md:min-h-[330px] ${
-              isTransitioning ? 'transition-transform duration-700 ease-in-out' : ''
+            className={`flex w-full h-full aspect-[1920/910] sm:aspect-auto min-h-0 sm:min-h-[290px] md:min-h-[330px] ${
+              isTransitioning && !isDragging ? 'transition-transform duration-500 ease-out' : ''
             }`}
-            style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+            style={{
+              transform: isDragging
+                ? `translateX(calc(-${currentIndex * 100}% + ${dragOffset}px))`
+                : `translateX(-${currentIndex * 100}%)`,
+            }}
             onTransitionEnd={handleTransitionEnd}
           >
             {extendedBanners.map((banner, index) => {
               return (
                 <div
                   key={`${banner.id}-slide-${index}`}
-                  className={`w-full min-w-full h-full min-h-[255px] sm:min-h-[290px] md:min-h-[330px] relative bg-gradient-to-r ${banner.bgGradient} flex items-center shrink-0 overflow-hidden`}
+                  className={`w-full min-w-full h-full aspect-[1920/910] sm:aspect-auto min-h-0 sm:min-h-[290px] md:min-h-[330px] relative bg-gradient-to-r ${banner.bgGradient} flex items-center shrink-0 overflow-hidden select-none`}
                 >
                   {/* Custom Hero Banner Image (if configured in Admin) */}
                   {banner.customImage ? (
                     <img
                       src={banner.customImage}
                       alt={banner.title}
-                      className="absolute inset-0 w-full h-full object-cover z-0"
+                      draggable={false}
+                      className="absolute inset-0 w-full h-full object-cover z-0 select-none pointer-events-none"
                     />
                   ) : null}
 
@@ -331,7 +446,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   {/* If text is hidden and customImage exists, entire slide is clickable */}
                   {banner.showText === false && banner.customImage && (
                     <div
-                      onClick={() => onSelectCategory(banner.categoryTarget)}
+                      onClick={(e) => {
+                        if (Math.abs(dragCurrentX.current - dragStartX.current) > 10) {
+                          e.preventDefault();
+                          return;
+                        }
+                        onSelectCategory(banner.categoryTarget);
+                      }}
                       className="absolute inset-0 z-10 cursor-pointer"
                       title={banner.ctaText}
                     />
@@ -355,21 +476,21 @@ export const HomeView: React.FC<HomeViewProps> = ({
             })}
           </div>
 
-          {/* Previous Button */}
+          {/* Previous Button (oculto en móvil) */}
           <button
             id="btn-banner-prev"
             onClick={handlePrevBanner}
-            className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/80 hover:bg-white text-gray-800 shadow-sm flex items-center justify-center border border-gray-200/80 hover:scale-105 active:scale-95 transition-all opacity-70 sm:opacity-0 group-hover:opacity-100 cursor-pointer"
+            className="hidden sm:flex absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/80 hover:bg-white text-gray-800 shadow-sm items-center justify-center border border-gray-200/80 hover:scale-105 active:scale-95 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
             aria-label="Banner anterior"
           >
             <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
           </button>
 
-          {/* Next Button */}
+          {/* Next Button (oculto en móvil) */}
           <button
             id="btn-banner-next"
             onClick={handleNextBanner}
-            className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/80 hover:bg-white text-gray-800 shadow-sm flex items-center justify-center border border-gray-200/80 hover:scale-105 active:scale-95 transition-all opacity-70 sm:opacity-0 group-hover:opacity-100 cursor-pointer"
+            className="hidden sm:flex absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/80 hover:bg-white text-gray-800 shadow-sm items-center justify-center border border-gray-200/80 hover:scale-105 active:scale-95 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
             aria-label="Siguiente banner"
           >
             <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
@@ -378,9 +499,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </section>
 
       {/* Main Content Area */}
-      <div className="max-w-[1240px] mx-auto px-2 sm:px-4 py-3 sm:py-6 space-y-6 sm:space-y-10">
+      <div className="max-w-[1240px] mx-auto px-2 sm:px-4 pt-1.5 sm:pt-2.5 pb-4 sm:pb-6 space-y-4 sm:space-y-6">
         {/* 2. Categorías principales (Fila horizontal desplazable) */}
-      <section id="categorias-principales" className="space-y-3">
+      <section id="categorias-principales">
         <div className="hidden">
           <div>
             <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 font-['Montserrat']">
@@ -412,26 +533,27 @@ export const HomeView: React.FC<HomeViewProps> = ({
         {/* Horizontal scrollable row */}
         <div
           ref={categoriesScrollRef}
-          className="flex items-stretch gap-2.5 sm:gap-4 overflow-x-auto pb-2 sm:pb-3 pt-1 no-scrollbar scroll-smooth snap-x touch-auto"
+          className="flex items-stretch gap-2.5 sm:gap-4 overflow-x-auto pt-2 pb-3.5 sm:pb-4 px-1 sm:px-1.5 -mb-2 sm:-mb-2.5 no-scrollbar scroll-smooth snap-x touch-auto"
         >
           {storefrontCategories.map((cat, idx) => (
             <button
               key={cat.id ? `${cat.id}-${idx}` : `${cat.name}-${idx}`}
               id={`cat-tile-${idx}`}
               onClick={() => onSelectCategory(cat.name)}
-              className="snap-start shrink-0 w-[110px] sm:w-[140px] md:w-[150px] group flex flex-col items-center bg-white rounded-xl p-2 sm:p-2.5 border border-gray-100 sm:border-gray-200/90 shadow-2xs hover:shadow-md hover:border-[#0058bb]/50 transition-all cursor-pointer text-center justify-between"
+              className="snap-start shrink-0 w-[85px] sm:w-[108px] md:w-[117px] aspect-[3/4] group relative rounded-xl overflow-hidden shadow-md transition-transform active:scale-[0.98] cursor-pointer p-0 border-0"
             >
-              <div className="w-full aspect-square rounded-lg overflow-hidden bg-gray-100 mb-1.5 sm:mb-2 flex items-center justify-center relative">
-                <ImageWithSkeleton
-                  src={cat.image}
-                  alt={cat.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-              </div>
-              <div className="w-full py-0.5">
-                <span className="text-xs sm:text-sm font-semibold text-gray-800 group-hover:text-[#0058bb] transition-colors block line-clamp-1 capitalize">
-                  {cat.name}
-                </span>
+              <ImageWithSkeleton
+                src={cat.image}
+                alt={cat.name}
+                className="w-full h-full"
+                imgClassName="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              />
+              <div className="absolute bottom-1.5 sm:bottom-2 inset-x-0 flex items-center justify-center px-1.5 pointer-events-none">
+                <div className="bg-black/90 text-white px-2 sm:px-2.5 py-0.5 rounded-md shadow-sm max-w-[94%] flex items-center justify-center">
+                  <span className="text-[11px] min-[360px]:text-[12px] sm:text-[13px] font-semibold text-white truncate capitalize text-center leading-tight">
+                    {cat.name}
+                  </span>
+                </div>
               </div>
             </button>
           ))}
@@ -439,10 +561,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </section>
 
       {/* 3. Más vendidos */}
-      <section id="mas-vendidos" className="space-y-3 sm:space-y-4">
+      <section id="mas-vendidos" className="space-y-2 sm:space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 font-['Montserrat']">
-            Más vendidos
+          <h2 className="inline-flex items-center">
+            <img
+              src="https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/yjgjghkutut.png?v=3"
+              alt="Más vendidos"
+              className="h-[24px] sm:h-[27px] md:h-[31px] w-auto object-contain select-none pointer-events-none rounded-[6px] sm:rounded-[7px]"
+              draggable={false}
+            />
+            <span className="sr-only">Más vendidos</span>
           </h2>
         </div>
 
@@ -484,17 +612,19 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
                     <div className="pt-0.5 sm:pt-1">
                       {/* Wholesale Price Highlight */}
-                      <div className="flex items-baseline gap-1 sm:gap-1.5 flex-wrap">
-                        <span className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat']">
+                      <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap min-w-0">
+                        <span className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat'] shrink-0">
                           ${product.wholesalePrice.toLocaleString('es-AR')}
                         </span>
                         {isOutOfStock ? (
-                          <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
+                          <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded shrink-0">
                             Sin stock
                           </span>
                         ) : (
-                          <span className="text-xs font-semibold text-[#00a650]">
-                            min. {product.minWholesaleQty} u.
+                          <span className="inline-flex items-center text-[11px] sm:text-[13.2px] font-semibold bg-[#00a650] text-white px-1 py-0.5 rounded leading-tight shrink min-w-0">
+                            <span className="overflow-hidden whitespace-nowrap text-clip block min-w-0">
+                              min. {product.minWholesaleQty} unids.
+                            </span>
                           </span>
                         )}
                       </div>
@@ -560,10 +690,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </section>
 
       {/* 5. Catálogo Completo de Productos */}
-      <section id="todos-los-productos" className="space-y-3 sm:space-y-4">
-        <div className="flex items-center justify-between border-b border-gray-200 pb-2 sm:pb-3">
+      <section id="todos-los-productos" className="space-y-2.5 sm:space-y-3">
+        <div className="flex items-center justify-between border-b border-gray-200 pb-1.5 sm:pb-2">
           <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 font-['Montserrat']">
-            {currentCategory === 'Todo' ? 'Todos los Productos' : `Categoría: ${currentCategory}`}
+            {currentCategory === 'Todo' ? 'Destacados' : `Categoría: ${currentCategory}`}
           </h2>
         </div>
 
@@ -620,17 +750,19 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     </h3>
 
                     <div className="pt-0.5 sm:pt-1">
-                      <div className="flex items-baseline gap-1 sm:gap-1.5 flex-wrap">
-                        <span className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat']">
+                      <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap min-w-0">
+                        <span className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat'] shrink-0">
                           ${product.wholesalePrice.toLocaleString('es-AR')}
                         </span>
                         {isOutOfStock ? (
-                          <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
+                          <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded shrink-0">
                             Sin stock
                           </span>
                         ) : (
-                          <span className="text-xs font-semibold text-[#00a650]">
-                            min. {product.minWholesaleQty} u.
+                          <span className="inline-flex items-center text-[11px] sm:text-[13.2px] font-semibold bg-[#00a650] text-white px-1 py-0.5 rounded leading-tight shrink min-w-0">
+                            <span className="overflow-hidden whitespace-nowrap text-clip block min-w-0">
+                              min. {product.minWholesaleQty} unids.
+                            </span>
                           </span>
                         )}
                       </div>
@@ -647,7 +779,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </section>
 
       {/* 6. Formas de Envío, Medios de Pago y Direcciones (Matching Image 9 bottom tiles) */}
-      <section id="informacion-comercial" className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-5 pt-2 sm:pt-4">
+      <section id="informacion-comercial" className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-5 pt-1 sm:pt-2.5">
         {/* Formas de envío */}
         <div className="space-y-3">
           <h3 className="text-base font-bold text-gray-900 font-['Montserrat']">
