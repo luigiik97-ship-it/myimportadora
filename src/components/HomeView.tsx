@@ -964,6 +964,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         onClose={() => setIsVideoViewerOpen(false)}
         videos={allReelVideos}
         initialIndex={selectedViewerVideoIndex}
+        products={products}
         onSelectProduct={(productId) => {
           const prod = products.find((p) => p.id === productId);
           if (prod) onSelectProduct(prod);

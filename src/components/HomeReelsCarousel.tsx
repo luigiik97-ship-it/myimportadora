@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Play, Pause, ChevronLeft, ChevronRight, Volume2, VolumeX, Sparkles } from 'lucide-react';
+import { Play, ChevronLeft, ChevronRight } from 'lucide-react';
 import { StoreVideo } from '../types';
 
 interface HomeReelsCarouselProps {
@@ -16,9 +16,9 @@ export const HomeReelsCarousel: React.FC<HomeReelsCarouselProps> = ({
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
 
+  // Always start on index 0
   const [activePlayingIndex, setActivePlayingIndex] = useState<number>(0);
   const [isCarouselInView, setIsCarouselInView] = useState<boolean>(false);
-  const [isMuted, setIsMuted] = useState<boolean>(true); // Muted by default on home to allow seamless chained autoplay
   const [canScrollLeft, setCanScrollLeft] = useState<boolean>(false);
   const [canScrollRight, setCanScrollRight] = useState<boolean>(false);
 
@@ -58,78 +58,83 @@ export const HomeReelsCarousel: React.FC<HomeReelsCarouselProps> = ({
         const entry = entries[0];
         setIsCarouselInView(entry.isIntersecting);
       },
-      { threshold: 0.25 }
+      { threshold: 0.2 }
     );
 
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
-  // 2. Manage one-video-at-a-time playback
+  // 2. Manage one-video-at-a-time playback: strictly without sound on Home (muted = true)
   useEffect(() => {
     videoRefs.current.forEach((vid, idx) => {
       if (!vid) return;
+      vid.muted = true; // Always muted in Home
       if (isCarouselInView && idx === activePlayingIndex) {
-        vid.muted = isMuted;
         const playPromise = vid.play();
         if (playPromise !== undefined) {
           playPromise.catch(() => {
-            // Autoplay might be muted or deferred by browser
+            // Autoplay might be deferred by browser
           });
         }
       } else {
         vid.pause();
       }
     });
-  }, [activePlayingIndex, isCarouselInView, isMuted]);
+  }, [activePlayingIndex, isCarouselInView]);
 
-  // 3. Chained Playback: when video finishes, advance to next
+  // 3. Chained Playback: when video finishes, advance sequentially. If last finishes, loop to first!
   const handleVideoEnded = (finishedIndex: number) => {
     if (finishedIndex !== activePlayingIndex) return;
 
     const nextIndex = (activePlayingIndex + 1) % videos.length;
     setActivePlayingIndex(nextIndex);
-
-    // Smoothly scroll the container to center the next card
     scrollToCard(nextIndex);
   };
 
   const scrollToCard = (index: number) => {
-    const targetCard = cardRefs.current[index];
     const container = containerRef.current;
-    if (targetCard && container) {
-      const containerWidth = container.clientWidth;
-      const cardLeft = targetCard.offsetLeft;
-      const cardWidth = targetCard.clientWidth;
-      const scrollTo = cardLeft - (containerWidth / 2) + (cardWidth / 2);
+    if (!container) return;
 
+    if (index === 0) {
       container.scrollTo({
-        left: Math.max(0, scrollTo),
+        left: 0,
+        behavior: 'smooth',
+      });
+      return;
+    }
+
+    const targetCard = cardRefs.current[index];
+    if (targetCard) {
+      const cardLeft = targetCard.offsetLeft - 8;
+      container.scrollTo({
+        left: Math.max(0, cardLeft),
         behavior: 'smooth',
       });
     }
   };
 
-  // 4. Track horizontal scroll to play the most visible video when user swipes
+  // 4. Track horizontal scroll when user swipes: active video matches the snapped card at start
   const handleScroll = () => {
-    if (!containerRef.current) return;
+    checkScrollBounds();
     const container = containerRef.current;
-    const containerCenter = container.scrollLeft + container.clientWidth / 2;
+    if (!container) return;
 
-    let closestIndex = activePlayingIndex;
+    const targetScroll = container.scrollLeft;
+    let closestIndex = 0;
     let minDistance = Infinity;
 
     cardRefs.current.forEach((card, idx) => {
       if (!card) return;
-      const cardCenter = card.offsetLeft + card.clientWidth / 2;
-      const dist = Math.abs(containerCenter - cardCenter);
+      // Measure distance between card's left offset and container scroll position
+      const dist = Math.abs(card.offsetLeft - targetScroll);
       if (dist < minDistance) {
         minDistance = dist;
         closestIndex = idx;
       }
     });
 
-    if (closestIndex !== activePlayingIndex && minDistance < 150) {
+    if (closestIndex !== activePlayingIndex) {
       setActivePlayingIndex(closestIndex);
     }
   };
@@ -187,14 +192,14 @@ export const HomeReelsCarousel: React.FC<HomeReelsCarouselProps> = ({
               onClick={() => onOpenViewer(idx)}
               className="snap-start shrink-0 aspect-[9/16] w-[136px] sm:w-[165px] md:w-[195px] rounded-xl sm:rounded-2xl overflow-hidden relative bg-neutral-950 shadow-xs sm:shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer group/card border border-gray-200/80 hover:border-[#0058bb]/50"
             >
-              {/* Cloudinary MP4 Video Element */}
+              {/* Cloudinary MP4 Video Element (Always muted on Home) */}
               <video
                 ref={(el) => (videoRefs.current[idx] = el)}
                 src={vid.videoUrl}
                 playsInline
                 preload="metadata"
                 loop={false}
-                muted={isMuted}
+                muted={true}
                 onEnded={() => handleVideoEnded(idx)}
                 className="w-full h-full object-cover pointer-events-none group-hover/card:scale-105 transition-transform duration-500"
               />
@@ -219,8 +224,8 @@ export const HomeReelsCarousel: React.FC<HomeReelsCarouselProps> = ({
                     {vid.title}
                   </p>
                 )}
-                {vid.productPrice !== undefined && (
-                  <p className="text-yellow-300 text-[11px] sm:text-xs font-black mt-0.5">
+                {vid.productId && vid.productPrice !== undefined && (
+                  <p className="text-emerald-400 text-[11px] sm:text-xs font-black mt-0.5">
                     ${vid.productPrice.toLocaleString('es-AR')}
                   </p>
                 )}

@@ -1115,6 +1115,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
         onClose={() => setIsVideoModalOpen(false)}
         videos={productReelsVideos}
         initialIndex={0}
+        products={allProducts}
         onSelectProduct={(targetId) => {
           const target = allProducts.find((p) => p.id === targetId);
           if (target) onSelectRelated(target);

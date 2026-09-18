@@ -15,6 +15,7 @@ import { slugifyCategory, reconcileCategoriesWithProducts } from './utils/catego
 import { recordSiteVisit } from './services/analytics';
 import { isQuickBuyCustomLinkActive, fetchQuickBuyLinkConfigFromSupabase } from './services/quickBuyLink';
 import { fetchStoreBannersFromSupabase } from './services/storeBanners';
+import { fetchShippingConfigFromSupabase } from './services/shippingConfig';
 import {
   ProductDetailRouteWrapper,
   CategoryRouteWrapper,
@@ -392,11 +393,12 @@ export default function App() {
     };
   }, []);
 
-  // Cargar configuraciones compartidas desde Supabase (Compra Rápida, Plantillas y Banners de Portada)
+  // Cargar configuraciones compartidas desde Supabase (Compra Rápida, Plantillas, Banners y Envíos)
   useEffect(() => {
     fetchQuickBuyLinkConfigFromSupabase().catch(() => {});
     fetchEmailTemplatesFromSupabase().catch(() => {});
     fetchStoreBannersFromSupabase().catch(() => {});
+    fetchShippingConfigFromSupabase().catch(() => {});
   }, []);
 
   // Redirigir a modo Compra Rápida si se accede mediante el enlace personalizado

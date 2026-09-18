@@ -1,9 +1,17 @@
+import {
+  getShippingConfig,
+  ShippingConfig,
+  ShippingOptionConfig,
+  ShippingZoneId,
+} from '../services/shippingConfig';
+
 export interface ShippingOption {
   id: string;
   name: string;
   price: number;
   deliveryTime: string;
   description: string;
+  enabled?: boolean;
 }
 
 export type ShippingZone = 'caba' | 'gba' | 'pba_sf_cba' | 'resto_pais';
@@ -14,10 +22,16 @@ export interface ShippingZoneInfo {
   options: ShippingOption[];
 }
 
+/**
+ * Determina las opciones de envío disponibles y sus tarifas vigentes
+ * según el Código Postal, Provincia y Ciudad ingresados por el usuario,
+ * consultando la configuración central administrada.
+ */
 export const getShippingZoneInfo = (
   postalCode: string,
   province: string = '',
-  city: string = ''
+  city: string = '',
+  customConfig?: ShippingConfig
 ): ShippingZoneInfo | null => {
   const cleanCp = (postalCode || '').trim().toUpperCase();
   const cpDigits = cleanCp.replace(/\D/g, '');
@@ -26,13 +40,45 @@ export const getShippingZoneInfo = (
   const cleanProvince = (province || '').trim().toLowerCase();
   const cleanCity = (city || '').trim().toLowerCase();
 
-  // If no CP digits and no province/city, return null
+  // Si no hay dígitos de CP ni provincia/ciudad, retorna null
   if (!cleanCp && !cleanProvince && !cleanCity) {
     return null;
   }
 
+  const config = customConfig || getShippingConfig();
+
+  // 0. Reglas personalizadas específicas por Código Postal (Overrides del administrador)
+  if (config.customPostalCodeRules && config.customPostalCodeRules.length > 0) {
+    const matchedRule = config.customPostalCodeRules.find(
+      (r) =>
+        r.postalCode.trim().toUpperCase() === cleanCp ||
+        (cpDigits && r.postalCode.trim().replace(/\D/g, '') === cpDigits)
+    );
+
+    if (matchedRule && matchedRule.options && matchedRule.options.length > 0) {
+      const activeOptions = matchedRule.options.filter((o) => o.enabled !== false);
+      if (activeOptions.length > 0) {
+        return {
+          zone: 'caba', // default zone anchor
+          zoneLabel: matchedRule.zoneLabel || `Tarifa especial CP ${cleanCp}`,
+          options: activeOptions.map((o) => ({
+            id: o.id,
+            name: o.name,
+            price: Number(o.price) || 0,
+            deliveryTime: o.deliveryTime || '',
+            description: o.description || '',
+          })),
+        };
+      }
+    }
+  }
+
   // 1. CABA (Capital Federal) - CPs 1000 a 1499
-  const isCabaByCp = !isNaN(num) && num >= 1000 && num <= 1499;
+  const cabaZone = config.zones.caba;
+  const minCaba = cabaZone.minPostalCode ?? 1000;
+  const maxCaba = cabaZone.maxPostalCode ?? 1499;
+
+  const isCabaByCp = !isNaN(num) && num >= minCaba && num <= maxCaba;
   const isCabaByText =
     cleanProvince.includes('caba') ||
     cleanProvince.includes('capital federal') ||
@@ -42,62 +88,43 @@ export const getShippingZoneInfo = (
     cleanCp.startsWith('C1');
 
   if (isCabaByCp || isCabaByText) {
+    const activeOptions = cabaZone.options.filter((o) => o.enabled !== false);
     return {
       zone: 'caba',
-      zoneLabel: 'CABA (Ciudad Autónoma de Buenos Aires)',
-      options: [
-        {
-          id: 'caba_uber_moto',
-          name: 'Uber Moto (llega hoy)',
-          price: 7950,
-          deliveryTime: 'Llega hoy',
-          description: 'Entrega en el día en moto',
-        },
-        {
-          id: 'caba_envio_flex',
-          name: 'Envío Flex (llega mañana)',
-          price: 7150,
-          deliveryTime: 'Llega mañana',
-          description: 'Reparto express a tu puerta',
-        },
-        {
-          id: 'caba_correo_argentino',
-          name: 'Correo Argentino (llega 1 a 4 días)',
-          price: 6520,
-          deliveryTime: 'Llega 1 a 4 días',
-          description: 'Envío a domicilio por Correo Argentino',
-        },
-      ],
+      zoneLabel: cabaZone.zoneLabel || 'CABA (Ciudad Autónoma de Buenos Aires)',
+      options: activeOptions.map((o) => ({
+        id: o.id,
+        name: o.name,
+        price: Number(o.price) || 0,
+        deliveryTime: o.deliveryTime,
+        description: o.description,
+      })),
     };
   }
 
   // 2. Gran Buenos Aires (primer y segundo cordón) - CPs 1600 a 1899
-  const isGbaByCp = !isNaN(num) && num >= 1600 && num <= 1899;
+  const gbaZone = config.zones.gba;
+  const minGba = gbaZone.minPostalCode ?? 1600;
+  const maxGba = gbaZone.maxPostalCode ?? 1899;
+
+  const isGbaByCp = !isNaN(num) && num >= minGba && num <= maxGba;
   const isGbaByText =
     cleanCp.startsWith('B16') ||
     cleanCp.startsWith('B17') ||
     cleanCp.startsWith('B18');
 
   if (isGbaByCp || isGbaByText) {
+    const activeOptions = gbaZone.options.filter((o) => o.enabled !== false);
     return {
       zone: 'gba',
-      zoneLabel: 'Gran Buenos Aires (1er y 2do cordón)',
-      options: [
-        {
-          id: 'gba_envio_flex',
-          name: 'Envío Flex (llega mañana)',
-          price: 10250,
-          deliveryTime: 'Llega mañana',
-          description: 'Reparto express a domicilio en Gran Buenos Aires',
-        },
-        {
-          id: 'gba_correo_argentino',
-          name: 'Correo Argentino (llega 1 a 4 días)',
-          price: 6520,
-          deliveryTime: 'Llega 1 a 4 días',
-          description: 'Envío a domicilio por Correo Argentino',
-        },
-      ],
+      zoneLabel: gbaZone.zoneLabel || 'Gran Buenos Aires (1er y 2do cordón)',
+      options: activeOptions.map((o) => ({
+        id: o.id,
+        name: o.name,
+        price: Number(o.price) || 0,
+        deliveryTime: o.deliveryTime,
+        description: o.description,
+      })),
     };
   }
 
@@ -123,40 +150,40 @@ export const getShippingZoneInfo = (
     cleanCp.startsWith('X');
 
   if (isPbaResto || isSantaFe || isCordoba) {
-    let zoneName = 'Provincia de Buenos Aires / Santa Fe / Córdoba';
+    const pbaZone = config.zones.pba_sf_cba;
+    let zoneName = pbaZone.zoneLabel || 'Provincia de Buenos Aires / Santa Fe / Córdoba';
     if (isSantaFe) zoneName = 'Provincia de Santa Fe';
     else if (isCordoba) zoneName = 'Provincia de Córdoba';
     else if (isPbaResto) zoneName = 'Resto de Provincia de Buenos Aires';
 
+    const activeOptions = pbaZone.options.filter((o) => o.enabled !== false);
     return {
       zone: 'pba_sf_cba',
       zoneLabel: zoneName,
-      options: [
-        {
-          id: 'pba_sf_cba_correo_argentino',
-          name: 'Correo Argentino (llega 1 a 4 días)',
-          price: 9850,
-          deliveryTime: 'Llega 1 a 4 días',
-          description: 'Envío a domicilio por Correo Argentino',
-        },
-      ],
+      options: activeOptions.map((o) => ({
+        id: o.id,
+        name: o.name,
+        price: Number(o.price) || 0,
+        deliveryTime: o.deliveryTime,
+        description: o.description,
+      })),
     };
   }
 
   // 4. Resto de provincias que no se mencionaron
   if (cpDigits.length >= 3 || cleanCp.length >= 3 || cleanProvince.length >= 3) {
+    const restoZone = config.zones.resto_pais;
+    const activeOptions = restoZone.options.filter((o) => o.enabled !== false);
     return {
       zone: 'resto_pais',
-      zoneLabel: 'Interior del País (Otras Provincias)',
-      options: [
-        {
-          id: 'resto_pais_correo_argentino',
-          name: 'Correo Argentino (llega 1 a 4 días)',
-          price: 13500,
-          deliveryTime: 'Llega 1 a 4 días',
-          description: 'Envío a domicilio por Correo Argentino',
-        },
-      ],
+      zoneLabel: restoZone.zoneLabel || 'Interior del País (Otras Provincias)',
+      options: activeOptions.map((o) => ({
+        id: o.id,
+        name: o.name,
+        price: Number(o.price) || 0,
+        deliveryTime: o.deliveryTime,
+        description: o.description,
+      })),
     };
   }
 

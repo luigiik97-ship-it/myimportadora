@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { CartItem, Order, UserProfile } from '../types';
 import { ShieldCheck, ArrowLeft, Loader2, Truck, Store, CreditCard, Banknote, AlertCircle, MapPin, Zap, User } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -59,7 +59,14 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   const [number, setNumber] = useState(currentUser?.streetNumber || '');
   const [floor, setFloor] = useState(currentUser?.floor || '');
   const [city, setCity] = useState(currentUser?.city || '');
-  const [postalCode, setPostalCode] = useState(currentUser?.postalCode || '');
+  const [postalCode, setPostalCode] = useState(() => {
+    if (currentUser?.postalCode) return currentUser.postalCode;
+    try {
+      return localStorage.getItem('my_commerce_last_cp') || '';
+    } catch {
+      return '';
+    }
+  });
   const [province, setProvince] = useState(currentUser?.province || '');
   const [receiverName, setReceiverName] = useState(currentUser?.receiverName || currentUser?.fullName || '');
 
@@ -160,8 +167,24 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     setDeliveryOptionError(null);
   };
 
+  // Listen for real-time shipping config updates from admin
+  const [shippingConfigTick, setShippingConfigTick] = useState(0);
+
+  useEffect(() => {
+    const handleConfigUpdate = () => {
+      setShippingConfigTick((prev) => prev + 1);
+    };
+    window.addEventListener('my_commerce_shipping_config_updated', handleConfigUpdate);
+    return () => {
+      window.removeEventListener('my_commerce_shipping_config_updated', handleConfigUpdate);
+    };
+  }, []);
+
   // Determine available shipping options based on Postal Code, Province and City
-  const shippingZoneInfo = deliveryOption === 'delivery' ? getShippingZoneInfo(postalCode, province, city) : null;
+  const shippingZoneInfo = useMemo(() => {
+    return deliveryOption === 'delivery' ? getShippingZoneInfo(postalCode, province, city) : null;
+  }, [deliveryOption, postalCode, province, city, shippingConfigTick]);
+
   const availableShippingOptions: ShippingOption[] = shippingZoneInfo?.options || [];
 
   // Active selected shipping option object
@@ -622,7 +645,12 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                           type="text"
                           required
                           value={postalCode}
-                          onChange={(e) => setPostalCode(e.target.value)}
+                          onChange={(e) => {
+                            setPostalCode(e.target.value);
+                            try {
+                              localStorage.setItem('my_commerce_last_cp', e.target.value);
+                            } catch {}
+                          }}
                           placeholder="Ej: 1406, 1602..."
                           className="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm focus:ring-1 focus:ring-[#0058bb] bg-white font-semibold min-h-[38px]"
                         />

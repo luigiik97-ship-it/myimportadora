@@ -178,7 +178,7 @@ export const buildQuickBuyUrl = (customToken?: string, origin?: string): string 
 };
 
 /**
- * Determina si la URL o la sesión actual corresponden al acceso por enlace personalizado
+ * Determina si la URL actual corresponde al acceso por enlace personalizado
  */
 export const isQuickBuyCustomLinkActive = (search?: string): boolean => {
   const config = getQuickBuyLinkConfig();
@@ -186,11 +186,12 @@ export const isQuickBuyCustomLinkActive = (search?: string): boolean => {
 
   if (typeof window === 'undefined') return false;
 
-  const searchParams = new URLSearchParams(search || window.location.search);
+  const currentSearch = search !== undefined ? search : window.location.search;
+  const searchParams = new URLSearchParams(currentSearch);
   const activeToken = config.token.toLowerCase().trim();
   const paramName = config.paramName || 'cr';
 
-  // 1. Revisar si la URL actual tiene el parámetro configurado
+  // Revisar si la URL actual tiene el parámetro configurado
   const queryVal = searchParams.get(paramName);
   const refVal = searchParams.get('ref');
   const linkVal = searchParams.get('link');
@@ -202,23 +203,7 @@ export const isQuickBuyCustomLinkActive = (search?: string): boolean => {
     (linkVal && linkVal.toLowerCase().trim() === activeToken) ||
     (waVal && (waVal === '1' || waVal.toLowerCase().trim() === activeToken));
 
-  if (matchesUrl) {
-    // Guardar en la sesión de navegación para que persista mientras navega o recarga en esta pestaña
-    try {
-      sessionStorage.setItem(SESSION_ACTIVE_KEY, 'true');
-    } catch (e) {}
-    return true;
-  }
-
-  // 2. Si no viene en la URL de la página actual, verificar si la sesión previa lo activó
-  try {
-    const sessionActive = sessionStorage.getItem(SESSION_ACTIVE_KEY);
-    if (sessionActive === 'true') {
-      return true;
-    }
-  } catch (e) {}
-
-  return false;
+  return Boolean(matchesUrl);
 };
 
 /**
@@ -330,8 +315,20 @@ export const buildQuickBuyWhatsAppMessage = (params: {
   total: number;
   deliveryOption?: 'pickup' | 'delivery';
   paymentMethod?: 'transfer' | 'cash';
+  shippingMethodName?: string;
+  shippingCost?: number;
+  postalCode?: string;
 }): string => {
-  const { orderNumber, items, total, deliveryOption, paymentMethod } = params;
+  const {
+    orderNumber,
+    items,
+    total,
+    deliveryOption,
+    paymentMethod,
+    shippingMethodName,
+    shippingCost,
+    postalCode,
+  } = params;
 
   const lines: string[] = [];
 
@@ -373,8 +370,21 @@ export const buildQuickBuyWhatsAppMessage = (params: {
   }
   lines.push('');
 
-  // 3. Total general del pedido
-  lines.push(`*Total:* $ ${Math.round(total).toLocaleString('es-AR')}`);
+  // 3. Entrega y Envío
+  if (deliveryOption === 'pickup') {
+    lines.push('*Modalidad de entrega:* Retiro en el local (Flores, CABA - Gratis)');
+  } else if (deliveryOption === 'delivery') {
+    lines.push('*Modalidad de entrega:* Envío a domicilio');
+    if (postalCode) {
+      lines.push(`*Código Postal:* ${postalCode}`);
+    }
+    if (shippingMethodName) {
+      lines.push(`*Método de envío:* ${shippingMethodName}`);
+    }
+    if (shippingCost && shippingCost > 0) {
+      lines.push(`*Costo de envío:* $ ${Math.round(shippingCost).toLocaleString('es-AR')}`);
+    }
+  }
 
   // 4. Método de pago
   if (paymentMethod) {
@@ -382,17 +392,12 @@ export const buildQuickBuyWhatsAppMessage = (params: {
       paymentMethod === 'cash'
         ? 'Efectivo'
         : 'Transferencia Bancaria';
-    lines.push(`*Método de pago:* ${paymentText}`);
+    lines.push(`*Forma de pago:* ${paymentText}`);
   }
+  lines.push('');
 
-  // 5. Entrega
-  if (deliveryOption) {
-    const deliveryText =
-      deliveryOption === 'pickup'
-        ? 'Retiro en el local (Flores)'
-        : 'Envío a coordinar';
-    lines.push(`*Entrega:* ${deliveryText}`);
-  }
+  // 5. Total final del pedido
+  lines.push(`*Total final:* $ ${Math.round(total).toLocaleString('es-AR')}`);
 
   lines.push('');
   lines.push('Hola buenas, te paso mi pedido por la pagina *MY* para coordinar el pago y la entrega. ¡Muchas gracias!');

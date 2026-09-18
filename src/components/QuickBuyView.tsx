@@ -22,8 +22,12 @@ import {
   X,
   ExternalLink,
   ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  MapPin,
+  Clock,
+  ChevronDown,
 } from 'lucide-react';
+import { getShippingZoneInfo, ShippingOption } from '../utils/shipping';
 import {
   normalizeVariantTypes,
   getActiveVariantImages,
@@ -406,6 +410,67 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
     return { subtotal, totalSavings };
   }, [cartItems, categoryQuantitiesInCart, deliveryOption, paymentMethod]);
 
+  // Gestión centralizada de envíos por Código Postal
+  const [quickBuyPostalCode, setQuickBuyPostalCode] = useState<string>(() => {
+    if (currentUser?.postalCode) return currentUser.postalCode;
+    try {
+      return localStorage.getItem('my_commerce_last_cp') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [selectedShippingOptionId, setSelectedShippingOptionId] = useState<string | null>(null);
+  const [isShippingOptionsCollapsed, setIsShippingOptionsCollapsed] = useState<boolean>(true);
+  const [shippingConfigTick, setShippingConfigTick] = useState(0);
+  const [shippingValidationError, setShippingValidationError] = useState<string | null>(null);
+  const shippingSelectorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (shippingSelectorRef.current && !shippingSelectorRef.current.contains(event.target as Node)) {
+        setIsShippingOptionsCollapsed(true);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleConfigUpdate = () => {
+      setShippingConfigTick((prev) => prev + 1);
+    };
+    window.addEventListener('my_commerce_shipping_config_updated', handleConfigUpdate);
+    return () => {
+      window.removeEventListener('my_commerce_shipping_config_updated', handleConfigUpdate);
+    };
+  }, []);
+
+  const shippingZoneInfo = useMemo(() => {
+    return isCustomLinkMode && deliveryOption === 'delivery' && quickBuyPostalCode.trim()
+      ? getShippingZoneInfo(quickBuyPostalCode.trim())
+      : null;
+  }, [isCustomLinkMode, deliveryOption, quickBuyPostalCode, shippingConfigTick]);
+
+  const availableShippingOptions: ShippingOption[] = shippingZoneInfo?.options || [];
+
+  // Auto-seleccionar primera opción disponible al cambiar zona o CP
+  useEffect(() => {
+    if (availableShippingOptions.length > 0) {
+      if (!selectedShippingOptionId || !availableShippingOptions.some((o) => o.id === selectedShippingOptionId)) {
+        setSelectedShippingOptionId(availableShippingOptions[0].id);
+        setIsShippingOptionsCollapsed(true);
+      }
+    } else {
+      setSelectedShippingOptionId(null);
+    }
+  }, [availableShippingOptions.length]);
+
+  const selectedShippingOption = availableShippingOptions.find((opt) => opt.id === selectedShippingOptionId) || null;
+  const shippingCost = isCustomLinkMode && deliveryOption === 'delivery' && selectedShippingOption ? selectedShippingOption.price : 0;
+  const finalOrderTotal = cartCalculations.subtotal + shippingCost;
+
   // Procesa la compra rápida exclusiva del enlace personalizado por WhatsApp:
   // 1. Genera número correlativo único (#1001, etc.)
   // 2. Registra el pedido de inmediato en la base de datos para que aparezca en el panel de administración
@@ -413,8 +478,35 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
   const handleWhatsAppQuickBuy = async () => {
     if (totalCartCount === 0 || isSubmittingWhatsAppOrder) return;
 
+    // Validación para Envío a Domicilio en Enlace Personalizado:
+    // Si no escribieron código postal o no seleccionaron envío, redirige hacia arriba con mensaje indicador
+    if (isCustomLinkMode && deliveryOption === 'delivery') {
+      const trimmedCp = quickBuyPostalCode.trim();
+      if (!trimmedCp || !selectedShippingOption) {
+        setShippingValidationError('Escriba su código postal y seleccione el envío');
+        setIsShippingOptionsCollapsed(false);
+
+        // Redirigir suavemente hasta arriba hacia la tarjeta de código postal y envío
+        const target = document.getElementById('quick-buy-transfer-card') || document.getElementById('quick-buy-cp-input');
+        if (target) {
+          const yOffset = -90;
+          const y = target.getBoundingClientRect().top + window.pageYOffset + yOffset;
+          window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+        } else {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        setTimeout(() => {
+          document.getElementById('quick-buy-cp-input')?.focus();
+        }, 300);
+
+        return;
+      }
+    }
+
     setIsSubmittingWhatsAppOrder(true);
     setOrderSaveError(null);
+    setShippingValidationError(null);
     try {
       // 1. Generar identificador universalmente único (UUID) y número de pedido correlativo
       const orderId = generateUniqueOrderId();
@@ -481,6 +573,8 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
       const shippingMethodName =
         deliveryOption === 'pickup'
           ? 'Retiro en local (Compra Rápida WhatsApp)'
+          : selectedShippingOption
+          ? `${selectedShippingOption.name} ($${selectedShippingOption.price.toLocaleString('es-AR')})`
           : 'Envío a coordinar (Compra Rápida WhatsApp)';
 
       const orderPayload = {
@@ -499,24 +593,24 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
               number: activeUser.streetNumber || '',
               floor: activeUser.floor || '',
               city: activeUser.city || '',
-              postalCode: activeUser.postalCode || '',
-              province: activeUser.province || '',
+              postalCode: activeUser.postalCode || quickBuyPostalCode.trim() || '',
+              province: activeUser.province || shippingZoneInfo?.zoneLabel || '',
               receiverName: activeUser.receiverName || activeUser.fullName || '',
             }
           : {
               street: 'A coordinar por WhatsApp',
               number: 'S/N',
               city: 'A coordinar',
-              postalCode: '0000',
-              province: 'A coordinar',
+              postalCode: quickBuyPostalCode.trim() || '0000',
+              province: shippingZoneInfo?.zoneLabel || 'A coordinar',
             },
         paymentMethod,
         items: processedItems,
         subtotal: cartCalculations.subtotal,
         wholesaleDiscount: cartCalculations.totalSavings,
         cashDiscount: paymentMethod === 'cash' ? Math.max(0, cartCalculations.totalSavings) : 0,
-        shippingCost: 0,
-        total: cartCalculations.subtotal,
+        shippingCost,
+        total: finalOrderTotal,
         status: 'pending_payment' as const,
       };
 
@@ -565,9 +659,12 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
           unitPrice: p.unitPrice,
           totalPrice: p.totalPrice,
         })),
-        total: cartCalculations.subtotal,
+        total: finalOrderTotal,
         deliveryOption,
         paymentMethod,
+        shippingMethodName: selectedShippingOption?.name,
+        shippingCost: shippingCost > 0 ? shippingCost : undefined,
+        postalCode: quickBuyPostalCode.trim() || undefined,
       });
 
       // 8. Construir URL oficial de WhatsApp universal con codificación adecuada (Android, iPhone y WhatsApp Web)
@@ -599,7 +696,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         orderNumber: confirmedOrderNumber,
         waUrl: finalWaUrl,
         itemsCount: totalCartCount,
-        total: cartCalculations.subtotal,
+        total: finalOrderTotal,
       });
     } catch (err) {
       console.error('Error procesando pedido de compra rápida WhatsApp:', err);
@@ -799,8 +896,193 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                     </div>
                   </button>
                 </div>
+              ) : isCustomLinkMode ? (
+                /* Enlace de Compra Rápida personalizado con Envío a domicilio: Reutiliza la tarjeta de Transferencia */
+                <div className="w-full">
+                  <div
+                    id="quick-buy-transfer-card"
+                    className="w-full px-3 py-2.5 sm:px-3.5 sm:py-3 rounded-xl border border-[#0058bb] bg-blue-50/70 ring-2 ring-[#0058bb]/20 text-left space-y-2.5 shadow-xs"
+                  >
+                    {/* Cabecera Transferencia */}
+                    <div className="flex items-center justify-between gap-2 border-b border-blue-200/70 pb-2">
+                      <div className="flex items-center gap-1.5 font-bold text-xs sm:text-xs md:text-sm text-gray-900 leading-tight min-w-0">
+                        <CreditCard className="w-4 h-4 text-[#0058bb] shrink-0" />
+                        <span className="whitespace-nowrap">Transferencia</span>
+                        <span className="text-[11px] sm:text-xs font-normal text-gray-500 whitespace-nowrap">Alias / CVU</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-xs font-semibold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
+                          Directo
+                        </span>
+                        <CheckCircle2 className="w-4 h-4 text-[#0058bb] shrink-0" />
+                      </div>
+                    </div>
+
+                    {/* Alerta de validación si presionan comprar sin ingresar CP ni seleccionar envío */}
+                    {shippingValidationError && (
+                      <div
+                        id="quick-buy-shipping-validation-alert"
+                        className="w-full p-2 bg-red-50 border border-red-300 rounded-lg text-xs font-bold text-red-700 flex items-center gap-2 animate-fadeIn shadow-2xs"
+                      >
+                        <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                        <span>{shippingValidationError}</span>
+                      </div>
+                    )}
+
+                    {/* Fila compacta: Campo Código Postal (izq) y Selector de envío (der) */}
+                    <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2">
+                      {/* Lado izquierdo: Campo para escribir el código postal */}
+                      <div className="relative flex items-center shrink-0">
+                        <input
+                          id="quick-buy-cp-input"
+                          type="text"
+                          value={quickBuyPostalCode}
+                          onChange={(e) => {
+                            const val = e.target.value.toUpperCase();
+                            setQuickBuyPostalCode(val);
+                            if (shippingValidationError) setShippingValidationError(null);
+                            try {
+                              localStorage.setItem('my_commerce_last_cp', val);
+                            } catch {}
+                          }}
+                          placeholder="Código postal"
+                          aria-label="Código postal"
+                          className={`w-24 sm:w-28 px-2.5 pr-5 py-1 text-xs font-semibold text-gray-900 bg-white border rounded-lg focus:outline-none focus:ring-2 ${
+                            shippingValidationError && !quickBuyPostalCode.trim()
+                              ? 'border-red-500 ring-2 ring-red-300'
+                              : 'border-gray-300 focus:ring-[#0058bb]'
+                          }`}
+                        />
+                        {quickBuyPostalCode && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setQuickBuyPostalCode('');
+                              setSelectedShippingOptionId(null);
+                              setIsShippingOptionsCollapsed(true);
+                              try {
+                                localStorage.removeItem('my_commerce_last_cp');
+                              } catch {}
+                            }}
+                            className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 cursor-pointer"
+                            title="Borrar CP"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Lado derecho: Texto informativo si no está escrito el CP, o Selector de envío una vez escrito */}
+                      <div ref={shippingSelectorRef} className="relative flex-1 sm:flex-initial min-w-0 flex justify-end">
+                        {!quickBuyPostalCode.trim() ? (
+                          <div className="flex items-center gap-1.5 text-xs text-gray-600 font-medium whitespace-nowrap">
+                            <Info className="w-3.5 h-3.5 text-[#0058bb] shrink-0" />
+                            <span>Escribe tu código postal</span>
+                          </div>
+                        ) : shippingZoneInfo && availableShippingOptions.length > 0 ? (
+                          <>
+                            {selectedShippingOption ? (
+                              <button
+                                type="button"
+                                onClick={() => setIsShippingOptionsCollapsed(!isShippingOptionsCollapsed)}
+                                className="w-full sm:w-auto px-2.5 py-1 bg-white hover:bg-blue-50/50 rounded-lg border border-[#0058bb]/40 hover:border-[#0058bb] flex items-center justify-between sm:justify-start gap-2 cursor-pointer transition-all shadow-2xs group"
+                                title="Elegir método de envío"
+                              >
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <Truck className="w-3.5 h-3.5 text-[#0058bb] shrink-0" />
+                                  <span className="text-xs font-bold text-gray-900 truncate">
+                                    {selectedShippingOption.name}
+                                  </span>
+                                  <span className="text-[10px] text-gray-500 hidden md:inline truncate">
+                                    ({selectedShippingOption.deliveryTime})
+                                  </span>
+                                  <span className="text-xs font-bold text-emerald-700 ml-0.5 whitespace-nowrap">
+                                    ${selectedShippingOption.price.toLocaleString('es-AR')}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-0.5 text-[10px] font-bold text-[#0058bb] bg-blue-50 group-hover:bg-blue-100 px-1.5 py-0.5 rounded shrink-0">
+                                  <span>{isShippingOptionsCollapsed ? 'Cambiar' : 'Cerrar'}</span>
+                                  <ChevronDown className={`w-3 h-3 transition-transform ${isShippingOptionsCollapsed ? '' : 'rotate-180'}`} />
+                                </div>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setIsShippingOptionsCollapsed(false)}
+                                className="px-2.5 py-1 bg-[#0058bb] text-white text-xs font-bold rounded-lg shadow-xs hover:bg-[#004899] cursor-pointer flex items-center gap-1"
+                              >
+                                <Truck className="w-3.5 h-3.5" />
+                                <span>Elegir envío</span>
+                                <ChevronDown className="w-3 h-3" />
+                              </button>
+                            )}
+
+                            {/* Dropdown / Menú desplegable con las opciones que se retrae al seleccionar */}
+                            {!isShippingOptionsCollapsed && (
+                              <div className="absolute right-0 top-full mt-1.5 z-40 w-72 sm:w-80 bg-white border border-blue-200 rounded-xl shadow-xl p-1.5 space-y-1 animate-fadeIn">
+                                <div className="px-2 py-1 flex items-center justify-between text-[11px] font-bold text-gray-700 border-b border-gray-100">
+                                  <span>Métodos de envío disponibles</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setIsShippingOptionsCollapsed(true)}
+                                    className="text-gray-400 hover:text-gray-600 p-0.5 cursor-pointer"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                                <div className="space-y-1 max-h-56 overflow-y-auto">
+                                  {availableShippingOptions.map((opt) => {
+                                    const isSelected = selectedShippingOptionId === opt.id;
+                                    return (
+                                      <button
+                                        key={opt.id}
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedShippingOptionId(opt.id);
+                                          setIsShippingOptionsCollapsed(true);
+                                          if (shippingValidationError) setShippingValidationError(null);
+                                        }}
+                                        className={`w-full p-2 rounded-lg border text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                                          isSelected
+                                            ? 'bg-blue-50/70 border-[#0058bb] ring-1 ring-[#0058bb]/30'
+                                            : 'bg-white hover:bg-gray-50 border-gray-200'
+                                        }`}
+                                      >
+                                        <div className="min-w-0 flex-1">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="text-xs font-bold text-gray-900 leading-tight truncate">
+                                              {opt.name}
+                                            </span>
+                                            {isSelected && (
+                                              <CheckCircle2 className="w-3.5 h-3.5 text-[#0058bb] shrink-0" />
+                                            )}
+                                          </div>
+                                          <div className="text-[10.5px] text-gray-500 flex items-center gap-1 mt-0.5">
+                                            <Clock className="w-3 h-3 text-gray-400 shrink-0" />
+                                            <span>{opt.deliveryTime}</span>
+                                          </div>
+                                        </div>
+                                        <span className="text-xs font-bold text-emerald-700 whitespace-nowrap">
+                                          ${opt.price.toLocaleString('es-AR')}
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        ) : quickBuyPostalCode.trim().length >= 3 ? (
+                          <span className="text-[11px] font-medium text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 truncate">
+                            A coordinar por WhatsApp
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               ) : (
-                /* Envío: Oculta efectivo y muestra solo Transferencia */
+                /* Compra Rápida normal: Tarjeta limpia original sin modificaciones */
                 <div className="grid grid-cols-2 gap-2">
                   <div className="h-full px-2.5 py-2 sm:px-3 sm:py-2 rounded-xl border border-[#0058bb] bg-blue-50/70 ring-2 ring-[#0058bb]/20 text-left flex flex-col justify-between min-h-[58px] md:min-h-[62px] shadow-xs">
                     <div className="flex items-start justify-between gap-1">
@@ -1169,17 +1451,35 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
               <div className="flex items-baseline gap-1 sm:gap-1.5 min-w-0 overflow-visible sm:overflow-hidden whitespace-nowrap justify-start text-left -ml-0.5 sm:-ml-1">
                 <span className="text-xs text-gray-500 font-medium hidden sm:inline shrink-0">Total:</span>
                 <span id="quick-buy-total-amount" className="text-lg md:text-2xl font-bold text-gray-900 font-['Montserrat'] tracking-tight shrink-0">
-                  $ {cartCalculations.subtotal.toLocaleString('es-AR')}
+                  $ {(isCustomLinkMode ? cartCalculations.subtotal : finalOrderTotal).toLocaleString('es-AR')}
                 </span>
                 <span className="text-xs text-gray-500 whitespace-nowrap shrink-0">
                   ({totalCartCount} unids.)
                 </span>
+                {shippingCost > 0 && !isCustomLinkMode && (
+                  <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200/80 font-bold px-1.5 py-0.5 rounded ml-1 hidden xs:inline-block">
+                    +${shippingCost.toLocaleString('es-AR')} envío
+                  </span>
+                )}
               </div>
 
               {/* Delivery / Payment mini tag */}
               <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-gray-500 truncate justify-start text-left -ml-0.5 sm:-ml-1">
-                <span className="font-semibold text-gray-700">
-                  {deliveryOption === 'pickup' ? 'Retiro en local' : 'Envió a domicilio'}
+                <span className="text-gray-700">
+                  {deliveryOption === 'pickup' ? (
+                    <span className="font-semibold">Retiro en local</span>
+                  ) : isCustomLinkMode && selectedShippingOption ? (
+                    <>
+                      <strong className="font-bold text-gray-900">
+                        $ {finalOrderTotal.toLocaleString('es-AR')}
+                      </strong>{' '}
+                      <span className="font-normal text-gray-500">Total + envió</span>
+                    </>
+                  ) : selectedShippingOption ? (
+                    <span className="font-semibold">Envío: {selectedShippingOption.name}</span>
+                  ) : (
+                    <span className="font-semibold">Envío a domicilio</span>
+                  )}
                 </span>
                 <span>•</span>
                 <span className={paymentMethod === 'cash' ? 'text-emerald-700 font-bold' : 'text-blue-700 font-semibold'}>

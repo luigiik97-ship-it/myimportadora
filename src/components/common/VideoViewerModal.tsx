@@ -4,7 +4,8 @@ import {
   Volume2,
   VolumeX,
   Play,
-  Pause,
+  Share2,
+  Check,
   ChevronLeft,
   ChevronRight,
   ShoppingBag,
@@ -17,6 +18,7 @@ interface VideoViewerModalProps {
   onClose: () => void;
   videos: StoreVideo[];
   initialIndex?: number;
+  products?: Product[];
   onSelectProduct?: (productId: string) => void;
 }
 
@@ -25,12 +27,14 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
   onClose,
   videos,
   initialIndex = 0,
+  products = [],
   onSelectProduct,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isPlaying, setIsPlaying] = useState(true);
-  const [isMuted, setIsMuted] = useState(false); // Default unmuted as requested: "sonido activado"
-  const [progress, setProgress] = useState(0);
+  // Default unmuted as requested: "comienza automáticamente con sonido y en loop"
+  const [isMuted, setIsMuted] = useState(false);
+  const [showShareToast, setShowShareToast] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const modalContainerRef = useRef<HTMLDivElement | null>(null);
@@ -43,7 +47,6 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
       setCurrentIndex(Math.max(0, Math.min(initialIndex, videos.length - 1)));
       setIsPlaying(true);
       setIsMuted(false);
-      setProgress(0);
     }
   }, [isOpen, initialIndex, videos.length]);
 
@@ -104,21 +107,56 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
     setIsMuted(nextMuted);
   }, []);
 
+  // Share handler
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentVideo) return;
+
+    const assignedProduct = currentVideo.productId
+      ? products.find((p) => p.id === currentVideo.productId)
+      : undefined;
+
+    const shareTitle = assignedProduct?.title || currentVideo.title || 'Video en Michy';
+    const shareUrl = assignedProduct
+      ? `${window.location.origin}?product=${assignedProduct.id}`
+      : window.location.href;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: `Mira este video en Michy: ${shareTitle}`,
+          url: shareUrl,
+        });
+        return;
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShowShareToast(true);
+      setTimeout(() => setShowShareToast(false), 2500);
+    } catch {
+      setShowShareToast(true);
+      setTimeout(() => setShowShareToast(false), 2500);
+    }
+  };
+
   const goToNext = useCallback(() => {
     if (videos.length === 0) return;
     setCurrentIndex((prev) => (prev < videos.length - 1 ? prev + 1 : 0));
-    setProgress(0);
     setIsPlaying(true);
   }, [videos.length]);
 
   const goToPrev = useCallback(() => {
     if (videos.length === 0) return;
     setCurrentIndex((prev) => (prev > 0 ? prev - 1 : videos.length - 1));
-    setProgress(0);
     setIsPlaying(true);
   }, [videos.length]);
 
-  // Play video whenever currentIndex changes
+  // Play video with sound whenever currentIndex changes or modal opens
   useEffect(() => {
     if (!isOpen || !videoRef.current) return;
     const video = videoRef.current;
@@ -130,30 +168,16 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
       playPromise
         .then(() => setIsPlaying(true))
         .catch(() => {
-          // Autoplay with sound might need user interaction in some browsers
-          setIsPlaying(false);
+          // If browser policy blocks sound before user tap, attempt muted playback
+          if (!video.muted) {
+            video.muted = true;
+            video.play().catch(() => {});
+          }
         });
     }
-  }, [currentIndex, isOpen]);
+  }, [currentIndex, isOpen, isMuted]);
 
-  // Handle video progress and chained finish
-  const handleTimeUpdate = () => {
-    if (!videoRef.current) return;
-    const current = videoRef.current.currentTime;
-    const duration = videoRef.current.duration || 1;
-    setProgress((current / duration) * 100);
-  };
-
-  const handleVideoEnded = () => {
-    // Chained: When video ends, advance to next if available
-    if (currentIndex < videos.length - 1) {
-      goToNext();
-    } else {
-      setIsPlaying(false);
-    }
-  };
-
-  // Touch swipe handling (swipe up / down / left / right)
+  // Touch swipe handling for Reels navigation (swipe up/down or left/right)
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
     touchStartX.current = e.touches[0].clientX;
@@ -164,20 +188,20 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
     const deltaY = e.changedTouches[0].clientY - touchStartY.current;
     const deltaX = e.changedTouches[0].clientX - touchStartX.current;
 
-    // Detect significant swipe (minimum 45px threshold)
+    // Detect swipe (40px threshold)
     if (Math.abs(deltaY) > Math.abs(deltaX)) {
-      if (deltaY < -45) {
+      if (deltaY < -40) {
         // Swiped UP -> Next video
         goToNext();
-      } else if (deltaY > 45) {
+      } else if (deltaY > 40) {
         // Swiped DOWN -> Prev video
         goToPrev();
       }
     } else {
-      if (deltaX < -45) {
+      if (deltaX < -40) {
         // Swiped LEFT -> Next video
         goToNext();
-      } else if (deltaX > 45) {
+      } else if (deltaX > 40) {
         // Swiped RIGHT -> Prev video
         goToPrev();
       }
@@ -188,6 +212,23 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
   };
 
   if (!isOpen || !currentVideo) return null;
+
+  // Check if video is assigned to a publication in the admin panel
+  const hasAssignedProduct = Boolean(
+    currentVideo.productId &&
+    currentVideo.productId.trim() !== '' &&
+    currentVideo.productId !== 'none'
+  );
+
+  const linkedProduct = hasAssignedProduct
+    ? products.find((p) => p.id === currentVideo.productId)
+    : undefined;
+
+  const productTitle = linkedProduct?.title || currentVideo.productTitle || currentVideo.title || 'Producto';
+  const wholesalePrice = linkedProduct ? linkedProduct.wholesalePrice : currentVideo.productPrice;
+  const minWholesaleQty = linkedProduct ? (linkedProduct.minWholesaleQty || 1) : 1;
+  const retailPrice = linkedProduct ? linkedProduct.retailPrice : undefined;
+  const productThumbnail = linkedProduct?.images?.[0] || currentVideo.productImage;
 
   return (
     <div
@@ -208,65 +249,38 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
         onTouchEnd={handleTouchEnd}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* HTML5 Video Element */}
+        {/* HTML5 Video Element (Loops continuously, audio on by default) */}
         <video
           ref={videoRef}
           key={currentVideo.videoUrl}
           src={currentVideo.videoUrl}
           playsInline
           preload="metadata"
-          loop={false}
+          loop={true}
           className="w-full h-full object-cover cursor-pointer"
           onClick={togglePlay}
-          onTimeUpdate={handleTimeUpdate}
-          onEnded={handleVideoEnded}
         />
 
         {/* Top Gradient Overlay */}
         <div className="absolute top-0 inset-x-0 h-28 bg-gradient-to-b from-black/80 via-black/30 to-transparent pointer-events-none z-10" />
 
         {/* Bottom Gradient Overlay */}
-        <div className="absolute bottom-0 inset-x-0 h-44 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none z-10" />
+        <div className="absolute bottom-0 inset-x-0 h-48 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none z-10" />
 
-        {/* Top Progress Bar (Reels / Stories style) */}
-        <div className="absolute top-2.5 inset-x-3 z-20 flex gap-1 items-center">
-          {videos.map((_, idx) => (
-            <div
-              key={idx}
-              className="flex-1 h-1 rounded-full overflow-hidden bg-white/30 cursor-pointer"
-              onClick={(e) => {
-                e.stopPropagation();
-                setCurrentIndex(idx);
-              }}
-            >
-              <div
-                className="h-full bg-white transition-all duration-100"
-                style={{
-                  width:
-                    idx < currentIndex
-                      ? '100%'
-                      : idx === currentIndex
-                      ? `${progress}%`
-                      : '0%',
-                }}
-              />
-            </div>
-          ))}
-        </div>
-
-        {/* Header Controls (Close 'X' + Sound toggle) */}
-        <div className="absolute top-6 inset-x-4 z-20 flex items-center justify-between">
+        {/* Header Controls (Close 'X' on left, Sound + Share buttons on right) */}
+        <div className="absolute top-4 sm:top-5 inset-x-4 z-20 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <button
               type="button"
               id="btn-close-video-viewer"
               onClick={onClose}
-              className="w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 active:scale-95 text-white flex items-center justify-center transition-transform backdrop-blur-md cursor-pointer border border-white/10"
+              className="w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 active:scale-95 text-white flex items-center justify-center transition-transform backdrop-blur-md cursor-pointer border border-white/15"
               aria-label="Cerrar visor"
+              title="Cerrar"
             >
               <X className="w-5 h-5" />
             </button>
-            {currentVideo.title && (
+            {currentVideo.title && !hasAssignedProduct && (
               <span className="text-white text-xs sm:text-sm font-semibold truncate max-w-[200px] drop-shadow-md">
                 {currentVideo.title}
               </span>
@@ -274,17 +288,41 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Toggle Sound */}
             <button
               type="button"
               id="btn-toggle-sound-viewer"
               onClick={toggleMute}
-              className="w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 active:scale-95 text-white flex items-center justify-center transition-transform backdrop-blur-md cursor-pointer border border-white/10"
+              className="w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 active:scale-95 text-white flex items-center justify-center transition-transform backdrop-blur-md cursor-pointer border border-white/15"
               aria-label={isMuted ? 'Activar sonido' : 'Silenciar'}
+              title={isMuted ? 'Activar sonido' : 'Silenciar'}
             >
               {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5 text-emerald-400" />}
             </button>
+
+            {/* Share Button */}
+            <button
+              type="button"
+              id="btn-share-video-viewer"
+              onClick={handleShare}
+              className="w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 active:scale-95 text-white flex items-center justify-center transition-transform backdrop-blur-md cursor-pointer border border-white/15"
+              aria-label="Compartir video"
+              title="Compartir video"
+            >
+              <Share2 className="w-5 h-5 text-white" />
+            </button>
           </div>
         </div>
+
+        {/* Share Toast Notification */}
+        {showShareToast && (
+          <div className="absolute top-16 inset-x-4 z-30 flex justify-center pointer-events-none transition-all">
+            <div className="bg-black/85 text-white text-xs font-semibold px-4 py-2 rounded-full border border-white/20 shadow-xl backdrop-blur-md flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400" />
+              <span>¡Enlace copiado al portapapeles!</span>
+            </div>
+          </div>
+        )}
 
         {/* Play/Pause Center Indicator (visible when paused) */}
         {!isPlaying && (
@@ -326,9 +364,9 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
           </>
         )}
 
-        {/* Bottom Info & Linked Product Badge */}
-        <div className="absolute bottom-4 inset-x-4 z-20 flex flex-col gap-2.5">
-          {currentVideo.productId && (
+        {/* Bottom Area: Only shows Product Card if the video is assigned to a publication */}
+        <div className="absolute bottom-4 sm:bottom-6 inset-x-3 sm:inset-x-4 z-20 flex flex-col gap-2">
+          {hasAssignedProduct && (
             <div
               onClick={(e) => {
                 e.stopPropagation();
@@ -337,32 +375,47 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
                   onSelectProduct(currentVideo.productId);
                 }
               }}
-              className="bg-white/95 hover:bg-white text-gray-900 rounded-xl p-2.5 flex items-center justify-between shadow-lg backdrop-blur-md cursor-pointer transition-all hover:scale-[1.02] border border-white/40"
+              className="bg-black/10 backdrop-blur-xs border border-white/15 rounded-xl p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-lg cursor-pointer transition-all hover:bg-black/25 active:scale-[0.99]"
             >
-              <div className="flex items-center gap-2.5 min-w-0">
-                {currentVideo.productImage ? (
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                {productThumbnail ? (
                   <img
-                    src={currentVideo.productImage}
-                    alt={currentVideo.productTitle || 'Producto'}
-                    className="w-11 h-11 rounded-lg object-cover bg-gray-100 shrink-0 border border-gray-200"
+                    src={productThumbnail}
+                    alt={productTitle}
+                    className="w-12 h-12 rounded-lg object-cover bg-white/5 border border-white/10 shrink-0"
                   />
                 ) : (
-                  <div className="w-11 h-11 rounded-lg bg-[#0058bb]/10 flex items-center justify-center shrink-0">
-                    <ShoppingBag className="w-5 h-5 text-[#0058bb]" />
+                  <div className="w-12 h-12 rounded-lg bg-white/10 flex items-center justify-center shrink-0 border border-white/10">
+                    <ShoppingBag className="w-5 h-5 text-emerald-400" />
                   </div>
                 )}
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-gray-900 truncate">
-                    {currentVideo.productTitle || currentVideo.title || 'Ver Producto'}
-                  </p>
-                  {currentVideo.productPrice !== undefined && (
-                    <p className="text-xs font-black text-gray-900">
-                      ${currentVideo.productPrice.toLocaleString('es-AR')}
-                    </p>
-                  )}
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  {/* Nombre en color blanco */}
+                  <h4 className="text-white font-bold text-xs sm:text-sm leading-snug line-clamp-1 font-['Montserrat'] drop-shadow-xs">
+                    {productTitle}
+                  </h4>
+                  {/* Precios en verde y blanco */}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
+                    {wholesalePrice !== undefined && (
+                      <p className="text-emerald-400 font-extrabold text-xs sm:text-[13px] leading-tight">
+                        ${wholesalePrice.toLocaleString('es-AR')}
+                        <span className="text-emerald-300 font-normal text-[11px] sm:text-xs ml-1">
+                          x mayor (mín. {minWholesaleQty} u.)
+                        </span>
+                      </p>
+                    )}
+                    {retailPrice !== undefined && (
+                      <p className="text-white font-semibold text-xs sm:text-[13px] leading-tight">
+                        ${retailPrice.toLocaleString('es-AR')}
+                        <span className="text-white/80 font-normal text-[11px] sm:text-xs ml-1">
+                          x menor (x 1 u.)
+                        </span>
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="inline-flex items-center gap-1 bg-[#0058bb] text-white px-2.5 py-1.5 rounded-lg text-xs font-bold shrink-0 shadow-xs">
+              <div className="inline-flex items-center gap-1 bg-emerald-500 hover:bg-emerald-600 text-gray-950 px-2.5 py-1.5 rounded-lg text-xs font-black shrink-0 shadow-xs transition-colors">
                 <span>Ver</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </div>
@@ -370,8 +423,8 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
           )}
 
           {/* Swipe indicator label on mobile */}
-          <div className="text-center text-[11px] text-white/60 font-medium tracking-wide">
-            {videos.length > 1 ? `${currentIndex + 1} de ${videos.length} • Desliza para el siguiente` : 'Desliza hacia abajo o toca fuera para cerrar'}
+          <div className="text-center text-[11px] text-white/50 font-medium tracking-wide">
+            {videos.length > 1 ? `${currentIndex + 1} de ${videos.length} • Desliza para cambiar de video` : 'Desliza hacia abajo o toca fuera para cerrar'}
           </div>
         </div>
       </div>
