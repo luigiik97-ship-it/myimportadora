@@ -608,6 +608,18 @@ export const fetchProducts = async (options?: { force?: boolean }): Promise<Prod
                 }
               }
 
+              let resolvedVideoUrl: string | undefined = undefined;
+              if (item.video_url || item.videoUrl) {
+                resolvedVideoUrl = item.video_url || item.videoUrl;
+              } else if (Array.isArray(rawSpecs)) {
+                const vidSpec = rawSpecs.find(
+                  (s: any) => s && (s.key === '__video_url' || s.label === '__video_url' || s.key === 'videoUrl' || s.label === 'videoUrl')
+                );
+                if (vidSpec && vidSpec.value) {
+                  resolvedVideoUrl = vidSpec.value;
+                }
+              }
+
               let resolvedRating: number = 5.0;
               if (item.rating !== undefined && item.rating !== null && !isNaN(Number(item.rating))) {
                 resolvedRating = Number(item.rating);
@@ -660,6 +672,7 @@ export const fetchProducts = async (options?: { force?: boolean }): Promise<Prod
                 subcategory: item.subcategory || '',
                 images: prodImages,
                 additionalImage: resolvedAdditionalImage,
+                videoUrl: resolvedVideoUrl,
                 minWholesaleQty: Number(item.min_wholesale_qty || item.minWholesaleQty || 1),
                 wholesalePrice: Number(item.wholesale_price || item.wholesalePrice || 0),
                 retailPrice: Number(item.retail_price || item.retailPrice || 0),
@@ -745,6 +758,7 @@ export const createProduct = async (product: Omit<Product, 'id'> & { id?: string
     ...(targetRetailCashPrice !== undefined && targetRetailCashPrice !== null ? [{ label: '__retail_cash_price', value: String(targetRetailCashPrice) }] : []),
     ...(targetWholesaleCashPrice !== undefined && targetWholesaleCashPrice !== null ? [{ label: '__wholesale_cash_price', value: String(targetWholesaleCashPrice) }] : []),
     ...(newProduct.additionalImage ? [{ label: '__additional_image', value: newProduct.additionalImage }] : []),
+    ...(newProduct.videoUrl ? [{ label: '__video_url', value: newProduct.videoUrl }] : []),
     ...(newProduct.rating !== undefined ? [{ label: '__rating', value: String(newProduct.rating) }] : []),
     ...(newProduct.reviewsCount !== undefined ? [{ label: '__reviews_count', value: String(newProduct.reviewsCount) }] : []),
     ...(newProduct.reviews && newProduct.reviews.length > 0 ? [{ label: '__reviews', value: JSON.stringify(newProduct.reviews) }] : [])
@@ -772,6 +786,7 @@ export const createProduct = async (product: Omit<Product, 'id'> & { id?: string
         image_6: newProduct.images[5] || null,
         additional_image: newProduct.additionalImage || null,
         lifestyle_image: newProduct.additionalImage || null,
+        video_url: newProduct.videoUrl || null,
         min_wholesale_qty: newProduct.minWholesaleQty,
         wholesale_price: newProduct.wholesalePrice,
         retail_price: newProduct.retailPrice,
@@ -869,6 +884,7 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
 
   const baseSpecs = cleanSpecsList(updates.specs !== undefined ? updates.specs : existingProduct?.specs);
   const targetAdditionalImage = updates.additionalImage !== undefined ? updates.additionalImage : existingProduct?.additionalImage;
+  const targetVideoUrl = updates.videoUrl !== undefined ? updates.videoUrl : existingProduct?.videoUrl;
   const targetRating = updates.rating !== undefined ? updates.rating : (existingProduct?.rating ?? 5.0);
   const targetReviewsCount = updates.reviewsCount !== undefined ? updates.reviewsCount : (existingProduct?.reviewsCount ?? 128);
   const targetReviews = updates.reviews !== undefined ? updates.reviews : existingProduct?.reviews;
@@ -880,6 +896,7 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
     ...(targetRetailCashPrice !== undefined && targetRetailCashPrice !== null ? [{ label: '__retail_cash_price', value: String(targetRetailCashPrice) }] : []),
     ...(targetWholesaleCashPrice !== undefined && targetWholesaleCashPrice !== null ? [{ label: '__wholesale_cash_price', value: String(targetWholesaleCashPrice) }] : []),
     ...(targetAdditionalImage ? [{ label: '__additional_image', value: targetAdditionalImage }] : []),
+    ...(targetVideoUrl ? [{ label: '__video_url', value: targetVideoUrl }] : []),
     ...(targetRating !== undefined ? [{ label: '__rating', value: String(targetRating) }] : []),
     ...(targetReviewsCount !== undefined ? [{ label: '__reviews_count', value: String(targetReviewsCount) }] : []),
     ...(targetReviews && targetReviews.length > 0 ? [{ label: '__reviews', value: JSON.stringify(targetReviews) }] : [])
@@ -912,6 +929,10 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
       if (updates.additionalImage !== undefined) {
         dbPayload.additional_image = updates.additionalImage || null;
         dbPayload.lifestyle_image = updates.additionalImage || null;
+      }
+
+      if (updates.videoUrl !== undefined) {
+        dbPayload.video_url = updates.videoUrl || null;
       }
 
       if (updates.rating !== undefined) dbPayload.rating = updates.rating;

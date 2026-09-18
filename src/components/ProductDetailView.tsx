@@ -14,6 +14,9 @@ import { ClassicStar as Star } from './common/ClassicStar';
 import { MichyOfficialBadge } from './common/MichyOfficialBadge';
 import { ImageWithSkeleton } from './common/ImageWithSkeleton';
 import { ProductImageLightbox } from './common/ProductImageLightbox';
+import { VideoViewerModal } from './common/VideoViewerModal';
+import { ProductBottomVideoPlayer } from './common/ProductBottomVideoPlayer';
+import { StoreVideo } from '../types';
 import {
   Truck,
   ShieldCheck,
@@ -30,6 +33,9 @@ import {
   AlertCircle,
   ShoppingBag,
   ArrowRight as ArrowRightIcon,
+  Play,
+  Maximize2,
+  Video as VideoIcon,
 } from 'lucide-react';
 
 interface ProductDetailViewProps {
@@ -125,14 +131,79 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     return resolveInitialOptions(product, initialSelectedVariants);
   });
 
-  // Active image index in the currently displayed gallery
-  const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
+  // Active media index in the currently displayed gallery (0 = first image as principal)
+  const [activeMediaIndex, setActiveMediaIndex] = useState<number>(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState<boolean>(false);
 
   // Active gallery of images based on current variant selection (falls back to product.images)
   const activeImages: string[] = useMemo(() => {
     return getActiveVariantImages(product, selectedOptions, lastSelectedTypeId);
   }, [product, selectedOptions, lastSelectedTypeId]);
+
+  // Gallery items including video as second thumbnail if present
+  const galleryMedia = useMemo<{ type: 'image' | 'video'; url: string; imageIndex?: number }[]>(() => {
+    const items: { type: 'image' | 'video'; url: string; imageIndex?: number }[] = [];
+    const baseImages =
+      activeImages.length > 0
+        ? activeImages
+        : product.images && product.images.length > 0
+        ? product.images
+        : ['https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800'];
+
+    // 1st item: First image (principal)
+    if (baseImages[0]) {
+      items.push({ type: 'image', url: baseImages[0], imageIndex: 0 });
+    }
+
+    // 2nd item: If product has video, show video as second thumbnail with autoplay
+    if (product.videoUrl && product.videoUrl.trim()) {
+      items.push({ type: 'video', url: product.videoUrl.trim() });
+    }
+
+    // Remaining images
+    for (let i = 1; i < baseImages.length; i++) {
+      items.push({ type: 'image', url: baseImages[i], imageIndex: i });
+    }
+
+    return items;
+  }, [activeImages, product.images, product.videoUrl]);
+
+  // List of videos for the full-screen 9:16 VideoViewerModal
+  const productReelsVideos = useMemo<StoreVideo[]>(() => {
+    if (!product.videoUrl || !product.videoUrl.trim()) return [];
+    const list: StoreVideo[] = [
+      {
+        id: `prod-vid-${product.id}`,
+        videoUrl: product.videoUrl.trim(),
+        title: product.title,
+        productId: product.id,
+        productTitle: product.title,
+        productPrice: product.wholesalePrice,
+        productImage: product.images?.[0],
+      },
+    ];
+
+    // Include other products that have video
+    allProducts.forEach((p) => {
+      if (p.id !== product.id && p.videoUrl && p.videoUrl.trim()) {
+        list.push({
+          id: `prod-vid-${p.id}`,
+          videoUrl: p.videoUrl.trim(),
+          title: p.title,
+          productId: p.id,
+          productTitle: p.title,
+          productPrice: p.wholesalePrice,
+          productImage: p.images?.[0],
+        });
+      }
+    });
+
+    return list;
+  }, [product, allProducts]);
+
+  // Current active image index for lightbox and cart
+  const activeImageIndex = galleryMedia[activeMediaIndex]?.imageIndex ?? 0;
 
   // Current stock for the actively selected variant option(s) or base product
   const currentSelectionStock = useMemo(() => {
@@ -147,7 +218,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     setSelectedOptions(initial);
     const norm = normalizeVariantTypes(product);
     setLastSelectedTypeId(norm[0]?.id);
-    setActiveImageIndex(0);
+    setActiveMediaIndex(0);
     setQuantity(1);
   }, [product.id, initialSelectedVariants]);
 
@@ -156,17 +227,22 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     if (initialSelectedImage && activeImages.length > 0) {
       const idx = activeImages.findIndex((img) => img === initialSelectedImage);
       if (idx >= 0) {
-        setActiveImageIndex(idx);
+        const mediaIdx = galleryMedia.findIndex(
+          (m) => m.type === 'image' && m.imageIndex === idx
+        );
+        if (mediaIdx >= 0) {
+          setActiveMediaIndex(mediaIdx);
+        }
       }
     }
-  }, [initialSelectedImage, activeImages]);
+  }, [initialSelectedImage, activeImages, galleryMedia]);
 
-  // Reset active image index if out of bounds
+  // Reset active media index if out of bounds
   useEffect(() => {
-    if (activeImageIndex >= activeImages.length) {
-      setActiveImageIndex(0);
+    if (activeMediaIndex >= galleryMedia.length) {
+      setActiveMediaIndex(0);
     }
-  }, [activeImages, activeImageIndex]);
+  }, [galleryMedia, activeMediaIndex]);
 
   // Selected Size Variant / Price Modifiers
   const selectedSizeOption = useMemo(() => {
@@ -298,7 +374,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     };
     setSelectedOptions(updatedOptions);
     // Reset thumbnail viewer to the first image of this variant's gallery
-    setActiveImageIndex(0);
+    setActiveMediaIndex(0);
 
     const resultingGallery = getActiveVariantImages(product, updatedOptions, variantType.id);
     console.log(`[VARIANT DEBUG - DETAIL SELECTION] Variante seleccionada: "${variantType.name}" -> "${option.name}"`);
@@ -339,21 +415,26 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 35) {
       isSwipingMobile.current = true;
       if (deltaX < 0) {
-        // Swiped left -> Next image
-        if (activeImages.length > 1) {
-          setActiveImageIndex((prev) => (prev < activeImages.length - 1 ? prev + 1 : 0));
+        // Swiped left -> Next item
+        if (galleryMedia.length > 1) {
+          setActiveMediaIndex((prev) => (prev < galleryMedia.length - 1 ? prev + 1 : 0));
         }
       } else {
-        // Swiped right -> Previous image
-        if (activeImages.length > 1) {
-          setActiveImageIndex((prev) => (prev > 0 ? prev - 1 : activeImages.length - 1));
+        // Swiped right -> Previous item
+        if (galleryMedia.length > 1) {
+          setActiveMediaIndex((prev) => (prev > 0 ? prev - 1 : galleryMedia.length - 1));
         }
       }
     } else if (Math.abs(deltaX) < 14 && Math.abs(deltaY) < 14) {
-      // Direct tap without swipe opens fullscreen lightbox
+      // Direct tap without swipe opens fullscreen
       isSwipingMobile.current = false;
       lastTouchOpenTime.current = Date.now();
-      setIsLightboxOpen(true);
+      const currentItem = galleryMedia[activeMediaIndex];
+      if (currentItem && currentItem.type === 'video') {
+        setIsVideoModalOpen(true);
+      } else {
+        setIsLightboxOpen(true);
+      }
     }
     touchStartX.current = null;
     touchStartY.current = null;
@@ -391,72 +472,154 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
         <div className="lg:col-span-7 flex flex-col md:flex-row gap-4">
           {/* Thumbnails (Hidden on mobile, visible on desktop) */}
           <div className="hidden md:flex md:flex-col gap-2.5 md:overflow-y-auto max-h-[480px] no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-1">
-            {activeImages.map((img, idx) => (
-              <button
-                key={idx}
-                id={`thumb-btn-${idx}`}
-                onClick={() => setActiveImageIndex(idx)}
-                className={`w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border-2 transition-all shrink-0 bg-white p-1 cursor-pointer ${
-                  activeImageIndex === idx
-                    ? 'border-[#0058bb] shadow-sm ring-2 ring-[#0058bb]/20'
-                    : 'border-gray-200 hover:border-gray-400 opacity-70 hover:opacity-100'
-                }`}
-              >
-                <img src={img} alt={`Vista ${idx + 1}`} className="w-full h-full object-contain" />
-              </button>
-            ))}
+            {galleryMedia.map((item, idx) => {
+              const isActive = activeMediaIndex === idx;
+
+              if (item.type === 'video') {
+                return (
+                  <button
+                    key="thumb-video-item"
+                    id="thumb-btn-video"
+                    onClick={() => {
+                      setActiveMediaIndex(idx);
+                      setIsVideoModalOpen(true);
+                    }}
+                    className={`w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border-2 transition-all shrink-0 bg-black relative p-0.5 cursor-pointer group ${
+                      isActive
+                        ? 'border-[#0058bb] shadow-sm ring-2 ring-[#0058bb]/20'
+                        : 'border-gray-200 hover:border-gray-400 opacity-90 hover:opacity-100'
+                    }`}
+                    title="Ver video del producto (pantalla completa Reels)"
+                  >
+                    <video
+                      src={item.url}
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      preload="metadata"
+                      className="w-full h-full object-cover rounded-sm pointer-events-none"
+                    />
+                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                      <div className="w-6 h-6 rounded-full bg-white/90 text-gray-900 flex items-center justify-center shadow-xs">
+                        <Play className="w-3.5 h-3.5 ml-0.5 fill-gray-900 text-gray-900" />
+                      </div>
+                    </div>
+                  </button>
+                );
+              }
+
+              return (
+                <button
+                  key={idx}
+                  id={`thumb-btn-${idx}`}
+                  onClick={() => setActiveMediaIndex(idx)}
+                  className={`w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border-2 transition-all shrink-0 bg-white p-1 cursor-pointer ${
+                    isActive
+                      ? 'border-[#0058bb] shadow-sm ring-2 ring-[#0058bb]/20'
+                      : 'border-gray-200 hover:border-gray-400 opacity-70 hover:opacity-100'
+                  }`}
+                >
+                  <img src={item.url} alt={`Vista ${idx + 1}`} className="w-full h-full object-contain" />
+                </button>
+              );
+            })}
           </div>
 
-          {/* Main Large Image with touch swipe support and full-width presence */}
+          {/* Main Large Media with touch swipe support and full-width presence */}
           <div
-            className="flex-1 bg-white -mx-2 sm:mx-0 rounded-none sm:rounded-xl border-b border-gray-100 sm:border flex items-center justify-center p-2 sm:p-4 min-h-[330px] sm:min-h-[380px] md:min-h-[480px] max-h-[520px] overflow-hidden relative group select-none touch-pan-y cursor-zoom-in"
+            className="flex-1 bg-white -mx-2 sm:mx-0 rounded-none sm:rounded-xl border-b border-gray-100 sm:border flex items-center justify-center p-2 sm:p-4 min-h-[330px] sm:min-h-[380px] md:min-h-[480px] max-h-[520px] overflow-hidden relative group select-none touch-pan-y cursor-pointer"
             onClick={() => {
-              // Ignore synthetic click if touch just handled the tap or if user was swiping
               if (Date.now() - lastTouchOpenTime.current < 600 || isSwipingMobile.current) {
                 isSwipingMobile.current = false;
                 return;
               }
-              setIsLightboxOpen(true);
+              const currentMedia = galleryMedia[activeMediaIndex];
+              if (currentMedia && currentMedia.type === 'video') {
+                setIsVideoModalOpen(true);
+              } else {
+                setIsLightboxOpen(true);
+              }
             }}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
           >
-            <ImageWithSkeleton
-              id="main-product-image"
-              src={activeImages[activeImageIndex] || activeImages[0] || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'}
-              alt={product.title}
-              className="max-h-[330px] sm:max-h-[380px] md:max-h-[440px] w-full object-contain transition-transform duration-300 group-hover:scale-105"
-            />
+            {galleryMedia[activeMediaIndex]?.type === 'video' ? (
+              <div className="relative aspect-[9/16] h-[330px] sm:h-[380px] md:h-[460px] max-w-full bg-black rounded-xl overflow-hidden shadow-md flex items-center justify-center">
+                <video
+                  src={galleryMedia[activeMediaIndex].url}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  className="w-full h-full object-cover cursor-pointer"
+                />
+                <div className="absolute inset-0 bg-black/25 flex items-center justify-center pointer-events-none">
+                  <div className="w-14 h-14 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-xs border border-white/20 shadow-xl">
+                    <Play className="w-7 h-7 ml-1 fill-white text-white" />
+                  </div>
+                </div>
+                <div className="absolute bottom-3 inset-x-3 text-center pointer-events-none">
+                  <span className="text-[11px] font-bold text-white bg-black/60 backdrop-blur-xs px-2.5 py-1 rounded-full border border-white/15 shadow-xs">
+                    Toca para pantalla completa (Reels con sonido)
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <ImageWithSkeleton
+                id="main-product-image"
+                src={
+                  galleryMedia[activeMediaIndex]?.url ||
+                  activeImages[0] ||
+                  product.images?.[0] ||
+                  'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'
+                }
+                alt={product.title}
+                className="max-h-[330px] sm:max-h-[380px] md:max-h-[440px] w-full object-contain transition-transform duration-300 group-hover:scale-105"
+              />
+            )}
 
-            {/* Mobile image dots indicator */}
-            {activeImages.length > 1 && (
-              <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 md:hidden z-10 bg-black/20 backdrop-blur-xs px-2.5 py-1 rounded-full">
-                {activeImages.map((_, dotIdx) => (
+            {/* Mobile image/video dots indicator */}
+            {galleryMedia.length > 1 && (
+              <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 md:hidden z-10 bg-black/30 backdrop-blur-xs px-2.5 py-1 rounded-full">
+                {galleryMedia.map((mItem, dotIdx) => (
                   <button
                     key={dotIdx}
                     type="button"
-                    onClick={() => setActiveImageIndex(dotIdx)}
-                    className={`h-1.5 rounded-full transition-all ${
-                      activeImageIndex === dotIdx ? 'w-4 bg-white' : 'w-1.5 bg-white/50'
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveMediaIndex(dotIdx);
+                      if (mItem.type === 'video') {
+                        setIsVideoModalOpen(true);
+                      }
+                    }}
+                    className={`h-1.5 rounded-full transition-all flex items-center justify-center ${
+                      activeMediaIndex === dotIdx
+                        ? mItem.type === 'video'
+                          ? 'w-5 bg-emerald-400'
+                          : 'w-4 bg-white'
+                        : mItem.type === 'video'
+                        ? 'w-2 bg-emerald-400/60'
+                        : 'w-1.5 bg-white/50'
                     }`}
-                    aria-label={`Ver imagen ${dotIdx + 1}`}
+                    aria-label={`Ver elemento ${dotIdx + 1}`}
                   />
                 ))}
               </div>
             )}
 
-            {/* Navigation arrows if multiple images exist */}
-            {activeImages.length > 1 && (
+            {/* Navigation arrows if multiple items exist */}
+            {galleryMedia.length > 1 && (
               <>
                 <button
                   type="button"
                   id="btn-prev-image"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setActiveImageIndex((prev) => (prev > 0 ? prev - 1 : activeImages.length - 1));
+                    setActiveMediaIndex((prev) => (prev > 0 ? prev - 1 : galleryMedia.length - 1));
                   }}
                   className="absolute left-2.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 shadow-md border border-gray-200 flex items-center justify-center text-gray-700 hover:text-[#0058bb] hover:bg-white transition-all opacity-80 md:opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
-                  title="Imagen anterior"
+                  title="Elemento anterior"
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
@@ -465,10 +628,10 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   id="btn-next-image"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setActiveImageIndex((prev) => (prev < activeImages.length - 1 ? prev + 1 : 0));
+                    setActiveMediaIndex((prev) => (prev < galleryMedia.length - 1 ? prev + 1 : 0));
                   }}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 shadow-md border border-gray-200 flex items-center justify-center text-gray-700 hover:text-[#0058bb] hover:bg-white transition-all opacity-80 md:opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
-                  title="Siguiente imagen"
+                  title="Siguiente elemento"
                 >
                   <ChevronRight className="w-5 h-5" />
                 </button>
@@ -888,6 +1051,12 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
         </div>
       </div>
 
+      {/* Video del producto debajo de toda la información (antes de los productos relacionados, sin título y sin ocupar espacio si no hay video) */}
+      <ProductBottomVideoPlayer
+        videoUrl={product.videoUrl}
+        onOpenFullscreen={() => setIsVideoModalOpen(true)}
+      />
+
       {/* Related Products */}
       <section id="productos-relacionados" className="space-y-3 sm:space-y-4 pt-2 sm:pt-4">
         <h3 className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat']">
@@ -930,7 +1099,26 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             ? Object.values(userFriendlySelectedVariants).join(' • ')
             : undefined
         }
-        onIndexChange={(newIdx) => setActiveImageIndex(newIdx)}
+        onIndexChange={(newIdx) => {
+          const mediaIdx = galleryMedia.findIndex(
+            (m) => m.type === 'image' && m.imageIndex === newIdx
+          );
+          if (mediaIdx >= 0) {
+            setActiveMediaIndex(mediaIdx);
+          }
+        }}
+      />
+
+      {/* Visor de Pantalla Completa 9:16 con Sonido Activado y Deslizable (Reels) */}
+      <VideoViewerModal
+        isOpen={isVideoModalOpen}
+        onClose={() => setIsVideoModalOpen(false)}
+        videos={productReelsVideos}
+        initialIndex={0}
+        onSelectProduct={(targetId) => {
+          const target = allProducts.find((p) => p.id === targetId);
+          if (target) onSelectRelated(target);
+        }}
       />
     </div>
   );

@@ -42,6 +42,7 @@ import { OptimizationResult } from '../utils/imageOptimizer';
 import { EmailTemplateManager } from './admin/EmailTemplateManager';
 import { AnalyticsDashboard } from './admin/AnalyticsDashboard';
 import { BannerManager } from './admin/BannerManager';
+import { VideoManager } from './admin/VideoManager';
 import { QuickBuyLinkManager, OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
 import { isQuickBuyOrder } from '../services/quickBuyLink';
 import {
@@ -81,6 +82,7 @@ import {
   Eye,
   BarChart3,
   ArrowUpRight,
+  Video,
 } from 'lucide-react';
 
 export const resolveOrderItemPrices = (
@@ -154,7 +156,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'banners' | 'orders' | 'bulk_price_update' | 'integrations' | 'analytics' | 'quick_buy_link'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'banners' | 'videos' | 'orders' | 'bulk_price_update' | 'integrations' | 'analytics' | 'quick_buy_link'>('products');
 
   // Data states
   const [products, setProducts] = useState<Product[]>([]);
@@ -574,6 +576,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
       stock: 50,
       soldCount: Math.random() > 0.5 ? 1000 : 500,
       isBestSeller: false,
+      videoUrl: '',
     });
     setAdditionalImageInputUrl('');
     setNewReviewText('');
@@ -607,6 +610,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
     console.log(`[Admin Edit Open] Abriendo edición para producto "${cloned.title}" (ID: ${cloned.id})`);
     console.log(`[Admin Edit Open] Precios en efectivo cargados: Min: ${cloned.retailCashPrice !== undefined ? `$${cloned.retailCashPrice}` : 'N/A'} | May: ${cloned.wholesaleCashPrice !== undefined ? `$${cloned.wholesaleCashPrice}` : 'N/A'}`);
     console.log(`[Admin Edit Open] Variantes cargadas en el modal:`, JSON.stringify(cloned.variantTypes, null, 2));
+    cloned.videoUrl = cloned.videoUrl || '';
     setEditingProduct(cloned);
     setAdditionalImageInputUrl(cloned.additionalImage || '');
     setNewReviewText('');
@@ -1396,6 +1400,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
         </button>
 
         <button
+          onClick={() => setActiveTab('videos')}
+          className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 cursor-pointer transition-colors border-b-2 whitespace-nowrap ${
+            activeTab === 'videos'
+              ? 'border-[#0058bb] text-[#0058bb]'
+              : 'border-transparent text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <Video className="w-4 h-4" />
+          Videos & Reels
+        </button>
+
+        <button
           onClick={() => setActiveTab('analytics')}
           className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 cursor-pointer transition-colors border-b-2 whitespace-nowrap ${
             activeTab === 'analytics'
@@ -2129,6 +2145,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
         <BannerManager />
       )}
 
+      {/* TAB 3.5: VIDEOS Y REELS CLOUDINARY */}
+      {activeTab === 'videos' && (
+        <VideoManager products={products} />
+      )}
+
       {/* TAB 4: ACTUALIZACIÓN MASIVA DE PRECIOS */}
       {activeTab === 'bulk_price_update' && (
         <BulkPriceUpdate
@@ -2712,6 +2733,64 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                     </button>
                   </div>
                 </div>
+              </div>
+
+              {/* SECCIÓN: Video del Producto (Cloudinary MP4) */}
+              <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/70 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Video className="w-4 h-4 text-[#0058bb]" />
+                    <label className="font-bold text-gray-800 text-xs uppercase tracking-wide">
+                      Video del Producto (Cloudinary MP4)
+                    </label>
+                  </div>
+                  {editingProduct.videoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingProduct({ ...editingProduct, videoUrl: '' })}
+                      className="text-xs text-red-600 hover:text-red-700 font-medium flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Quitar Video
+                    </button>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-gray-500">
+                  Pega la URL directa de Cloudinary terminada en .mp4. Se mostrará automáticamente como segunda miniatura con autoplay en la galería de fotos, en el carrusel de Reels 9:16 y debajo de la información del producto.
+                </p>
+
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={editingProduct.videoUrl || ''}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, videoUrl: e.target.value })}
+                    placeholder="https://res.cloudinary.com/.../video/upload/...mp4"
+                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-xs font-mono bg-white focus:ring-1 focus:ring-[#0058bb]"
+                  />
+                </div>
+
+                {/* Previsualización directa del video del producto */}
+                {editingProduct.videoUrl && editingProduct.videoUrl.trim() && (
+                  <div className="flex items-center gap-3 pt-1">
+                    <div className="aspect-[9/16] w-20 rounded-lg overflow-hidden bg-black border border-gray-300 relative shrink-0">
+                      <video
+                        src={editingProduct.videoUrl.trim()}
+                        muted
+                        autoPlay
+                        loop
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="text-xs text-gray-600 space-y-0.5">
+                      <p className="font-bold text-emerald-600">✓ Video vinculado correctamente</p>
+                      <p className="text-[11px] text-gray-500">
+                        Formato 9:16 optimizado. Si visitas la publicación, se verá en la galería y en la vista previa completa.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* SECCIÓN: Calificación y Opiniones (Estrellas y Comentarios) */}

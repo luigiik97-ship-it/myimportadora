@@ -51,6 +51,7 @@ export interface Product {
   subcategory?: string;
   images: string[];
   additionalImage?: string; // Imagen adicional / Banner lifestyle debajo de la descripción
+  videoUrl?: string; // URL directa de Cloudinary MP4 (Video del producto)
   lifestyleTagline?: string;
   lifestyleTitle?: string;
   lifestyleSubtitle?: string;
@@ -217,4 +218,18 @@ export interface AnalyticsMetrics {
   trafficSources: SourceStat[];
   dailyEvolution: DayStat[];
   deviceBreakdown: { mobile: number; desktop: number; tablet: number };
+}
+
+// ---------------- VIDEO & REELS TYPES ---------------- //
+export interface StoreVideo {
+  id: string;
+  title?: string;
+  videoUrl: string; // Cloudinary MP4 direct URL
+  productId?: string; // Optional ID of linked product
+  productTitle?: string;
+  productPrice?: number;
+  productImage?: string;
+  thumbnailUrl?: string; // Optional custom thumbnail
+  createdAt?: string;
+  sortOrder?: number;
 }

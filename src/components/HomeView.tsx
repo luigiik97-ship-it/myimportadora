@@ -11,6 +11,13 @@ import {
   StoreBannersConfig,
   fetchStoreBannersFromSupabase,
 } from '../services/storeBanners';
+import { HomeReelsCarousel } from './HomeReelsCarousel';
+import { VideoViewerModal } from './common/VideoViewerModal';
+import {
+  getLocalStoreVideos,
+  fetchStoreVideosFromSupabase,
+} from '../services/storeVideos';
+import { StoreVideo } from '../types';
 
 interface HomeViewProps {
   products: Product[];
@@ -35,6 +42,52 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [isTransitioning, setIsTransitioning] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
   const [storeBanners, setStoreBanners] = useState<StoreBannersConfig>(() => getStoreBannersConfig());
+  const [storeVideos, setStoreVideos] = useState<StoreVideo[]>(() => getLocalStoreVideos());
+  const [isVideoViewerOpen, setIsVideoViewerOpen] = useState(false);
+  const [selectedViewerVideoIndex, setSelectedViewerVideoIndex] = useState(0);
+
+  // Sincronizar videos desde Supabase y escuchar eventos
+  useEffect(() => {
+    fetchStoreVideosFromSupabase()
+      .then((vids) => setStoreVideos(vids))
+      .catch(() => {});
+
+    const handleVideosUpdate = (e: CustomEvent<StoreVideo[]>) => {
+      if (e.detail) {
+        setStoreVideos(e.detail);
+      }
+    };
+
+    window.addEventListener('my_commerce_videos_updated' as any, handleVideosUpdate as any);
+    return () => {
+      window.removeEventListener('my_commerce_videos_updated' as any, handleVideosUpdate as any);
+    };
+  }, []);
+
+  // Consolidar videos de la tienda y de publicaciones individuales
+  const allReelVideos = useMemo<StoreVideo[]>(() => {
+    const list: StoreVideo[] = [...storeVideos];
+    const existingUrls = new Set(list.map((v) => v.videoUrl.trim()));
+
+    // Incluir publicaciones que tengan un video cargado
+    products.forEach((p) => {
+      if (p.videoUrl && p.videoUrl.trim() && !existingUrls.has(p.videoUrl.trim())) {
+        existingUrls.add(p.videoUrl.trim());
+        list.push({
+          id: `prod-vid-${p.id}`,
+          videoUrl: p.videoUrl.trim(),
+          title: p.title,
+          productId: p.id,
+          productTitle: p.title,
+          productPrice: p.wholesalePrice,
+          productImage: p.images?.[0],
+          sortOrder: 999,
+        });
+      }
+    });
+
+    return list;
+  }, [storeVideos, products]);
 
   // Sincronizar banners desde Supabase y escuchar eventos locales
   useEffect(() => {
@@ -689,6 +742,21 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </section>
 
+      {/* 4.5 Carrusel 9:16 sin título tipo Reels (debajo de los dos banners) */}
+      {allReelVideos.length > 0 && (
+        <HomeReelsCarousel
+          videos={allReelVideos}
+          onOpenViewer={(idx) => {
+            setSelectedViewerVideoIndex(idx);
+            setIsVideoViewerOpen(true);
+          }}
+          onSelectProduct={(productId) => {
+            const prod = products.find((p) => p.id === productId);
+            if (prod) onSelectProduct(prod);
+          }}
+        />
+      )}
+
       {/* 5. Catálogo Completo de Productos */}
       <section id="todos-los-productos" className="space-y-2.5 sm:space-y-3">
         <div className="flex items-center justify-between border-b border-gray-200 pb-1.5 sm:pb-2">
@@ -889,6 +957,18 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </section>
       </div>
+
+      {/* Visor de Pantalla Completa 9:16 con Sonido Activado y Deslizable */}
+      <VideoViewerModal
+        isOpen={isVideoViewerOpen}
+        onClose={() => setIsVideoViewerOpen(false)}
+        videos={allReelVideos}
+        initialIndex={selectedViewerVideoIndex}
+        onSelectProduct={(productId) => {
+          const prod = products.find((p) => p.id === productId);
+          if (prod) onSelectProduct(prod);
+        }}
+      />
     </div>
   );
 };
