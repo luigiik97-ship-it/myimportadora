@@ -25,6 +25,8 @@ import {
   fetchStoreBannersFromSupabase,
   saveStoreBannersConfig,
   getNormalizedHeroBanners,
+  getNormalizedSecondaryBanners1,
+  getNormalizedSecondaryBanners2,
 } from '../../services/storeBanners';
 import { uploadBannerImage, isSupabaseConfigured } from '../../services/supabase';
 
@@ -36,15 +38,15 @@ export const BannerManager: React.FC = () => {
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // File input refs for secondary and showroom images
+  // File input refs for showroom image
   const fileInputRefs = {
-    secondaryBanner1: useRef<HTMLInputElement>(null),
-    secondaryBanner2: useRef<HTMLInputElement>(null),
     showroomImage: useRef<HTMLInputElement>(null),
   };
 
-  // Dinámica de heroBanners
+  // Dinámica de banners
   const heroBanners = getNormalizedHeroBanners(config);
+  const secondaryBanners1 = getNormalizedSecondaryBanners1(config);
+  const secondaryBanners2 = getNormalizedSecondaryBanners2(config);
 
   // Cargar de Supabase al montar
   useEffect(() => {
@@ -96,6 +98,81 @@ export const BannerManager: React.FC = () => {
       } catch (err: any) {
         console.error('Error al auto-guardar banners:', err);
       }
+    }
+  };
+
+  // Helper para sincronizar Banner Intermedio 1 (Izquierdo) de forma independiente
+  const updateSecondaryBanners1 = async (newBanners: StoreBannerItem[], autoSave = false) => {
+    const updated: StoreBannersConfig = {
+      ...config,
+      secondaryBanners1: newBanners,
+      secondaryBanner1: newBanners[0]?.imageUrl || '',
+      secondaryBanner1Link: newBanners[0]?.linkUrl || '',
+    };
+    setConfig(updated);
+
+    if (autoSave) {
+      try {
+        await saveStoreBannersConfig(updated);
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+      } catch (err: any) {
+        console.error('Error al auto-guardar banners intermedios 1:', err);
+      }
+    }
+  };
+
+  // Helper para sincronizar Banner Intermedio 2 (Derecho) de forma independiente
+  const updateSecondaryBanners2 = async (newBanners: StoreBannerItem[], autoSave = false) => {
+    const updated: StoreBannersConfig = {
+      ...config,
+      secondaryBanners2: newBanners,
+      secondaryBanner2: newBanners[0]?.imageUrl || '',
+      secondaryBanner2Link: newBanners[0]?.linkUrl || '',
+    };
+    setConfig(updated);
+
+    if (autoSave) {
+      try {
+        await saveStoreBannersConfig(updated);
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+      } catch (err: any) {
+        console.error('Error al auto-guardar banners intermedios 2:', err);
+      }
+    }
+  };
+
+  // Subir archivo para Banners Intermedios (Columna 1 o 2)
+  const handleSecondaryBannerUpload = async (column: 1 | 2, index: number, file: File) => {
+    if (!file) return;
+    const key = `sec${column}_${index}`;
+    try {
+      setUploadingKey(key);
+      setErrorMessage(null);
+
+      const publicUrl = await uploadBannerImage(file);
+
+      if (column === 1) {
+        const updated = [...secondaryBanners1];
+        updated[index] = {
+          ...updated[index],
+          imageUrl: publicUrl,
+        };
+        await updateSecondaryBanners1(updated, true);
+      } else {
+        const updated = [...secondaryBanners2];
+        updated[index] = {
+          ...updated[index],
+          imageUrl: publicUrl,
+        };
+        await updateSecondaryBanners2(updated, true);
+      }
+    } catch (err: any) {
+      console.error(`Error al subir imagen intermedia ${column}:`, err);
+      setErrorMessage(err?.message || 'Error al procesar y subir la imagen.');
+    } finally {
+      setUploadingKey(null);
     }
   };
 
@@ -198,7 +275,17 @@ export const BannerManager: React.FC = () => {
     try {
       setIsSaving(true);
       setErrorMessage(null);
-      await saveStoreBannersConfig(config);
+      const fullConfig: StoreBannersConfig = {
+        ...config,
+        secondaryBanners1,
+        secondaryBanners2,
+        secondaryBanner1: secondaryBanners1[0]?.imageUrl || config.secondaryBanner1,
+        secondaryBanner1Link: secondaryBanners1[0]?.linkUrl ?? config.secondaryBanner1Link,
+        secondaryBanner2: secondaryBanners2[0]?.imageUrl || config.secondaryBanner2,
+        secondaryBanner2Link: secondaryBanners2[0]?.linkUrl ?? config.secondaryBanner2Link,
+      };
+      await saveStoreBannersConfig(fullConfig);
+      setConfig(fullConfig);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
@@ -544,18 +631,18 @@ export const BannerManager: React.FC = () => {
         </div>
       </section>
 
-      {/* SECCIÓN 2: BANNERS SECUNDARIOS (2 BANNERS INTERMEDIOS) */}
+      {/* SECCIÓN 2: BANNERS SECUNDARIOS (2 BANNERS INTERMEDIOS INDEPENDIENTES) */}
       <section className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
         <div className="p-4 sm:p-5 border-b border-gray-100 bg-gray-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
               <h3 className="text-base font-bold text-gray-900 font-['Montserrat']">
-                2. Banners Secundarios Intermedios (2 Banners)
+                2. Banners Secundarios Intermedios (Izquierdo y Derecho Independientes)
               </h3>
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
-              Se muestran debajo de "Más Vendidos" en dos columnas divididas con soporte de link directo.
+              Se muestran debajo de "Más Vendidos" en dos columnas independientes. Si un banner tiene 1 imagen es estático; si agregas 2 o más imágenes se convierte en un carrusel dinámico sin alterar al otro banner.
             </p>
           </div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold w-max">
@@ -564,39 +651,35 @@ export const BannerManager: React.FC = () => {
           </div>
         </div>
 
-        <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
           {/* Banner Secundario 1 (Izquierdo) */}
-          <StaticBannerCard
+          <IntermediateBannerGroup
             label="Banner Intermedio 1 (Izquierdo)"
-            description="Ubicado en la columna izquierda intermedia."
+            description="Ubicado en la columna izquierda. Administra sus imágenes de forma independiente."
             recommendedSize="800 × 400 px"
-            imageUrl={config.secondaryBanner1}
-            linkUrl={config.secondaryBanner1Link || ''}
-            isUploading={uploadingKey === 'secondaryBanner1'}
-            isCopied={copiedKey === 'secondaryBanner1'}
-            fileInputRef={fileInputRefs.secondaryBanner1}
-            onUpload={(file) => handleStaticFileUpload('secondaryBanner1', file)}
-            onUrlChange={(url) => setConfig({ ...config, secondaryBanner1: url })}
-            onLinkUrlChange={(link) => setConfig({ ...config, secondaryBanner1Link: link })}
-            onCopyUrl={() => handleCopyUrl(config.secondaryBanner1, 'secondaryBanner1')}
-            onReset={() => handleResetStatic('secondaryBanner1')}
+            banners={secondaryBanners1}
+            prefixKey="sec1"
+            defaultImage={DEFAULT_STORE_BANNERS.secondaryBanner1}
+            uploadingKey={uploadingKey}
+            copiedKey={copiedKey}
+            onUpdateBanners={updateSecondaryBanners1}
+            onUploadFile={(file, idx) => handleSecondaryBannerUpload(1, idx, file)}
+            onCopyUrl={handleCopyUrl}
           />
 
           {/* Banner Secundario 2 (Derecho) */}
-          <StaticBannerCard
+          <IntermediateBannerGroup
             label="Banner Intermedio 2 (Derecho)"
-            description="Ubicado en la columna derecha intermedia."
+            description="Ubicado en la columna derecha. Administra sus imágenes de forma independiente."
             recommendedSize="800 × 400 px"
-            imageUrl={config.secondaryBanner2}
-            linkUrl={config.secondaryBanner2Link || ''}
-            isUploading={uploadingKey === 'secondaryBanner2'}
-            isCopied={copiedKey === 'secondaryBanner2'}
-            fileInputRef={fileInputRefs.secondaryBanner2}
-            onUpload={(file) => handleStaticFileUpload('secondaryBanner2', file)}
-            onUrlChange={(url) => setConfig({ ...config, secondaryBanner2: url })}
-            onLinkUrlChange={(link) => setConfig({ ...config, secondaryBanner2Link: link })}
-            onCopyUrl={() => handleCopyUrl(config.secondaryBanner2, 'secondaryBanner2')}
-            onReset={() => handleResetStatic('secondaryBanner2')}
+            banners={secondaryBanners2}
+            prefixKey="sec2"
+            defaultImage={DEFAULT_STORE_BANNERS.secondaryBanner2}
+            uploadingKey={uploadingKey}
+            copiedKey={copiedKey}
+            onUpdateBanners={updateSecondaryBanners2}
+            onUploadFile={(file, idx) => handleSecondaryBannerUpload(2, idx, file)}
+            onCopyUrl={handleCopyUrl}
           />
         </div>
       </section>
@@ -639,6 +722,278 @@ export const BannerManager: React.FC = () => {
           />
         </div>
       </section>
+    </div>
+  );
+};
+
+// -------------------------------------------------------------
+// Componente de Gestión de Columna Intermedia (Estático o Carrusel)
+// -------------------------------------------------------------
+interface IntermediateBannerGroupProps {
+  label: string;
+  description: string;
+  recommendedSize: string;
+  banners: StoreBannerItem[];
+  prefixKey: string;
+  defaultImage: string;
+  uploadingKey: string | null;
+  copiedKey: string | null;
+  onUpdateBanners: (banners: StoreBannerItem[], autoSave?: boolean) => Promise<void> | void;
+  onUploadFile: (file: File, index: number) => Promise<void>;
+  onCopyUrl: (url: string, key: string) => void;
+}
+
+const IntermediateBannerGroup: React.FC<IntermediateBannerGroupProps> = ({
+  label,
+  description,
+  recommendedSize,
+  banners,
+  prefixKey,
+  defaultImage,
+  uploadingKey,
+  copiedKey,
+  onUpdateBanners,
+  onUploadFile,
+  onCopyUrl,
+}) => {
+  const isCarousel = banners.length > 1;
+
+  const handleAdd = () => {
+    const newItem: StoreBannerItem = {
+      id: `${prefixKey}-${Date.now()}`,
+      imageUrl: '',
+      linkUrl: '',
+      title: `Slide #${banners.length + 1}`,
+    };
+    onUpdateBanners([...banners, newItem]);
+  };
+
+  const handleRemove = (index: number) => {
+    if (banners.length <= 1) return;
+    const updated = banners.filter((_, i) => i !== index);
+    onUpdateBanners(updated);
+  };
+
+  const handleMove = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= banners.length) return;
+    const updated = [...banners];
+    const temp = updated[index];
+    updated[index] = updated[targetIndex];
+    updated[targetIndex] = temp;
+    onUpdateBanners(updated);
+  };
+
+  const handleFieldChange = (index: number, field: keyof StoreBannerItem, value: any) => {
+    const updated = [...banners];
+    updated[index] = {
+      ...updated[index],
+      [field]: value,
+    };
+    onUpdateBanners(updated);
+  };
+
+  return (
+    <div className="bg-gray-50/70 rounded-xl p-4 border border-gray-200 flex flex-col justify-between space-y-4">
+      <div>
+        {/* Header de la Columna */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 mb-1.5">
+          <div className="flex items-center gap-2">
+            <h4 className="text-sm font-bold text-gray-900">{label}</h4>
+            <span
+              className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
+                isCarousel
+                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              }`}
+            >
+              {isCarousel ? `${banners.length} imágenes (Carrusel)` : '1 imagen (Estático)'}
+            </span>
+          </div>
+          <span className="text-[11px] font-semibold text-gray-600 bg-white px-2 py-0.5 rounded border border-gray-200 w-max">
+            {recommendedSize}
+          </span>
+        </div>
+        <p className="text-xs text-gray-500 mb-3">{description}</p>
+
+        {/* Lista de Imágenes en esta columna */}
+        <div className="space-y-3.5">
+          {banners.map((item, index) => {
+            const inputId = `${prefixKey}-file-${index}`;
+            const itemKey = `${prefixKey}_${index}`;
+            const isUploading = uploadingKey === itemKey;
+            const isCopied = copiedKey === itemKey;
+
+            return (
+              <div
+                key={item.id || itemKey}
+                className="bg-white rounded-lg p-3 border border-gray-200/90 shadow-2xs space-y-2.5 relative"
+              >
+                {/* Header del Slide */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-gray-700 bg-gray-100 px-2 py-0.5 rounded border border-gray-200">
+                      {banners.length === 1 ? 'Banner Fijo' : `Slide #${index + 1}`}
+                    </span>
+                    {item.linkUrl && (
+                      <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center gap-0.5">
+                        <LinkIcon className="w-2.5 h-2.5" /> Con link
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleMove(index, 'up')}
+                      disabled={index === 0}
+                      title="Subir posición"
+                      className="p-1 text-gray-500 hover:text-[#0058bb] disabled:text-gray-300 disabled:cursor-not-allowed hover:bg-gray-100 rounded cursor-pointer"
+                    >
+                      <ArrowUp className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleMove(index, 'down')}
+                      disabled={index === banners.length - 1}
+                      title="Bajar posición"
+                      className="p-1 text-gray-500 hover:text-[#0058bb] disabled:text-gray-300 disabled:cursor-not-allowed hover:bg-gray-100 rounded cursor-pointer"
+                    >
+                      <ArrowDown className="w-3.5 h-3.5" />
+                    </button>
+                    {banners.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemove(index)}
+                        title="Eliminar esta imagen"
+                        className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer ml-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Vista previa miniatura */}
+                <div className="relative aspect-[16/8] w-full bg-slate-100 rounded-md overflow-hidden border border-gray-200 group">
+                  {item.imageUrl ? (
+                    <img
+                      src={item.imageUrl}
+                      alt={item.title || `Banner ${index + 1}`}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 bg-slate-50">
+                      <ImageIcon className="w-6 h-6 text-gray-300 mb-1" />
+                      <span className="text-[11px]">Sin imagen configurada</span>
+                    </div>
+                  )}
+
+                  {isUploading && (
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-xs flex flex-col items-center justify-center text-white text-xs font-bold gap-1.5">
+                      <RotateCcw className="w-5 h-5 animate-spin text-blue-400" />
+                      <span>Subiendo a Supabase...</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Input Link de Destino */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-gray-700 flex items-center gap-1">
+                    <LinkIcon className="w-3 h-3 text-[#0058bb]" />
+                    Link al hacer clic:
+                  </label>
+                  <input
+                    type="text"
+                    value={item.linkUrl || ''}
+                    onChange={(e) => handleFieldChange(index, 'linkUrl', e.target.value)}
+                    placeholder="ej: https://... o Todo"
+                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white focus:border-[#0058bb] focus:ring-1 focus:ring-[#0058bb] outline-none"
+                  />
+                </div>
+
+                {/* Input URL Pública */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-semibold text-gray-600">URL de imagen:</label>
+                    {item.imageUrl && (
+                      <a
+                        href={item.imageUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-[#0058bb] hover:underline flex items-center gap-0.5"
+                      >
+                        Abrir <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    )}
+                  </div>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      value={item.imageUrl || ''}
+                      onChange={(e) => handleFieldChange(index, 'imageUrl', e.target.value)}
+                      placeholder="https://... o sube una imagen"
+                      className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white focus:border-[#0058bb] focus:ring-1 focus:ring-[#0058bb] outline-none"
+                    />
+                    {item.imageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => onCopyUrl(item.imageUrl, itemKey)}
+                        title="Copiar URL"
+                        className="px-2 py-1.5 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg text-gray-600 transition-colors cursor-pointer shrink-0"
+                      >
+                        {isCopied ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Botón Subir Archivo */}
+                <div className="pt-1">
+                  <input
+                    id={inputId}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        onUploadFile(file, index);
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById(inputId)?.click()}
+                    disabled={isUploading}
+                    className="w-full inline-flex items-center justify-center gap-1.5 bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 text-xs font-bold py-1.5 px-3 rounded-lg shadow-2xs hover:border-[#0058bb] transition-all cursor-pointer min-h-[34px]"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-[#0058bb]" />
+                    <span>{item.imageUrl ? 'Reemplazar Foto' : 'Subir Foto'}</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Botón para agregar imagen a esta columna */}
+        <div className="pt-3">
+          <button
+            type="button"
+            onClick={handleAdd}
+            className="w-full inline-flex items-center justify-center gap-1.5 bg-white hover:bg-blue-50 border border-dashed border-[#0058bb]/40 hover:border-[#0058bb] text-[#0058bb] text-xs font-bold py-2 px-3 rounded-lg transition-all cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Agregar otra imagen a este banner</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

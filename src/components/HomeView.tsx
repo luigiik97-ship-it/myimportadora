@@ -11,7 +11,10 @@ import {
   StoreBannersConfig,
   fetchStoreBannersFromSupabase,
   getNormalizedHeroBanners,
+  getNormalizedSecondaryBanners1,
+  getNormalizedSecondaryBanners2,
 } from '../services/storeBanners';
+import { IntermediateBannerSlot } from './IntermediateBannerSlot';
 import { HomeReelsCarousel } from './HomeReelsCarousel';
 import { VideoViewerModal } from './common/VideoViewerModal';
 import {
@@ -113,6 +116,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   // Lista normalizada de banners desde la configuración de la tienda
   const rawHeroBanners = useMemo(() => getNormalizedHeroBanners(storeBanners), [storeBanners]);
+  const secondaryBanners1 = useMemo(() => getNormalizedSecondaryBanners1(storeBanners), [storeBanners]);
+  const secondaryBanners2 = useMemo(() => getNormalizedSecondaryBanners2(storeBanners), [storeBanners]);
 
   const hasCustomImages = useMemo(() => {
     return rawHeroBanners.some((b) => Boolean(b.imageUrl && b.imageUrl.trim()));
@@ -769,43 +774,25 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </section>
 
-      {/* 4. Middle Promotional Banners */}
+      {/* 4. Middle Promotional Banners (Independientes: estático si es 1 imagen, carrusel si son 2 o más) */}
       <section id="promo-banners-mid" className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-        <div
-          onClick={() => {
-            if (storeBanners.secondaryBanner1Link) {
-              handleBannerClick({ linkUrl: storeBanners.secondaryBanner1Link });
-            } else {
-              onSelectCategory('Todo');
-            }
-          }}
-          className="relative rounded-xl overflow-hidden shadow-xs sm:shadow-sm h-44 sm:h-48 md:h-56 bg-neutral-100 group cursor-pointer"
-          title={storeBanners.secondaryBanner1Link ? `Ir a ${storeBanners.secondaryBanner1Link}` : undefined}
-        >
-          <img
-            src={storeBanners.secondaryBanner1 || DEFAULT_STORE_BANNERS.secondaryBanner1}
-            alt="Banner promocional"
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          />
-        </div>
+        <IntermediateBannerSlot
+          slotId="promo-banner-mid-1"
+          banners={secondaryBanners1}
+          defaultImage={DEFAULT_STORE_BANNERS.secondaryBanner1}
+          fallbackLink="Todo"
+          onBannerClick={handleBannerClick}
+          autoRotateInterval={3600}
+        />
 
-        <div
-          onClick={() => {
-            if (storeBanners.secondaryBanner2Link) {
-              handleBannerClick({ linkUrl: storeBanners.secondaryBanner2Link });
-            } else {
-              onSelectCategory(secondCat || 'Todo');
-            }
-          }}
-          className="relative rounded-xl overflow-hidden shadow-xs sm:shadow-sm h-44 sm:h-48 md:h-56 bg-neutral-100 group cursor-pointer"
-          title={storeBanners.secondaryBanner2Link ? `Ir a ${storeBanners.secondaryBanner2Link}` : undefined}
-        >
-          <img
-            src={storeBanners.secondaryBanner2 || DEFAULT_STORE_BANNERS.secondaryBanner2}
-            alt="Banner promocional"
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          />
-        </div>
+        <IntermediateBannerSlot
+          slotId="promo-banner-mid-2"
+          banners={secondaryBanners2}
+          defaultImage={DEFAULT_STORE_BANNERS.secondaryBanner2}
+          fallbackLink={secondCat || 'Todo'}
+          onBannerClick={handleBannerClick}
+          autoRotateInterval={4200}
+        />
       </section>
 
       {/* 4.5 Carrusel 9:16 sin título tipo Reels (debajo de los dos banners) */}

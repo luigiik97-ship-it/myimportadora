@@ -28,7 +28,11 @@ export interface StoreBannersConfig {
   heroBanner2Link?: string;
   heroBanner3Link?: string;
 
-  // 2. Banners Secundarios Intermedios (2 Banners)
+  // 2. Banners Secundarios Intermedios Dinámicos (Izquierdo y Derecho independientes)
+  secondaryBanners1?: StoreBannerItem[];
+  secondaryBanners2?: StoreBannerItem[];
+
+  // Campos legacy secundarios para compatibilidad
   secondaryBanner1: string; // URL Banner Izquierdo (Recomendado: 800 x 400 px)
   secondaryBanner2: string; // URL Banner Derecho (Recomendado: 800 x 400 px)
   secondaryBanner1Link?: string;
@@ -77,6 +81,22 @@ export const DEFAULT_STORE_BANNERS: StoreBannersConfig = {
   heroBanner1Link: '',
   heroBanner2Link: '',
   heroBanner3Link: '',
+  secondaryBanners1: [
+    {
+      id: 'sec-1-default',
+      imageUrl: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800&auto=format&fit=crop&q=80',
+      linkUrl: '',
+      title: 'Banner Intermedio 1',
+    },
+  ],
+  secondaryBanners2: [
+    {
+      id: 'sec-2-default',
+      imageUrl: 'https://images.unsplash.com/photo-1611591475152-47eac9806830?w=800&auto=format&fit=crop&q=80',
+      linkUrl: '',
+      title: 'Banner Intermedio 2',
+    },
+  ],
   secondaryBanner1: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800&auto=format&fit=crop&q=80',
   secondaryBanner2: 'https://images.unsplash.com/photo-1611591475152-47eac9806830?w=800&auto=format&fit=crop&q=80',
   secondaryBanner1Link: '',
@@ -129,6 +149,46 @@ export const getNormalizedHeroBanners = (config: StoreBannersConfig): StoreBanne
   }
 
   return DEFAULT_STORE_BANNERS.heroBanners || [];
+};
+
+/**
+ * Normaliza la lista de imágenes para el Banner Intermedio 1 (Izquierdo)
+ */
+export const getNormalizedSecondaryBanners1 = (config: StoreBannersConfig): StoreBannerItem[] => {
+  if (Array.isArray(config.secondaryBanners1) && config.secondaryBanners1.length > 0) {
+    return config.secondaryBanners1;
+  }
+  if (config.secondaryBanner1) {
+    return [
+      {
+        id: 'sec-1-1',
+        imageUrl: config.secondaryBanner1,
+        linkUrl: config.secondaryBanner1Link || '',
+        title: 'Banner Intermedio 1',
+      },
+    ];
+  }
+  return DEFAULT_STORE_BANNERS.secondaryBanners1 || [];
+};
+
+/**
+ * Normaliza la lista de imágenes para el Banner Intermedio 2 (Derecho)
+ */
+export const getNormalizedSecondaryBanners2 = (config: StoreBannersConfig): StoreBannerItem[] => {
+  if (Array.isArray(config.secondaryBanners2) && config.secondaryBanners2.length > 0) {
+    return config.secondaryBanners2;
+  }
+  if (config.secondaryBanner2) {
+    return [
+      {
+        id: 'sec-2-1',
+        imageUrl: config.secondaryBanner2,
+        linkUrl: config.secondaryBanner2Link || '',
+        title: 'Banner Intermedio 2',
+      },
+    ];
+  }
+  return DEFAULT_STORE_BANNERS.secondaryBanners2 || [];
 };
 
 /**
