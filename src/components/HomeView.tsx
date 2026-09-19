@@ -10,6 +10,7 @@ import {
   DEFAULT_STORE_BANNERS,
   StoreBannersConfig,
   fetchStoreBannersFromSupabase,
+  getNormalizedHeroBanners,
 } from '../services/storeBanners';
 import { HomeReelsCarousel } from './HomeReelsCarousel';
 import { VideoViewerModal } from './common/VideoViewerModal';
@@ -110,126 +111,189 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const firstCat = categories && categories[0] ? categories[0].name : 'Todo';
   const secondCat = categories && categories[1] ? categories[1].name : firstCat;
 
-  // 3 distinct hero banners
-  const banners = [
-    {
-      id: 'banner-1',
-      badge: 'Oferta Mayorista',
-      badgeBg: 'bg-[#00a650]',
-      title: 'Precios en efectivo',
-      subtitleText: 'pagando en',
-      subtitleHighlight: 'efectivo o transferencia',
-      description: 'Precios directos para revendedores y comerciantes de todo el país',
-      ctaText: 'Ver Catálogo',
-      categoryTarget: 'Todo',
-      bgGradient: 'from-slate-100 via-gray-50 to-slate-200',
-      customImage: storeBanners.heroBanner1,
-      showText: storeBanners.heroBanner1ShowText !== false,
-      images: [
+  // Lista normalizada de banners desde la configuración de la tienda
+  const rawHeroBanners = useMemo(() => getNormalizedHeroBanners(storeBanners), [storeBanners]);
+
+  const hasCustomImages = useMemo(() => {
+    return rawHeroBanners.some((b) => Boolean(b.imageUrl && b.imageUrl.trim()));
+  }, [rawHeroBanners]);
+
+  // Si tiene 1 imagen es estático; si tiene 2 o más se vuelve un carrusel
+  const banners = useMemo(() => {
+    // Si no se ha configurado ninguna imagen personalizada y vienen los 3 slots iniciales
+    if (!hasCustomImages && rawHeroBanners.length === 3) {
+      return [
         {
-          src: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=500&auto=format&fit=crop&q=80',
-          alt: 'Joyas y Dijes',
-          className: 'w-24 h-24 md:w-44 md:h-44 object-cover rounded-xl shadow-md transform -rotate-3 border-2 border-white',
+          id: 'banner-1',
+          badge: 'Oferta Mayorista',
+          badgeBg: 'bg-[#00a650]',
+          title: 'Precios en efectivo',
+          subtitleText: 'pagando en',
+          subtitleHighlight: 'efectivo o transferencia',
+          description: 'Precios directos para revendedores y comerciantes de todo el país',
+          ctaText: 'Ver Catálogo',
+          linkUrl: rawHeroBanners[0]?.linkUrl || 'Todo',
+          bgGradient: 'from-slate-100 via-gray-50 to-slate-200',
+          customImage: rawHeroBanners[0]?.imageUrl || '',
+          showText: rawHeroBanners[0]?.showText !== false,
+          images: [
+            {
+              src: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=500&auto=format&fit=crop&q=80',
+              alt: 'Joyas y Dijes',
+              className: 'w-24 h-24 md:w-44 md:h-44 object-cover rounded-xl shadow-md transform -rotate-3 border-2 border-white',
+            },
+            {
+              src: 'https://images.unsplash.com/photo-1524805444758-089113d48a6d?w=500&auto=format&fit=crop&q=80',
+              alt: 'Relojes',
+              className: 'w-28 h-28 md:w-48 md:h-48 object-cover rounded-xl shadow-lg transform rotate-2 border-2 border-white',
+            },
+            {
+              src: 'https://images.unsplash.com/photo-1585366119957-e9730b6d0f60?w=500&auto=format&fit=crop&q=80',
+              alt: 'Juguetes',
+              className: 'w-24 h-24 md:w-44 md:h-44 object-cover rounded-xl shadow-md transform -rotate-2 border-2 border-white hidden sm:block',
+            },
+            {
+              src: 'https://images.unsplash.com/photo-1541643600914-78b084683601?w=500&auto=format&fit=crop&q=80',
+              alt: 'Perfumes',
+              className: 'w-28 h-28 md:w-48 md:h-48 object-cover rounded-xl shadow-lg border-2 border-white hidden md:block',
+            },
+          ],
         },
         {
-          src: 'https://images.unsplash.com/photo-1524805444758-089113d48a6d?w=500&auto=format&fit=crop&q=80',
-          alt: 'Relojes',
-          className: 'w-28 h-28 md:w-48 md:h-48 object-cover rounded-xl shadow-lg transform rotate-2 border-2 border-white',
+          id: 'banner-2',
+          badge: 'Envíos Nacionales',
+          badgeBg: 'bg-[#0058bb]',
+          title: 'Despacho Inmediato',
+          subtitleText: 'a todo el país por',
+          subtitleHighlight: 'Expresos y Correo',
+          description: 'Retirá sin costo por Av. San Pedrito 28 (Flores, CABA) de Lunes a Viernes de 11 a 17hs',
+          ctaText: firstCat !== 'Todo' ? `Ver ${firstCat}` : 'Ver Catálogo',
+          linkUrl: rawHeroBanners[1]?.linkUrl || firstCat,
+          bgGradient: 'from-blue-50 via-indigo-50/50 to-slate-100',
+          customImage: rawHeroBanners[1]?.imageUrl || '',
+          showText: rawHeroBanners[1]?.showText !== false,
+          images: [
+            {
+              src: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=500&auto=format&fit=crop&q=80',
+              alt: 'Envíos y Paquetes',
+              className: 'w-28 h-28 md:w-48 md:h-48 object-cover rounded-xl shadow-lg transform -rotate-2 border-2 border-white',
+            },
+            {
+              src: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=500&auto=format&fit=crop&q=80',
+              alt: 'Acero Quirúrgico',
+              className: 'w-24 h-24 md:w-44 md:h-44 object-cover rounded-xl shadow-md transform rotate-3 border-2 border-white',
+            },
+            {
+              src: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=500&auto=format&fit=crop&q=80',
+              alt: 'Accesorios Premium',
+              className: 'w-24 h-24 md:w-44 md:h-44 object-cover rounded-xl shadow-md transform -rotate-1 border-2 border-white hidden sm:block',
+            },
+          ],
         },
         {
-          src: 'https://images.unsplash.com/photo-1585366119957-e9730b6d0f60?w=500&auto=format&fit=crop&q=80',
-          alt: 'Juguetes',
-          className: 'w-24 h-24 md:w-44 md:h-44 object-cover rounded-xl shadow-md transform -rotate-2 border-2 border-white hidden sm:block',
+          id: 'banner-3',
+          badge: 'Precios de Fábrica',
+          badgeBg: 'bg-amber-600',
+          title: 'Ventas por Bulto y Surtido',
+          subtitleText: 'con hasta un',
+          subtitleHighlight: '40% OFF Mayorista',
+          description: 'Lotes de alta rotación en Bijouterie de acero, tecnología, juguetes y bazar importado',
+          ctaText: secondCat !== 'Todo' ? `Ver ${secondCat}` : 'Ver Novedades',
+          linkUrl: rawHeroBanners[2]?.linkUrl || secondCat,
+          bgGradient: 'from-amber-50/80 via-orange-50/50 to-slate-100',
+          customImage: rawHeroBanners[2]?.imageUrl || '',
+          showText: rawHeroBanners[2]?.showText !== false,
+          images: [
+            {
+              src: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=500&auto=format&fit=crop&q=80',
+              alt: 'Maquillaje y Perfumes',
+              className: 'w-28 h-28 md:w-48 md:h-48 object-cover rounded-xl shadow-lg transform rotate-2 border-2 border-white',
+            },
+            {
+              src: 'https://images.unsplash.com/photo-1559454403-b8fb88521f11?w=500&auto=format&fit=crop&q=80',
+              alt: 'Peluches',
+              className: 'w-24 h-24 md:w-44 md:h-44 object-cover rounded-xl shadow-md transform -rotate-3 border-2 border-white',
+            },
+            {
+              src: 'https://images.unsplash.com/photo-1524805444758-089113d48a6d?w=500&auto=format&fit=crop&q=80',
+              alt: 'Smartwatches',
+              className: 'w-24 h-24 md:w-44 md:h-44 object-cover rounded-xl shadow-md transform rotate-1 border-2 border-white hidden sm:block',
+            },
+          ],
         },
-        {
-          src: 'https://images.unsplash.com/photo-1541643600914-78b084683601?w=500&auto=format&fit=crop&q=80',
-          alt: 'Perfumes',
-          className: 'w-28 h-28 md:w-48 md:h-48 object-cover rounded-xl shadow-lg border-2 border-white hidden md:block',
-        },
-      ],
-    },
-    {
-      id: 'banner-2',
-      badge: 'Envíos Nacionales',
+      ];
+    }
+
+    // Mapeo dinámico de banners configurados
+    return rawHeroBanners.map((item, idx) => ({
+      id: item.id || `banner-user-${idx + 1}`,
+      badge: item.title ? item.title : `Banner #${idx + 1}`,
       badgeBg: 'bg-[#0058bb]',
-      title: 'Despacho Inmediato',
-      subtitleText: 'a todo el país por',
-      subtitleHighlight: 'Expresos y Correo',
-      description: 'Retirá sin costo por Av. San Pedrito 28 (Flores, CABA) de Lunes a Viernes de 11 a 17hs',
-      ctaText: firstCat !== 'Todo' ? `Ver ${firstCat}` : 'Ver Catálogo',
-      categoryTarget: firstCat,
-      bgGradient: 'from-blue-50 via-indigo-50/50 to-slate-100',
-      customImage: storeBanners.heroBanner2,
-      showText: storeBanners.heroBanner2ShowText !== false,
-      images: [
-        {
-          src: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=500&auto=format&fit=crop&q=80',
-          alt: 'Envíos y Paquetes',
-          className: 'w-28 h-28 md:w-48 md:h-48 object-cover rounded-xl shadow-lg transform -rotate-2 border-2 border-white',
-        },
-        {
-          src: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=500&auto=format&fit=crop&q=80',
-          alt: 'Acero Quirúrgico',
-          className: 'w-24 h-24 md:w-44 md:h-44 object-cover rounded-xl shadow-md transform rotate-3 border-2 border-white',
-        },
-        {
-          src: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=500&auto=format&fit=crop&q=80',
-          alt: 'Accesorios Premium',
-          className: 'w-24 h-24 md:w-44 md:h-44 object-cover rounded-xl shadow-md transform -rotate-1 border-2 border-white hidden sm:block',
-        },
-      ],
-    },
-    {
-      id: 'banner-3',
-      badge: 'Precios de Fábrica',
-      badgeBg: 'bg-amber-600',
-      title: 'Ventas por Bulto y Surtido',
-      subtitleText: 'con hasta un',
-      subtitleHighlight: '40% OFF Mayorista',
-      description: 'Lotes de alta rotación en Bijouterie de acero, tecnología, juguetes y bazar importado',
-      ctaText: secondCat !== 'Todo' ? `Ver ${secondCat}` : 'Ver Novedades',
-      categoryTarget: secondCat,
-      bgGradient: 'from-amber-50/80 via-orange-50/50 to-slate-100',
-      customImage: storeBanners.heroBanner3,
-      showText: storeBanners.heroBanner3ShowText !== false,
-      images: [
-        {
-          src: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=500&auto=format&fit=crop&q=80',
-          alt: 'Maquillaje y Perfumes',
-          className: 'w-28 h-28 md:w-48 md:h-48 object-cover rounded-xl shadow-lg transform rotate-2 border-2 border-white',
-        },
-        {
-          src: 'https://images.unsplash.com/photo-1559454403-b8fb88521f11?w=500&auto=format&fit=crop&q=80',
-          alt: 'Peluches',
-          className: 'w-24 h-24 md:w-44 md:h-44 object-cover rounded-xl shadow-md transform -rotate-3 border-2 border-white',
-        },
-        {
-          src: 'https://images.unsplash.com/photo-1524805444758-089113d48a6d?w=500&auto=format&fit=crop&q=80',
-          alt: 'Smartwatches',
-          className: 'w-24 h-24 md:w-44 md:h-44 object-cover rounded-xl shadow-md transform rotate-1 border-2 border-white hidden sm:block',
-        },
-      ],
-    },
-  ];
+      title: item.title || 'Oferta Exclusiva Mayorista',
+      subtitleText: 'encontrá los mejores productos',
+      subtitleHighlight: 'al por mayor',
+      description: 'Precios directos para revendedores y comerciantes de todo el país',
+      ctaText: 'Ver Productos',
+      linkUrl: item.linkUrl || 'Todo',
+      bgGradient: 'from-slate-100 via-gray-50 to-slate-200',
+      customImage: item.imageUrl,
+      showText: item.showText !== false,
+      images: [],
+    }));
+  }, [rawHeroBanners, hasCustomImages, firstCat, secondCat]);
 
-  // Extended banners for infinite seamless looping (clone of last at start, clone of first at end)
-  const extendedBanners = [
-    banners[banners.length - 1],
-    ...banners,
-    banners[0],
-  ];
+  // Si tiene 1 banner es estático; si tiene más de 1 es carrusel
+  const isCarousel = banners.length > 1;
 
-  // Auto-advance banner every 3 seconds (3000ms) in continuous loop
+  // Extended banners for infinite seamless looping (solo si es carrusel)
+  const extendedBanners = useMemo(() => {
+    if (banners.length <= 1) return banners;
+    return [
+      banners[banners.length - 1],
+      ...banners,
+      banners[0],
+    ];
+  }, [banners]);
+
+  // Redirección o navegación al hacer clic en un banner
+  const handleBannerClick = (banner: { linkUrl?: string }) => {
+    if (Math.abs(dragCurrentX.current - dragStartX.current) > 10) return;
+    if (!banner.linkUrl) {
+      onSelectCategory('Todo');
+      return;
+    }
+    const link = banner.linkUrl.trim();
+    if (!link) {
+      onSelectCategory('Todo');
+      return;
+    }
+    if (
+      link.startsWith('http://') ||
+      link.startsWith('https://') ||
+      link.startsWith('//') ||
+      link.startsWith('wa.me')
+    ) {
+      const targetUrl = link.startsWith('wa.me') ? `https://${link}` : link;
+      window.open(targetUrl, '_blank', 'noopener,noreferrer');
+    } else if (link.startsWith('#')) {
+      const el = document.querySelector(link);
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      onSelectCategory(link);
+    }
+  };
+
+  // Auto-advance banner every 3.5s si es carrusel
   useEffect(() => {
-    if (isPaused) return;
+    if (!isCarousel || isPaused) return;
 
     const interval = setInterval(() => {
       setIsTransitioning(true);
       setCurrentIndex((prev) => prev + 1);
-    }, 3000);
+    }, 3500);
 
     return () => clearInterval(interval);
-  }, [isPaused]);
+  }, [isCarousel, isPaused]);
 
   // Interactive Touch & Drag swipe handling for mobile
   const [dragOffset, setDragOffset] = useState<number>(0);
@@ -417,138 +481,149 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </section>
 
-      {/* 1. Hero Promo Carousel (Extremo a extremo sin bordes de tarjeta, sin sombras ni esquinas redondeadas) */}
+      {/* 1. Hero Promo Carousel o Banner Estático */}
       <section className="w-full max-w-[1240px] mx-auto">
-        <div
-          id="hero-banner-carousel"
-          ref={carouselRef}
-          className="relative w-full overflow-hidden border-0 shadow-none rounded-none aspect-[1920/910] sm:aspect-auto min-h-0 sm:min-h-[290px] md:min-h-[330px] flex items-center group select-none touch-pan-y cursor-grab active:cursor-grabbing"
-          onMouseEnter={() => setIsPaused(true)}
-          onMouseLeave={() => {
-            if (isPointerDown.current) handleMouseUp();
-            setIsPaused(false);
-          }}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-        >
-          {/* Horizontal Slider Track */}
+        {!isCarousel ? (
+          /* ================= BANNER ESTÁTICO (1 sola imagen) ================= */
           <div
-            className={`flex w-full h-full aspect-[1920/910] sm:aspect-auto min-h-0 sm:min-h-[290px] md:min-h-[330px] ${
-              isTransitioning && !isDragging ? 'transition-transform duration-500 ease-out' : ''
-            }`}
-            style={{
-              transform: isDragging
-                ? `translateX(calc(-${currentIndex * 100}% + ${dragOffset}px))`
-                : `translateX(-${currentIndex * 100}%)`,
-            }}
-            onTransitionEnd={handleTransitionEnd}
+            id="hero-banner-static"
+            onClick={() => handleBannerClick(banners[0])}
+            className={`relative w-full overflow-hidden border-0 shadow-none rounded-none aspect-[1920/910] sm:aspect-auto min-h-0 sm:min-h-[290px] md:min-h-[330px] flex items-center bg-gradient-to-r ${
+              banners[0].bgGradient
+            } select-none ${banners[0].linkUrl ? 'cursor-pointer' : ''}`}
+            title={banners[0].linkUrl ? `Ir a ${banners[0].linkUrl}` : undefined}
           >
-            {extendedBanners.map((banner, index) => {
-              return (
-                <div
-                  key={`${banner.id}-slide-${index}`}
-                  className={`w-full min-w-full h-full aspect-[1920/910] sm:aspect-auto min-h-0 sm:min-h-[290px] md:min-h-[330px] relative bg-gradient-to-r ${banner.bgGradient} flex items-center shrink-0 overflow-hidden select-none`}
-                >
-                  {/* Custom Hero Banner Image (if configured in Admin) */}
-                  {banner.customImage ? (
-                    <img
-                      src={banner.customImage}
-                      alt={banner.title}
-                      draggable={false}
-                      className="absolute inset-0 w-full h-full object-cover z-0 select-none pointer-events-none"
-                    />
-                  ) : null}
-
-                  {/* Left Copy Info - shown if showText is true */}
-                  {banner.showText !== false && (
-                    <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/85 sm:via-white/70 to-transparent z-10 px-4 py-5 sm:px-8 sm:py-6 md:px-12 md:py-8 flex flex-col justify-center max-w-xl md:max-w-2xl">
-                      <div
-                        className={`inline-block ${banner.badgeBg} text-white text-[11px] sm:text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-2 sm:mb-2.5 w-max shadow-xs`}
-                      >
-                        {banner.badge}
-                      </div>
-                      <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 leading-tight font-['Montserrat'] tracking-tight">
-                        {banner.title}
-                      </h1>
-                      <p className="text-base sm:text-lg md:text-xl font-bold text-gray-700 mt-1">
-                        {banner.subtitleText}{' '}
-                        <span className="text-[#0058bb]">{banner.subtitleHighlight}</span>
-                      </p>
-                      <p className="text-xs sm:text-sm text-gray-600 mt-1.5 sm:mt-2 font-medium max-w-md line-clamp-2 sm:line-clamp-none">
-                        {banner.description}
-                      </p>
-                      <div className="mt-3.5 sm:mt-5 flex items-center gap-3">
-                        <button
-                          onClick={() => onSelectCategory(banner.categoryTarget)}
-                          className="inline-flex items-center gap-2 bg-[#0058bb] hover:bg-[#004494] text-white text-xs sm:text-sm font-bold px-5 sm:px-6 py-2.5 rounded-lg shadow-xs hover:shadow-md transition-all cursor-pointer min-h-[42px]"
-                        >
-                          <span>{banner.ctaText}</span>
-                          <ArrowRight className="w-4 h-4" />
-                        </button>
-                        <span className="text-xs text-gray-400 font-medium uppercase tracking-wider hidden sm:inline-block">
-                          Cambio cada 3s
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* If text is hidden and customImage exists, entire slide is clickable */}
-                  {banner.showText === false && banner.customImage && (
-                    <div
-                      onClick={(e) => {
-                        if (Math.abs(dragCurrentX.current - dragStartX.current) > 10) {
-                          e.preventDefault();
-                          return;
-                        }
-                        onSelectCategory(banner.categoryTarget);
-                      }}
-                      className="absolute inset-0 z-10 cursor-pointer"
-                      title={banner.ctaText}
-                    />
-                  )}
-
-                  {/* Banner Visual Collage Images (only shown when no custom image is configured) */}
-                  {!banner.customImage && (
-                    <div className="absolute right-0 top-0 bottom-0 w-3/5 sm:w-2/3 md:w-3/5 flex items-center justify-end gap-2 md:gap-4 pr-3 sm:pr-8 md:pr-12 opacity-85 sm:opacity-90 pointer-events-none overflow-hidden">
-                      {banner.images.map((img, imgIdx) => (
-                        <img
-                          key={imgIdx}
-                          src={img.src}
-                          alt={img.alt}
-                          className={img.className}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {banners[0].customImage ? (
+              <img
+                src={banners[0].customImage}
+                alt={banners[0].title}
+                draggable={false}
+                className="absolute inset-0 w-full h-full object-cover z-0 select-none pointer-events-none"
+              />
+            ) : (
+              /* Banner Visual Collage Images (fallback si no hay imagen personalizada) */
+              <div className="absolute inset-0 w-full h-full flex items-center justify-center gap-3 sm:gap-6 p-4 opacity-95 pointer-events-none overflow-hidden">
+                {banners[0].images?.map((img, imgIdx) => (
+                  <img
+                    key={imgIdx}
+                    src={img.src}
+                    alt={img.alt}
+                    className={img.className}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-
-          {/* Previous Button (oculto en móvil) */}
-          <button
-            id="btn-banner-prev"
-            onClick={handlePrevBanner}
-            className="hidden sm:flex absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/80 hover:bg-white text-gray-800 shadow-sm items-center justify-center border border-gray-200/80 hover:scale-105 active:scale-95 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
-            aria-label="Banner anterior"
+        ) : (
+          /* ================= BANNER CARRUSEL (2 o más imágenes) ================= */
+          <div
+            id="hero-banner-carousel"
+            ref={carouselRef}
+            className="relative w-full overflow-hidden border-0 shadow-none rounded-none aspect-[1920/910] sm:aspect-auto min-h-0 sm:min-h-[290px] md:min-h-[330px] flex items-center group select-none touch-pan-y cursor-grab active:cursor-grabbing"
+            onMouseEnter={() => setIsPaused(true)}
+            onMouseLeave={() => {
+              if (isPointerDown.current) handleMouseUp();
+              setIsPaused(false);
+            }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
           >
-            <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
-          </button>
+            {/* Horizontal Slider Track */}
+            <div
+              className={`flex w-full h-full aspect-[1920/910] sm:aspect-auto min-h-0 sm:min-h-[290px] md:min-h-[330px] ${
+                isTransitioning && !isDragging ? 'transition-transform duration-500 ease-out' : ''
+              }`}
+              style={{
+                transform: isDragging
+                  ? `translateX(calc(-${currentIndex * 100}% + ${dragOffset}px))`
+                  : `translateX(-${currentIndex * 100}%)`,
+              }}
+              onTransitionEnd={handleTransitionEnd}
+            >
+              {extendedBanners.map((banner, index) => {
+                return (
+                  <div
+                    key={`${banner.id}-slide-${index}`}
+                    onClick={() => handleBannerClick(banner)}
+                    className={`w-full min-w-full h-full aspect-[1920/910] sm:aspect-auto min-h-0 sm:min-h-[290px] md:min-h-[330px] relative bg-gradient-to-r ${
+                      banner.bgGradient
+                    } flex items-center shrink-0 overflow-hidden select-none ${
+                      banner.linkUrl ? 'cursor-pointer' : ''
+                    }`}
+                  >
+                    {/* Custom Hero Banner Image */}
+                    {banner.customImage ? (
+                      <img
+                        src={banner.customImage}
+                        alt={banner.title}
+                        draggable={false}
+                        className="absolute inset-0 w-full h-full object-cover z-0 select-none pointer-events-none"
+                      />
+                    ) : (
+                      /* Banner Visual Collage Images (fallback si no hay imagen personalizada) */
+                      <div className="absolute inset-0 w-full h-full flex items-center justify-center gap-3 sm:gap-6 p-4 opacity-95 pointer-events-none overflow-hidden">
+                        {banner.images?.map((img, imgIdx) => (
+                          <img
+                            key={imgIdx}
+                            src={img.src}
+                            alt={img.alt}
+                            className={img.className}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
-          {/* Next Button (oculto en móvil) */}
-          <button
-            id="btn-banner-next"
-            onClick={handleNextBanner}
-            className="hidden sm:flex absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/80 hover:bg-white text-gray-800 shadow-sm items-center justify-center border border-gray-200/80 hover:scale-105 active:scale-95 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
-            aria-label="Siguiente banner"
-          >
-            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
-          </button>
-        </div>
+            {/* Previous Button (oculto en móvil) */}
+            <button
+              id="btn-banner-prev"
+              onClick={handlePrevBanner}
+              className="hidden sm:flex absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/80 hover:bg-white text-gray-800 shadow-sm items-center justify-center border border-gray-200/80 hover:scale-105 active:scale-95 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+              aria-label="Banner anterior"
+            >
+              <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
+            </button>
+
+            {/* Next Button (oculto en móvil) */}
+            <button
+              id="btn-banner-next"
+              onClick={handleNextBanner}
+              className="hidden sm:flex absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/80 hover:bg-white text-gray-800 shadow-sm items-center justify-center border border-gray-200/80 hover:scale-105 active:scale-95 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+              aria-label="Siguiente banner"
+            >
+              <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
+            </button>
+
+            {/* Bottom Dots Indicator (Oculto) */}
+            <div className="hidden absolute bottom-2 sm:bottom-3 inset-x-0 z-20 items-center justify-center gap-1.5 pointer-events-auto">
+              {banners.map((_, dotIdx) => {
+                const activeSlide = (currentIndex - 1 + banners.length) % banners.length;
+                const isActive = activeSlide === dotIdx;
+                return (
+                  <button
+                    key={dotIdx}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsTransitioning(true);
+                      setCurrentIndex(dotIdx + 1);
+                    }}
+                    className={`h-1.5 sm:h-2 rounded-full transition-all duration-300 cursor-pointer ${
+                      isActive ? 'w-6 sm:w-8 bg-[#0058bb]' : 'w-1.5 sm:w-2 bg-black/25 hover:bg-black/45'
+                    }`}
+                    aria-label={`Ir al banner ${dotIdx + 1}`}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Main Content Area */}
@@ -697,48 +772,39 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {/* 4. Middle Promotional Banners */}
       <section id="promo-banners-mid" className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
         <div
-          onClick={() => onSelectCategory('Todo')}
-          className="relative rounded-xl overflow-hidden shadow-xs sm:shadow-sm h-44 sm:h-48 md:h-56 bg-neutral-900 flex items-center justify-between p-4 sm:p-6 text-white group cursor-pointer"
+          onClick={() => {
+            if (storeBanners.secondaryBanner1Link) {
+              handleBannerClick({ linkUrl: storeBanners.secondaryBanner1Link });
+            } else {
+              onSelectCategory('Todo');
+            }
+          }}
+          className="relative rounded-xl overflow-hidden shadow-xs sm:shadow-sm h-44 sm:h-48 md:h-56 bg-neutral-100 group cursor-pointer"
+          title={storeBanners.secondaryBanner1Link ? `Ir a ${storeBanners.secondaryBanner1Link}` : undefined}
         >
           <img
             src={storeBanners.secondaryBanner1 || DEFAULT_STORE_BANNERS.secondaryBanner1}
-            alt="Accessories"
-            className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-500"
+            alt="Banner promocional"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
-          <div className="relative z-10 space-y-1.5 sm:space-y-2 max-w-xs">
-            <span className="text-xs font-bold uppercase tracking-wider text-yellow-400 bg-yellow-400/20 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded">
-              Accessories 欧美嘻哈饰品
-            </span>
-            <h3 className="text-lg sm:text-xl md:text-2xl font-black font-['Montserrat'] leading-tight">
-              Mercado Mayorista
-            </h3>
-            <p className="text-xs sm:text-sm text-gray-200">Explora nuestra colección exclusiva de cadenas y dijes.</p>
-            <button className="text-xs sm:text-sm font-bold text-yellow-300 flex items-center gap-1 group-hover:underline pt-0.5">
-              Ver Catálogo <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-          </div>
         </div>
 
         <div
-          onClick={() => onSelectCategory(secondCat || 'Todo')}
-          className="relative rounded-xl overflow-hidden shadow-xs sm:shadow-sm h-44 sm:h-48 md:h-56 bg-neutral-900 flex items-center justify-between p-4 sm:p-6 text-white group cursor-pointer"
+          onClick={() => {
+            if (storeBanners.secondaryBanner2Link) {
+              handleBannerClick({ linkUrl: storeBanners.secondaryBanner2Link });
+            } else {
+              onSelectCategory(secondCat || 'Todo');
+            }
+          }}
+          className="relative rounded-xl overflow-hidden shadow-xs sm:shadow-sm h-44 sm:h-48 md:h-56 bg-neutral-100 group cursor-pointer"
+          title={storeBanners.secondaryBanner2Link ? `Ir a ${storeBanners.secondaryBanner2Link}` : undefined}
         >
           <img
             src={storeBanners.secondaryBanner2 || DEFAULT_STORE_BANNERS.secondaryBanner2}
-            alt="Gothic Fantasy"
-            className="absolute inset-0 w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-500"
+            alt="Banner promocional"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
-          <div className="relative z-10 space-y-1.5 sm:space-y-2 max-w-xs">
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 bg-emerald-400/20 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded">
-              Mercado Mayorista
-            </span>
-            <h3 className="text-lg sm:text-xl md:text-2xl font-black font-['Montserrat'] leading-tight text-white">
-              THE KEY TO A <span className="text-red-400">WORLD</span> OF GOTHIC FANTASY
-            </h3>
-            <button className="text-xs sm:text-sm font-bold text-emerald-300 flex items-center gap-1 group-hover:underline pt-0.5">
-              Descubrir Novedades <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-          </div>
         </div>
       </section>
 
@@ -947,11 +1013,23 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <h3 className="text-base font-bold text-gray-900 font-['Montserrat']">
             Exhibición
           </h3>
-          <div className="h-[210px] rounded-xl overflow-hidden shadow-sm border border-gray-200">
+          <div
+            onClick={() => {
+              if (storeBanners.showroomImageLink) {
+                handleBannerClick({ linkUrl: storeBanners.showroomImageLink });
+              }
+            }}
+            className={`h-[210px] rounded-xl overflow-hidden shadow-sm border border-gray-200 ${
+              storeBanners.showroomImageLink ? 'cursor-pointer group' : ''
+            }`}
+            title={storeBanners.showroomImageLink ? `Ir a ${storeBanners.showroomImageLink}` : undefined}
+          >
             <img
               src={storeBanners.showroomImage || DEFAULT_STORE_BANNERS.showroomImage}
               alt="Anillos y piedras finas"
-              className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
+              className={`w-full h-full object-cover ${
+                storeBanners.showroomImageLink ? 'group-hover:scale-105 transition-transform duration-500' : 'hover:scale-105 transition-transform duration-500'
+              }`}
             />
           </div>
         </div>

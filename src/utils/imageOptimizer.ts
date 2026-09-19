@@ -10,7 +10,8 @@
 
 export interface ImageOptimizationOptions {
   isCover?: boolean;            // true para portada/banner principal, false para secundarias
-  maxDimension?: number;        // Lado mayor máximo (1200 - 1600 px)
+  isBanner?: boolean;           // true para banners panorámicos de alta definición (evita pixelación y conserva nitidez)
+  maxDimension?: number;        // Lado mayor máximo (1200 - 1600 px o 2560 px para banners)
   targetMinKB?: number;         // Tamaño objetivo mínimo en KB
   targetMaxKB?: number;         // Tamaño objetivo máximo en KB
   format?: 'webp' | 'jpeg' | 'auto';
@@ -135,11 +136,12 @@ export const optimizeProductImage = async (
     const mimeType = useFormat === 'webp' ? 'image/webp' : 'image/jpeg';
     const ext = useFormat === 'webp' ? 'webp' : 'jpg';
 
-    // 2. Parámetros de tamaño y resolución según si es principal o secundaria
-    // Lado mayor entre 1200 y 1600 px
-    const targetMaxDimension = options.maxDimension || (isCover ? 1600 : 1400);
-    const targetMinKB = options.targetMinKB || (isCover ? 200 : 150);
-    const targetMaxKB = options.targetMaxKB || (isCover ? 300 : 250);
+    // 2. Parámetros de tamaño y resolución según si es banner, principal o secundaria
+    const isBanner = options.isBanner ?? false;
+    // Lado mayor: 2560 px para banners de ultra-alta definición, 1600 px para cover, 1400 px para secundarias
+    const targetMaxDimension = options.maxDimension || (isBanner ? 2560 : isCover ? 1600 : 1400);
+    const targetMinKB = options.targetMinKB || (isBanner ? 500 : isCover ? 200 : 150);
+    const targetMaxKB = options.targetMaxKB || (isBanner ? 3200 : isCover ? 300 : 250);
 
     // 3. Cargar la imagen en memoria
     const { source, width: origWidth, height: origHeight, cleanup } = await loadImageSource(file);
@@ -149,7 +151,7 @@ export const optimizeProductImage = async (
       let currentMaxDim = targetMaxDimension;
       const longestEdge = Math.max(origWidth, origHeight);
 
-      // Si la imagen original es menor a 1200px, no agrandar (evitar pixelación)
+      // Si la imagen original es menor a la dimensión objetivo, no agrandar (evitar pixelación)
       let targetWidth = origWidth;
       let targetHeight = origHeight;
 
@@ -185,27 +187,28 @@ export const optimizeProductImage = async (
       ctx.drawImage(source, 0, 0, targetWidth, targetHeight);
 
       // 6. Proceso de compresión inteligente hacia el rango de KB deseado
-      // Calidad inicial alta: 0.86 para principal, 0.82 para secundarias
-      let quality = isCover ? 0.86 : 0.82;
+      // Calidad inicial alta: 0.94 para banner (sin pixelado), 0.86 para principal, 0.82 para secundarias
+      let quality = isBanner ? 0.94 : isCover ? 0.86 : 0.82;
       let blob = await canvasToBlob(canvas, mimeType, quality);
       let sizeKB = blob ? blob.size / 1024 : originalSizeKB;
 
-      // Si el tamaño supera el máximo objetivo (300KB principal, 250KB secundaria),
-      // ajustar calidad y/o dimensiones iterativamente (máximo 4 pasos rápidos)
+      // Si el tamaño supera el máximo objetivo, ajustar calidad iterativamente
+      // Para banners, no degradar por debajo de 0.80 ni reducir dimensiones para no pixelar
       let iterations = 0;
+      const minQualityThreshold = isBanner ? 0.80 : 0.45;
       while (blob && sizeKB > targetMaxKB && iterations < 4) {
         iterations++;
         if (sizeKB > targetMaxKB * 1.5) {
-          quality -= 0.12;
+          quality -= isBanner ? 0.05 : 0.12;
         } else if (sizeKB > targetMaxKB * 1.2) {
-          quality -= 0.07;
+          quality -= isBanner ? 0.03 : 0.07;
         } else {
-          quality -= 0.04;
+          quality -= isBanner ? 0.02 : 0.04;
         }
 
-        // Si la calidad bajó de 0.55 y aún excede el límite (foto con ruido/textura muy compleja),
+        // Si la calidad bajó de 0.55 y aún excede el límite (no aplicable a banners),
         // reducir ligeramente las dimensiones pero manteniéndola siempre entre 1200 y 1600px
-        if (quality < 0.55 && currentMaxDim > 1200) {
+        if (!isBanner && quality < 0.55 && currentMaxDim > 1200) {
           currentMaxDim = Math.max(1200, Math.round(currentMaxDim * 0.88));
           if (origWidth >= origHeight) {
             targetWidth = currentMaxDim;
@@ -226,7 +229,7 @@ export const optimizeProductImage = async (
           quality = isCover ? 0.76 : 0.72; // Reiniciar calidad razonable con menor resolución
         }
 
-        blob = await canvasToBlob(canvas, mimeType, Math.max(0.45, quality));
+        blob = await canvasToBlob(canvas, mimeType, Math.max(minQualityThreshold, quality));
         sizeKB = blob ? blob.size / 1024 : sizeKB;
       }
 

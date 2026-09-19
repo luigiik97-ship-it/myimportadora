@@ -218,18 +218,33 @@ export const HomeReelsCarousel: React.FC<HomeReelsCarouselProps> = ({
               </div>
 
               {/* Bottom Vignette with Title and Product Tag */}
-              <div className="absolute bottom-0 inset-x-0 h-24 bg-gradient-to-t from-black/85 via-black/40 to-transparent z-10 p-2.5 flex flex-col justify-end">
-                {vid.title && (
-                  <p className="text-white text-xs sm:text-[13px] font-bold line-clamp-2 leading-tight drop-shadow-sm font-['Montserrat']">
-                    {vid.title}
-                  </p>
-                )}
-                {vid.productId && vid.productPrice !== undefined && (
-                  <p className="text-emerald-400 text-[11px] sm:text-xs font-black mt-0.5">
-                    ${vid.productPrice.toLocaleString('es-AR')}
-                  </p>
-                )}
-              </div>
+              {(() => {
+                const isGenericReelTitle = Boolean(
+                  vid.title &&
+                  (vid.title.trim().toLowerCase() === 'video reels' ||
+                   vid.title.trim().toLowerCase() === 'video reel' ||
+                   vid.title.trim().toLowerCase().includes('video reels'))
+                );
+                const showTitle = Boolean(vid.title && !isGenericReelTitle);
+                const showPrice = Boolean(vid.productId && vid.productPrice !== undefined);
+
+                if (!showTitle && !showPrice) return null;
+
+                return (
+                  <div className="absolute bottom-0 inset-x-0 h-24 bg-gradient-to-t from-black/85 via-black/40 to-transparent z-10 p-2.5 flex flex-col justify-end pointer-events-none">
+                    {showTitle && (
+                      <p className="text-white text-xs sm:text-[13px] font-bold line-clamp-2 leading-tight drop-shadow-sm font-['Montserrat']">
+                        {vid.title}
+                      </p>
+                    )}
+                    {showPrice && (
+                      <p className="text-emerald-400 text-[11px] sm:text-xs font-black mt-0.5">
+                        ${vid.productPrice!.toLocaleString('es-AR')}
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Subtle play pulse overlay when card is hovered */}
               <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/card:opacity-100 transition-opacity z-10 flex items-center justify-center pointer-events-none">

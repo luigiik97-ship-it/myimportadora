@@ -2327,8 +2327,8 @@ export const uploadBannerImage = async (file: File): Promise<string> => {
     return cachedUrl;
   }
 
-  // Optimizar automáticamente imagen de banner (1920px máximo, WebP con alta calidad)
-  const optimization = await optimizeProductImage(file, { isCover: true, maxDimension: 1920 });
+  // Optimizar automáticamente imagen de banner con alta fidelidad (2560px máximo, sin pixelación, WebP con alta calidad)
+  const optimization = await optimizeProductImage(file, { isBanner: true, isCover: true, maxDimension: 2560 });
   const fileToUpload = optimization.file;
 
   if (isSupabaseConfigured() && supabaseInstance) {

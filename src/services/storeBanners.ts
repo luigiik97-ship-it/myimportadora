@@ -5,21 +5,38 @@ import { getSupabase, isSupabaseConfigured, uploadBannerImage } from './supabase
  * Sincronizado automáticamente mediante Supabase Storage y base de datos relacional
  */
 
+export interface StoreBannerItem {
+  id: string;
+  imageUrl: string;
+  linkUrl?: string; // Enlace / categoría / URL destino al hacer clic
+  title?: string;
+  showText?: boolean;
+}
+
 export interface StoreBannersConfig {
-  // 1. Carrusel Principal (3 Banners / Slides)
+  // 1. Lista Dinámica de Banners Principales (1 = estático, 2 o más = carrusel animado)
+  heroBanners?: StoreBannerItem[];
+
+  // Campos legacy para compatibilidad
   heroBanner1: string; // URL Banner 1 (Recomendado: 1920 x 700 px)
   heroBanner2: string; // URL Banner 2 (Recomendado: 1920 x 700 px)
   heroBanner3: string; // URL Banner 3 (Recomendado: 1920 x 700 px)
   heroBanner1ShowText?: boolean;
   heroBanner2ShowText?: boolean;
   heroBanner3ShowText?: boolean;
+  heroBanner1Link?: string;
+  heroBanner2Link?: string;
+  heroBanner3Link?: string;
 
   // 2. Banners Secundarios Intermedios (2 Banners)
   secondaryBanner1: string; // URL Banner Izquierdo (Recomendado: 800 x 400 px)
   secondaryBanner2: string; // URL Banner Derecho (Recomendado: 800 x 400 px)
+  secondaryBanner1Link?: string;
+  secondaryBanner2Link?: string;
 
   // 3. Imagen de Exhibición Inferior (Showroom)
   showroomImage: string; // URL Imagen Exhibición (Recomendado: 800 x 500 px)
+  showroomImageLink?: string;
 
   lastUpdated: string;
 }
@@ -28,16 +45,90 @@ export const STORAGE_KEY_BANNERS = 'my_commerce_store_banners_config';
 export const SYSTEM_STORE_BANNERS_ROW_ID = '__system_store_banners_v1__';
 
 export const DEFAULT_STORE_BANNERS: StoreBannersConfig = {
+  heroBanners: [
+    {
+      id: 'banner-default-1',
+      imageUrl: '',
+      linkUrl: 'Todo',
+      showText: true,
+      title: 'Precios en efectivo',
+    },
+    {
+      id: 'banner-default-2',
+      imageUrl: '',
+      linkUrl: 'Todo',
+      showText: true,
+      title: 'Despacho Inmediato',
+    },
+    {
+      id: 'banner-default-3',
+      imageUrl: '',
+      linkUrl: 'Todo',
+      showText: true,
+      title: 'Ventas por Bulto y Surtido',
+    },
+  ],
   heroBanner1: '', // Vacío: utiliza la composición/collage por defecto
   heroBanner2: '',
   heroBanner3: '',
   heroBanner1ShowText: true,
   heroBanner2ShowText: true,
   heroBanner3ShowText: true,
+  heroBanner1Link: '',
+  heroBanner2Link: '',
+  heroBanner3Link: '',
   secondaryBanner1: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800&auto=format&fit=crop&q=80',
   secondaryBanner2: 'https://images.unsplash.com/photo-1611591475152-47eac9806830?w=800&auto=format&fit=crop&q=80',
+  secondaryBanner1Link: '',
+  secondaryBanner2Link: '',
   showroomImage: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=600&auto=format&fit=crop&q=80',
+  showroomImageLink: '',
   lastUpdated: '2026-01-01T00:00:00.000Z',
+};
+
+/**
+ * Normaliza la lista de banners principales asegurando compatibilidad total
+ */
+export const getNormalizedHeroBanners = (config: StoreBannersConfig): StoreBannerItem[] => {
+  if (Array.isArray(config.heroBanners) && config.heroBanners.length > 0) {
+    return config.heroBanners;
+  }
+
+  // Reconstruir desde los campos clásicos si existen
+  const list: StoreBannerItem[] = [];
+  if (config.heroBanner1) {
+    list.push({
+      id: 'banner-1',
+      imageUrl: config.heroBanner1,
+      linkUrl: config.heroBanner1Link || '',
+      showText: config.heroBanner1ShowText !== false,
+      title: 'Precios en efectivo',
+    });
+  }
+  if (config.heroBanner2) {
+    list.push({
+      id: 'banner-2',
+      imageUrl: config.heroBanner2,
+      linkUrl: config.heroBanner2Link || '',
+      showText: config.heroBanner2ShowText !== false,
+      title: 'Despacho Inmediato',
+    });
+  }
+  if (config.heroBanner3) {
+    list.push({
+      id: 'banner-3',
+      imageUrl: config.heroBanner3,
+      linkUrl: config.heroBanner3Link || '',
+      showText: config.heroBanner3ShowText !== false,
+      title: 'Ventas por Bulto y Surtido',
+    });
+  }
+
+  if (list.length > 0) {
+    return list;
+  }
+
+  return DEFAULT_STORE_BANNERS.heroBanners || [];
 };
 
 /**

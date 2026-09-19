@@ -73,7 +73,7 @@ export const VideoManager: React.FC<VideoManagerProps> = ({ products }) => {
     const newVideoItem: StoreVideo = {
       id: `vid-${Date.now()}`,
       videoUrl: trimmedUrl,
-      title: newTitle.trim() || (selectedProd ? selectedProd.title : 'Video Reels'),
+      title: newTitle.trim() || (selectedProd ? selectedProd.title : ''),
       productId: selectedProd ? selectedProd.id : undefined,
       productTitle: selectedProd ? selectedProd.title : undefined,
       productPrice: selectedProd ? selectedProd.wholesalePrice : undefined,
