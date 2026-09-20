@@ -1,13 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Order } from '../types';
-import { CheckCircle2, Copy, Check, MessageSquare, ShoppingBag, Truck, Store, CreditCard, Mail, Eye, Download, Image as ImageIcon } from 'lucide-react';
-import {
-  GeneratedReceipt,
-  generateOrderReceiptImage,
-  shareReceiptImageViaWhatsApp,
-  downloadReceiptImage,
-} from '../services/orderReceiptImage';
-import { OrderReceiptModal } from './OrderReceiptModal';
+import { CheckCircle2, Copy, Check, MessageSquare, ShoppingBag, Truck, Store, CreditCard, Mail, Image as ImageIcon, Download, Share2 } from 'lucide-react';
+import { getDirectWhatsAppChatUrl, triggerWhatsAppOpen } from '../services/quickBuyLink';
+import { OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
+import { PostPurchaseModal } from './common/PostPurchaseModal';
 
 interface OrderConfirmationViewProps {
   order: Order;
@@ -20,28 +16,9 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
 }) => {
   const [copiedAlias, setCopiedAlias] = useState(false);
   const [copiedCvu, setCopiedCvu] = useState(false);
-  const [receipt, setReceipt] = useState<GeneratedReceipt | null>(null);
-  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
-  const [isSharing, setIsSharing] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(true);
 
   const safeItems = Array.isArray(order?.items) ? order.items : [];
-
-  useEffect(() => {
-    let isMounted = true;
-    (async () => {
-      try {
-        const generated = await generateOrderReceiptImage(order, { mode: 'normal' });
-        if (isMounted) {
-          setReceipt(generated);
-        }
-      } catch (err) {
-        console.warn('Error preparando imagen de comprobante:', err);
-      }
-    })();
-    return () => {
-      isMounted = false;
-    };
-  }, [order]);
 
   const handleCopyAlias = () => {
     navigator.clipboard.writeText('hola.retiro');
@@ -55,27 +32,8 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
     setTimeout(() => setCopiedCvu(false), 2000);
   };
 
-  // Compartir imagen del pedido por WhatsApp (sin mensaje de texto largo detallado)
-  const handleShareWhatsAppReceipt = async () => {
-    setIsSharing(true);
-    try {
-      let activeReceipt = receipt;
-      if (!activeReceipt) {
-        activeReceipt = await generateOrderReceiptImage(order, { mode: 'normal' });
-        setReceipt(activeReceipt);
-      }
-
-      await shareReceiptImageViaWhatsApp({
-        receipt: activeReceipt,
-        customWaDestination: undefined,
-        isQuickBuy: false,
-      });
-    } catch (e) {
-      console.warn('Error compartiendo comprobante por WhatsApp:', e);
-      setIsReceiptModalOpen(true);
-    } finally {
-      setIsSharing(false);
-    }
+  const handleContactWhatsApp = () => {
+    triggerWhatsAppOpen(getDirectWhatsAppChatUrl());
   };
 
   return (
@@ -263,37 +221,37 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
             </div>
           </div>
 
-          {/* Action buttons - Prominent on mobile */}
+          {/* Action buttons con los 3 botones solicitados */}
           <div className="space-y-2.5 pt-2">
+            {/* BOTÓN 1: Contactar por WhatsApp (sin mensajes pre-escritos) */}
             <button
-              id="whatsapp-receipt-btn"
+              id="whatsapp-direct-btn"
               type="button"
-              onClick={handleShareWhatsAppReceipt}
-              disabled={isSharing}
-              className="w-full bg-[#00a650] hover:bg-[#009246] text-white font-black py-4 px-4 rounded-xl text-base uppercase tracking-wide transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer text-center min-h-[50px] active:scale-[0.99] disabled:opacity-75"
+              onClick={handleContactWhatsApp}
+              className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3.5 px-4 rounded-xl text-sm uppercase tracking-wide transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer text-center min-h-[46px]"
             >
-              <MessageSquare className="w-5 h-5 fill-white" />
-              <span>{isSharing ? 'COMPARTIENDO...' : 'COORDINAR COMPRA POR WHATSAPP'}</span>
+              <OfficialWhatsAppIcon className="w-5 h-5 text-white shrink-0" />
+              <span>Contactar por WhatsApp</span>
             </button>
 
-            {receipt && (
-              <button
-                type="button"
-                id="view-receipt-image-btn"
-                onClick={() => setIsReceiptModalOpen(true)}
-                className="w-full bg-blue-50 hover:bg-blue-100 text-[#0058bb] font-bold py-2.5 px-3 rounded-xl border border-blue-200 text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <Eye className="w-4 h-4" />
-                <span>Ver / Descargar Comprobante en Imagen</span>
-              </button>
-            )}
+            {/* BOTÓN 2 y 3: Abrir ventanita con imagen del resumen para Descargar y Compartir */}
+            <button
+              id="open-receipt-modal-btn"
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-4 rounded-xl text-sm uppercase tracking-wide transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer min-h-[46px]"
+            >
+              <Share2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>Descargar / Compartir Imagen del Resumen</span>
+            </button>
 
             <button
               id="continue-shopping-btn"
+              type="button"
               onClick={onContinueShopping}
-              className="w-full bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold py-3 px-4 rounded-xl text-sm sm:text-base uppercase tracking-wide transition-colors shadow-sm cursor-pointer min-h-[44px]"
+              className="w-full bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold py-3 px-4 rounded-xl text-sm uppercase tracking-wide transition-colors shadow-sm cursor-pointer min-h-[44px]"
             >
-              SEGUIR COMPRANDO
+              Seguir comprando
             </button>
           </div>
         </div>
@@ -348,12 +306,12 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
         </div>
       </div>
 
-      {/* Modal de visualización y descarga del comprobante en imagen */}
-      <OrderReceiptModal
-        isOpen={isReceiptModalOpen}
-        onClose={() => setIsReceiptModalOpen(false)}
-        receipt={receipt}
-        isQuickBuy={false}
+      {/* Ventanita Post-Compra interactiva */}
+      <PostPurchaseModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        order={order}
+        onContinueShopping={onContinueShopping}
       />
     </div>
   );

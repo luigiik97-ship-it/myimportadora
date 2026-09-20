@@ -267,6 +267,78 @@ export const buildUniversalWhatsAppUrl = (
   return `https://api.whatsapp.com/send?phone=${phone}&text=${encodedText}`;
 };
 
+/**
+ * URL directa para abrir el chat de WhatsApp con el número oficial (1166904678)
+ * sin ningún mensaje prellenado o escrito.
+ */
+export const getDirectWhatsAppChatUrl = (customWaDestination?: string): string => {
+  const phone = resolveWhatsAppPhone(customWaDestination || DEFAULT_WHATSAPP_PHONE);
+  return `https://api.whatsapp.com/send?phone=${phone}`;
+};
+
+/**
+ * Disparador universal para abrir WhatsApp de forma inmediata y sin bloqueos
+ * tanto en celulares (Android, iOS) como en WhatsApp Web / Desktop.
+ */
+export const triggerWhatsAppOpen = (url: string) => {
+  try {
+    const isMobile =
+      typeof navigator !== 'undefined' &&
+      /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    if (isMobile) {
+      window.location.href = url;
+    } else {
+      const win = window.open(url, '_blank', 'noopener,noreferrer');
+      if (!win || win.closed || typeof win.closed === 'undefined') {
+        window.location.href = url;
+      }
+    }
+  } catch (e) {
+    window.location.href = url;
+  }
+};
+
+/**
+ * Construye el mensaje corto automático para WhatsApp:
+ * - Empieza con número de pedido
+ * - Cantidad total de unidades
+ * - Precio total
+ * - Forma de pago (si es por transferencia envía también el Alias: hola.retiro Nombre: Silvia Lembo)
+ * - Envío o retiro
+ * - Termina con "Hola buenas, te paso mi nuevo pedido. Gracias"
+ * - Sin listado de productos ni descripciones.
+ */
+export const buildShortOrderWhatsAppMessage = (params: {
+  orderNumber: string;
+  totalUnits: number;
+  total: number;
+  paymentMethod?: 'transfer' | 'cash';
+  deliveryOption?: 'pickup' | 'delivery' | null;
+  shippingMethodName?: string;
+}): string => {
+  const { orderNumber, totalUnits, total, paymentMethod, deliveryOption, shippingMethodName } = params;
+
+  const paymentText =
+    paymentMethod === 'transfer'
+      ? 'Transferencia (Alias: hola.retiro Nombre: Silvia Lembo)'
+      : 'Efectivo';
+
+  const deliveryText =
+    deliveryOption === 'pickup'
+      ? 'Retiro'
+      : deliveryOption === 'delivery'
+      ? (shippingMethodName ? `Envío (${shippingMethodName})` : 'Envío')
+      : 'A coordinar';
+
+  return `Pedido #${orderNumber}
+Cantidad total de unidades: ${totalUnits}
+Precio total: $${Math.round(total).toLocaleString('es-AR')}
+Forma de pago: ${paymentText}
+Envío o retiro: ${deliveryText}
+
+Hola buenas, te paso mi nuevo pedido. Gracias`;
+};
+
 export const buildQuickBuyWhatsAppUrl = (
   message: string,
   customWaDestination?: string

@@ -26,10 +26,6 @@ import {
   MapPin,
   Clock,
   ChevronDown,
-  Download,
-  Eye,
-  Copy,
-  Check,
 } from 'lucide-react';
 import { getShippingZoneInfo, ShippingOption } from '../utils/shipping';
 import {
@@ -46,18 +42,15 @@ import {
   getQuickBuyLinkConfig,
   recordQuickBuyOrderPlaced,
   buildQuickBuyWhatsAppMessage,
-  buildQuickBuyWhatsAppUrl
+  buildQuickBuyWhatsAppUrl,
+  buildShortOrderWhatsAppMessage,
+  buildUniversalWhatsAppUrl,
+  triggerWhatsAppOpen
 } from '../services/quickBuyLink';
-import {
-  GeneratedReceipt,
-  generateOrderReceiptImage,
-  shareReceiptImageViaWhatsApp,
-  downloadReceiptImage,
-} from '../services/orderReceiptImage';
-import { OrderReceiptModal } from './OrderReceiptModal';
 import { getNextCorrelativeOrderNumber, saveOrder, generateUniqueOrderId } from '../services/supabase';
 import { getLocalAuthUser, getLocalProfiles } from '../services/auth';
 import { OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
+import { PostPurchaseModal } from './common/PostPurchaseModal';
 
 export interface QuickBuyItem {
   itemId: string;
@@ -132,15 +125,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
   });
   const [isSubmittingWhatsAppOrder, setIsSubmittingWhatsAppOrder] = useState(false);
   const [orderSaveError, setOrderSaveError] = useState<string | null>(null);
-  const [whatsAppSuccessModal, setWhatsAppSuccessModal] = useState<{
-    orderNumber: string;
-    waUrl: string;
-    itemsCount: number;
-    total: number;
-    receipt?: GeneratedReceipt | null;
-  } | null>(null);
-  const [isSharingModalReceipt, setIsSharingModalReceipt] = useState(false);
-  const [copiedModalReceipt, setCopiedModalReceipt] = useState(false);
+  const [whatsAppSuccessModal, setWhatsAppSuccessModal] = useState<any | null>(null);
 
   // Mantener actualizado el modo de enlace personalizado si cambia la URL o la configuración
   useEffect(() => {
@@ -657,43 +642,39 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
       // 6. Registrar métrica de uso del enlace
       recordQuickBuyOrderPlaced();
 
-      // 7. Generar imagen compacta de comprobante para Compra Rápida con fotos reales de variantes, productos, cantidades, CP, método y costo de envío, pago y número de pedido
-      const config = getQuickBuyLinkConfig();
+      // 7. Construir mensaje muy corto para WhatsApp (1166904678):
+      // Inicia con número de pedido, cantidad total de unidades, Precio total, forma de pago (con Alias y Nombre si es transferencia) y entrega, terminando con "Hola buenas, te paso mi nuevo pedido. Gracias". Sin listado de productos ni descripciones.
       const confirmedOrderNumber = savedOrder.orderNumber || orderNumber;
+      const orderItemsForUnits = (savedOrder.items && savedOrder.items.length > 0)
+        ? savedOrder.items
+        : processedItems;
+      const totalUnits = orderItemsForUnits.reduce(
+        (acc: number, item: any) => acc + (item.quantity || 1),
+        0
+      );
 
-      let generatedReceipt: GeneratedReceipt | null = null;
-      try {
-        generatedReceipt = await generateOrderReceiptImage(savedOrder, { mode: 'quick_buy' });
-      } catch (genErr) {
-        console.warn('Error generando imagen compacta de comprobante:', genErr);
-      }
+      const shortMessage = buildShortOrderWhatsAppMessage({
+        orderNumber: confirmedOrderNumber,
+        totalUnits,
+        total: finalOrderTotal,
+        paymentMethod,
+        deliveryOption,
+        shippingMethodName: selectedShippingOption?.name,
+      });
 
-      // 8. Compartir la imagen por WhatsApp en lugar del texto largo detallado
-      if (generatedReceipt) {
-        try {
-          await shareReceiptImageViaWhatsApp({
-            receipt: generatedReceipt,
-            customWaDestination: config.whatsappUrl,
-            isQuickBuy: true,
-          });
-        } catch (shareErr) {
-          console.warn('Error compartiendo comprobante por WhatsApp:', shareErr);
-        }
-      }
+      // 8. Construir URL oficial de WhatsApp universal al 1166904678
+      const finalWaUrl = buildUniversalWhatsAppUrl(shortMessage, '1166904678');
 
-      // 9. Limpiar carrito
+      // 9. Abrir WhatsApp de forma automática al presionar "Comprar WhatsApp"
+      triggerWhatsAppOpen(finalWaUrl);
+
+      // 10. Limpiar carrito
       if (onClearCart) {
         onClearCart();
       }
 
-      // 10. Mostrar confirmación visual interactiva con el comprobante en imagen
-      setWhatsAppSuccessModal({
-        orderNumber: confirmedOrderNumber,
-        waUrl: config.whatsappUrl || '',
-        itemsCount: totalCartCount,
-        total: finalOrderTotal,
-        receipt: generatedReceipt,
-      });
+      // 11. Mostrar ventanita post-compra con los 3 botones solicitados
+      setWhatsAppSuccessModal(savedOrder);
     } catch (err) {
       console.error('Error procesando pedido de compra rápida WhatsApp:', err);
       setOrderSaveError('No se pudo registrar el pedido. Por favor verifica tu conexión e intenta nuevamente.');
@@ -1598,120 +1579,14 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         </div>
       )}
 
-      {/* Modal de Pedido Registrado por WhatsApp con Comprobante en Imagen */}
+      {/* Modal de Pedido Registrado por WhatsApp con los 3 botones solicitados */}
       {whatsAppSuccessModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-6 text-center shadow-2xl space-y-3 sm:space-y-4 animate-scale-up border border-emerald-100 my-auto max-h-[95vh] flex flex-col">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-emerald-50 text-[#25D366] flex items-center justify-center mx-auto border border-emerald-100 shadow-xs shrink-0">
-              <OfficialWhatsAppIcon className="w-8 h-8 sm:w-9 sm:h-9" />
-            </div>
-
-            <div>
-              <span className="inline-block px-3 py-0.5 bg-emerald-100 text-emerald-800 text-[11px] font-bold rounded-full uppercase tracking-wider mb-1.5">
-                ¡Pedido Registrado con Éxito!
-              </span>
-              <h3 className="text-xl sm:text-2xl font-black text-gray-900 font-['Montserrat']">
-                Pedido #{whatsAppSuccessModal.orderNumber}
-              </h3>
-              <p className="text-xs text-gray-600 mt-1">
-                Se generó el comprobante con las fotos reales de tus variantes seleccionadas para coordinar por WhatsApp.
-              </p>
-            </div>
-
-            {/* Preview de la imagen de comprobante generado */}
-            {whatsAppSuccessModal.receipt && (
-              <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-50 shadow-inner max-h-52 sm:max-h-60 overflow-y-auto relative group shrink-0">
-                <img
-                  src={whatsAppSuccessModal.receipt.dataUrl}
-                  alt={`Comprobante de Pedido #${whatsAppSuccessModal.orderNumber}`}
-                  className="w-full h-auto object-contain mx-auto"
-                />
-              </div>
-            )}
-
-            <div className="bg-gray-50 rounded-xl p-2.5 sm:p-3 text-xs text-gray-700 flex justify-between items-center font-medium border border-gray-200/80 shrink-0">
-              <span>{whatsAppSuccessModal.itemsCount} productos seleccionados</span>
-              <span className="font-bold text-sm text-gray-900 font-mono">
-                $ {whatsAppSuccessModal.total.toLocaleString('es-AR')}
-              </span>
-            </div>
-
-            <div className="space-y-2 pt-1 shrink-0">
-              {whatsAppSuccessModal.receipt && (
-                <button
-                  type="button"
-                  id="share-receipt-wa-btn"
-                  onClick={async () => {
-                    if (!whatsAppSuccessModal.receipt) return;
-                    setIsSharingModalReceipt(true);
-                    try {
-                      await shareReceiptImageViaWhatsApp({
-                        receipt: whatsAppSuccessModal.receipt,
-                        customWaDestination: whatsAppSuccessModal.waUrl,
-                        isQuickBuy: true,
-                      });
-                    } finally {
-                      setIsSharingModalReceipt(false);
-                    }
-                  }}
-                  disabled={isSharingModalReceipt}
-                  className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-xs sm:text-sm py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer"
-                >
-                  <OfficialWhatsAppIcon className="w-5 h-5 text-white" />
-                  <span>{isSharingModalReceipt ? 'Compartiendo...' : 'Compartir Imagen por WhatsApp'}</span>
-                </button>
-              )}
-
-              <div className="grid grid-cols-2 gap-2">
-                {whatsAppSuccessModal.receipt && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (whatsAppSuccessModal.receipt) {
-                        downloadReceiptImage(whatsAppSuccessModal.receipt);
-                      }
-                    }}
-                    className="w-full bg-blue-50 hover:bg-blue-100 text-[#0058bb] border border-blue-200 font-bold text-xs py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>Descargar</span>
-                  </button>
-                )}
-
-                {whatsAppSuccessModal.receipt && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!whatsAppSuccessModal.receipt) return;
-                      try {
-                        const res = await fetch(whatsAppSuccessModal.receipt.dataUrl);
-                        const blob = await res.blob();
-                        const item = new ClipboardItem({ 'image/png': blob });
-                        await navigator.clipboard.write([item]);
-                        setCopiedModalReceipt(true);
-                        setTimeout(() => setCopiedModalReceipt(false), 2000);
-                      } catch (e) {
-                        console.warn('Clipboard copy error:', e);
-                      }
-                    }}
-                    className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 border border-gray-200 font-bold text-xs py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    {copiedModalReceipt ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
-                    <span>{copiedModalReceipt ? 'Copiada' : 'Copiar'}</span>
-                  </button>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setWhatsAppSuccessModal(null)}
-                className="w-full py-2 text-xs text-gray-500 hover:text-gray-800 font-bold transition-colors cursor-pointer"
-              >
-                Cerrar y seguir explorando
-              </button>
-            </div>
-          </div>
-        </div>
+        <PostPurchaseModal
+          isOpen={!!whatsAppSuccessModal}
+          onClose={() => setWhatsAppSuccessModal(null)}
+          order={whatsAppSuccessModal}
+          onContinueShopping={() => setWhatsAppSuccessModal(null)}
+        />
       )}
     </div>
   );
