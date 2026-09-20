@@ -674,7 +674,19 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
       }
 
       // 11. Mostrar ventanita post-compra con los 3 botones solicitados
-      setWhatsAppSuccessModal(savedOrder);
+      setWhatsAppSuccessModal({
+        ...savedOrder,
+        orderNumber: confirmedOrderNumber,
+        items: (savedOrder.items && savedOrder.items.length > 0) ? savedOrder.items : processedItems,
+        total: finalOrderTotal,
+        paymentMethod,
+        deliveryOption,
+        shippingMethodName: selectedShippingOption?.name,
+        shippingCost,
+        customerName: customerName,
+        customerWhatsapp: customerWhatsapp,
+        totalUnits,
+      });
     } catch (err) {
       console.error('Error procesando pedido de compra rápida WhatsApp:', err);
       setOrderSaveError('No se pudo registrar el pedido. Por favor verifica tu conexión e intenta nuevamente.');
