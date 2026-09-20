@@ -5,6 +5,7 @@ import confetti from 'canvas-confetti';
 import { getShippingZoneInfo, ShippingOption } from '../utils/shipping';
 import { getItemEffectiveCashPrice, getItemEffectiveNormalPrice } from '../utils/variantHelpers';
 import { AuthModal } from './AuthModal';
+import { generateOrderReceiptImage, shareReceiptImageViaWhatsApp } from '../services/orderReceiptImage';
 
 interface CheckoutViewProps {
   cartItems: CartItem[];
@@ -387,6 +388,23 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
         });
       } catch (e) {
         // Safe fallback
+      }
+
+      // Generar imagen con fotos reales de las variantes compradas y compartir por WhatsApp
+      try {
+        const receipt = await generateOrderReceiptImage(savedOrder, { mode: 'normal' });
+        try {
+          sessionStorage.setItem('my_commerce_last_receipt_data', receipt.dataUrl);
+          sessionStorage.setItem('my_commerce_last_receipt_number', receipt.orderNumber);
+        } catch (e) {}
+
+        await shareReceiptImageViaWhatsApp({
+          receipt,
+          customWaDestination: undefined,
+          isQuickBuy: false,
+        });
+      } catch (receiptErr) {
+        console.warn('Error generando o compartiendo imagen del pedido por WhatsApp:', receiptErr);
       }
 
       onOrderCompleted(savedOrder);

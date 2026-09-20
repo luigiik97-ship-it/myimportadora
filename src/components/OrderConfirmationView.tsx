@@ -1,7 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Order } from '../types';
-import { CheckCircle2, Copy, Check, MessageSquare, ShoppingBag, Truck, Store, CreditCard, Mail } from 'lucide-react';
-import { buildUniversalWhatsAppUrl } from '../services/quickBuyLink';
+import { CheckCircle2, Copy, Check, MessageSquare, ShoppingBag, Truck, Store, CreditCard, Mail, Eye, Download, Image as ImageIcon } from 'lucide-react';
+import {
+  GeneratedReceipt,
+  generateOrderReceiptImage,
+  shareReceiptImageViaWhatsApp,
+  downloadReceiptImage,
+} from '../services/orderReceiptImage';
+import { OrderReceiptModal } from './OrderReceiptModal';
 
 interface OrderConfirmationViewProps {
   order: Order;
@@ -14,8 +20,28 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
 }) => {
   const [copiedAlias, setCopiedAlias] = useState(false);
   const [copiedCvu, setCopiedCvu] = useState(false);
+  const [receipt, setReceipt] = useState<GeneratedReceipt | null>(null);
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
 
   const safeItems = Array.isArray(order?.items) ? order.items : [];
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const generated = await generateOrderReceiptImage(order, { mode: 'normal' });
+        if (isMounted) {
+          setReceipt(generated);
+        }
+      } catch (err) {
+        console.warn('Error preparando imagen de comprobante:', err);
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [order]);
 
   const handleCopyAlias = () => {
     navigator.clipboard.writeText('hola.retiro');
@@ -29,25 +55,27 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
     setTimeout(() => setCopiedCvu(false), 2000);
   };
 
-  // Build WhatsApp Message URL con estándar universal y número oficial (+54 9 11 6690-4678)
-  const buildWhatsAppUrl = () => {
-    const itemsSummary = safeItems
-      .map((i) => {
-        const variantSuffix = i.variantText ? `, ${i.variantText}` : '';
-        const pricingSuffix = ` (${i.isWholesale ? 'mayorista' : 'minorista'})`;
-        return `• ${i.quantity}x ${i.title}${variantSuffix}${pricingSuffix} - $${i.totalPrice.toLocaleString('es-AR')}`;
-      })
-      .join('\n');
+  // Compartir imagen del pedido por WhatsApp (sin mensaje de texto largo detallado)
+  const handleShareWhatsAppReceipt = async () => {
+    setIsSharing(true);
+    try {
+      let activeReceipt = receipt;
+      if (!activeReceipt) {
+        activeReceipt = await generateOrderReceiptImage(order, { mode: 'normal' });
+        setReceipt(activeReceipt);
+      }
 
-    const deliveryDetail =
-      order.deliveryOption === 'pickup'
-        ? 'Retiro en Local San Pedrito'
-        : `Envío a domicilio (${order.shippingMethodName || 'Envío'} - $${order.shippingCost.toLocaleString('es-AR')})`;
-
-    // Estructura: Inicia estrictamente con el número de pedido correlativo único
-    const msg = `Pedido #${order.orderNumber} Hola buenas acabo de realizar un pedido por la pagina michy.com.ar.\n\n*Detalle:*\n${itemsSummary}\n\n*Total:* $${order.total.toLocaleString('es-AR')}\n*Método de Pago:* ${order.paymentMethod === 'transfer' ? 'Transferencia Bancaria' : 'Efectivo'}\n*Entrega:* ${deliveryDetail}\n*Nombre:* ${order.customerName}\n\nAdjunto el comprobante de pago para coordinar la entrega. ¡Muchas gracias!`;
-
-    return buildUniversalWhatsAppUrl(msg);
+      await shareReceiptImageViaWhatsApp({
+        receipt: activeReceipt,
+        customWaDestination: undefined,
+        isQuickBuy: false,
+      });
+    } catch (e) {
+      console.warn('Error compartiendo comprobante por WhatsApp:', e);
+      setIsReceiptModalOpen(true);
+    } finally {
+      setIsSharing(false);
+    }
   };
 
   return (
@@ -237,16 +265,28 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
 
           {/* Action buttons - Prominent on mobile */}
           <div className="space-y-2.5 pt-2">
-            <a
+            <button
               id="whatsapp-receipt-btn"
-              href={buildWhatsAppUrl()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full bg-[#00a650] hover:bg-[#009246] text-white font-black py-4 px-4 rounded-xl text-base uppercase tracking-wide transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer text-center min-h-[50px]"
+              type="button"
+              onClick={handleShareWhatsAppReceipt}
+              disabled={isSharing}
+              className="w-full bg-[#00a650] hover:bg-[#009246] text-white font-black py-4 px-4 rounded-xl text-base uppercase tracking-wide transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer text-center min-h-[50px] active:scale-[0.99] disabled:opacity-75"
             >
               <MessageSquare className="w-5 h-5 fill-white" />
-              <span>COORDINAR COMPRA POR WHATSAPP</span>
-            </a>
+              <span>{isSharing ? 'COMPARTIENDO...' : 'COORDINAR COMPRA POR WHATSAPP'}</span>
+            </button>
+
+            {receipt && (
+              <button
+                type="button"
+                id="view-receipt-image-btn"
+                onClick={() => setIsReceiptModalOpen(true)}
+                className="w-full bg-blue-50 hover:bg-blue-100 text-[#0058bb] font-bold py-2.5 px-3 rounded-xl border border-blue-200 text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Eye className="w-4 h-4" />
+                <span>Ver / Descargar Comprobante en Imagen</span>
+              </button>
+            )}
 
             <button
               id="continue-shopping-btn"
@@ -307,6 +347,14 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
           })}
         </div>
       </div>
+
+      {/* Modal de visualización y descarga del comprobante en imagen */}
+      <OrderReceiptModal
+        isOpen={isReceiptModalOpen}
+        onClose={() => setIsReceiptModalOpen(false)}
+        receipt={receipt}
+        isQuickBuy={false}
+      />
     </div>
   );
 };
