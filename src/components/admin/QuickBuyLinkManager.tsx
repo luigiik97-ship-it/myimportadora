@@ -23,6 +23,8 @@ import {
   generateUniqueToken,
   buildQuickBuyUrl,
   QuickBuyLinkConfig,
+  buildShortOrderWhatsAppMessage,
+  buildUniversalWhatsAppUrl,
   buildQuickBuyWhatsAppMessage,
   buildQuickBuyWhatsAppUrl,
   resolveWhatsAppPhone,
@@ -141,18 +143,14 @@ export const QuickBuyLinkManager: React.FC<QuickBuyLinkManagerProps> = ({
 
   // Mensaje de WhatsApp de ejemplo para la vista previa
   const sampleOrderNumber = '1001';
-  const sampleItems = [
-    { title: 'Remera Algodón Premium', quantity: 1, variantText: 'Negro, L, 13mm', unitPrice: 10000, totalPrice: 10000 },
-    { title: 'Remera Algodón Premium', quantity: 1, variantText: 'Negro, M', unitPrice: 15000, totalPrice: 15000 },
-    { title: 'Gorra Clásica Gabardina', quantity: 1, variantText: 'Azul Marino', unitPrice: 8500, totalPrice: 8500 },
-  ];
+  const sampleTotalUnits = 3;
   const sampleTotal = 33500;
-  const sampleMessage = buildQuickBuyWhatsAppMessage({
+  const sampleMessage = buildShortOrderWhatsAppMessage({
     orderNumber: sampleOrderNumber,
-    items: sampleItems,
+    totalUnits: sampleTotalUnits,
     total: sampleTotal,
+    paymentMethod: 'transfer',
     deliveryOption: 'pickup',
-    paymentMethod: 'cash',
   });
 
   return (
@@ -433,13 +431,22 @@ export const QuickBuyLinkManager: React.FC<QuickBuyLinkManagerProps> = ({
           </div>
 
           <p className="text-xs text-gray-600">
-            Comienza estrictamente con el número de pedido único, seguido del listado completo de productos, cantidades y el total:
+            Mensaje corto estructurado que se envía inmediatamente a WhatsApp (+54 9 11 6690-4678) tanto al presionar &quot;Finalizar compra&quot; en checkout como &quot;Comprar WhatsApp&quot; en el enlace:
           </p>
 
-          {/* Simulación visual de burbuja de chat de WhatsApp */}
+          {/* Simulación visual de burbuja de chat de WhatsApp con formato negrita real */}
           <div className="bg-[#e5ddd5] p-3 sm:p-4 rounded-2xl border border-[#d1c7b7] shadow-inner font-sans">
             <div className="max-w-[380px] bg-[#dcf8c6] p-3.5 rounded-xl rounded-tr-none shadow-xs text-xs sm:text-sm text-gray-900 whitespace-pre-line leading-relaxed border border-[#c2e4a8]">
-              {sampleMessage}
+              {sampleMessage.split(/(\*[^*]+\*)/g).map((chunk, i) => {
+                if (chunk.startsWith('*') && chunk.endsWith('*') && chunk.length > 2) {
+                  return (
+                    <strong key={i} className="font-extrabold text-gray-950">
+                      {chunk.slice(1, -1)}
+                    </strong>
+                  );
+                }
+                return chunk;
+              })}
               <div className="text-right text-[10px] text-gray-500 mt-2 flex items-center justify-end gap-1">
                 <span>12:45</span>
                 <span className="text-blue-500 font-bold">✓✓</span>
@@ -453,7 +460,7 @@ export const QuickBuyLinkManager: React.FC<QuickBuyLinkManagerProps> = ({
               <span>El pedido se guarda inmediatamente en el sistema antes de abrir WhatsApp.</span>
             </div>
             <a
-              href={buildQuickBuyWhatsAppUrl(sampleMessage, config.whatsappUrl)}
+              href={buildUniversalWhatsAppUrl(sampleMessage, '1166904678')}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold transition-colors cursor-pointer border border-emerald-200 shrink-0 w-fit"

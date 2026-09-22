@@ -1221,7 +1221,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         ) : (
           groupedCategories.map((group) => {
             const catQtyInCart = categoryQuantitiesInCart[group.categoryName] || 0;
-            const sampleMinQty = group.items[0]?.minWholesaleQty || 3;
+            const sampleMinQty = group.items[0]?.minWholesaleQty || 12;
             const isCategoryWholesaleReached = catQtyInCart >= sampleMinQty;
             const remainingToCategoryWholesale = Math.max(0, sampleMinQty - catQtyInCart);
 
@@ -1233,29 +1233,35 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
               >
                 {/* Category Header - Seamless on mobile */}
                 <div className="bg-transparent md:bg-gradient-to-r md:from-gray-50 md:via-white md:to-gray-50 px-1 sm:px-3.5 py-2 border-b border-gray-200 flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <span className="w-2 h-2 rounded-full bg-[#0058bb] shrink-0" />
-                    <h2 className="text-sm sm:text-sm md:text-base font-black font-['Montserrat'] text-gray-900 uppercase tracking-tight leading-none">
-                      {group.categoryName}
-                    </h2>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="w-2 h-2 rounded-full bg-[#0058bb] shrink-0" />
+                      <h2 className="text-sm sm:text-base font-black font-['Montserrat'] text-gray-900 uppercase tracking-tight leading-none">
+                        {group.categoryName}
+                      </h2>
+                    </div>
+
+                    {/* Texto explicativo compacto al lado del nombre de la categoría */}
+                    <span className="text-[11px] sm:text-xs text-gray-500 font-normal leading-tight">
+                      compra desde 1 unidad, combina productos de esta categoría y obtén mejor precio desde {sampleMinQty} unids
+                    </span>
                   </div>
 
-                  {/* Wholesale Threshold Badge */}
-                  <div className="flex items-center gap-1.5">
-                    {isCategoryWholesaleReached ? (
-                      <span className="inline-flex items-center text-[10px] sm:text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full leading-tight">
-                        <span>Mayorista alcanzado ({catQtyInCart} unids.)</span>
+                  {/* Contador directo (ej. 6/12) cuando el cliente lleva productos */}
+                  {catQtyInCart > 0 && (
+                    <div className="flex items-center shrink-0">
+                      <span
+                        className={`inline-flex items-center text-[11px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full border leading-tight ${
+                          isCategoryWholesaleReached
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                            : 'bg-blue-50 text-[#0058bb] border-blue-200'
+                        }`}
+                        title={isCategoryWholesaleReached ? 'Mejor precio aplicado' : `${catQtyInCart} de ${sampleMinQty} para mejor precio`}
+                      >
+                        {catQtyInCart}/{sampleMinQty}
                       </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-blue-900 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full leading-tight">
-                        <Sparkles className="w-3 h-3 text-[#0058bb] shrink-0" />
-                        <span>
-                          Mayorista desde <strong>{sampleMinQty} u.</strong>
-                          {catQtyInCart > 0 && ` (${catQtyInCart}/${sampleMinQty})`}
-                        </span>
-                      </span>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Items List - Seamless rows with subtle hairline dividers */}

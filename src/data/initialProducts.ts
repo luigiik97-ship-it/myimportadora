@@ -472,7 +472,7 @@ export const INITIAL_PRODUCTS: Product[] = [
       'https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/1787702649889-dom0rtv.jpg',
       'https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/1787703015669-6f450e7.jpg'
     ],
-    minWholesaleQty: 5,
+    minWholesaleQty: 12,
     wholesalePrice: 1650,
     retailPrice: 3100,
     cashPrice: 3000,

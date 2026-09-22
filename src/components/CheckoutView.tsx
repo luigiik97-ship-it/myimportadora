@@ -565,7 +565,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       </span>
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5 leading-snug">
-                      Gratis en nuestro local en Av. San Pedrito 28 local 4, CABA - Lunes a sábados de 11hs a 17hs
+                      Local en Av. San Pedrito 28, CABA - Lunes a sábados de 11hs a 17hs
                     </p>
                   </div>
                 </div>
@@ -790,7 +790,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       <span className="text-sm font-bold text-gray-900">Transferencia Bancaria</span>
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5 leading-snug">
-                      Al finalizar la compra le pasaremos los datos (Alias y CVU) para realizar la transferencia.
+                      Le enviaremos el Alias / CVU para realizar el pago.
                     </p>
                   </div>
                 </div>
@@ -828,9 +828,6 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       <p className="text-xs text-gray-500 mt-0.5">
                         Abonás al retirar en el local comercial.
                       </p>
-                      <p className="text-xs text-gray-400 font-normal mt-0.5">
-                        Calculado con los precios en efectivo de cada producto.
-                      </p>
                     </div>
                   </div>
                   <div className="text-right shrink-0 pl-2">
@@ -843,7 +840,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       </span>
                     )}
                     <span className="text-xs font-bold text-[#00a650] block leading-tight">
-                      Precio total<br />en efectivo
+                      Precio total
                     </span>
                   </div>
                 </label>

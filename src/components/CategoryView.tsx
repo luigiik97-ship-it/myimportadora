@@ -319,14 +319,14 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
                       ) : (
                         <span className="inline-flex items-center text-[11px] sm:text-[13.2px] font-semibold bg-[#00a650] text-white px-1 py-0.5 rounded leading-tight shrink min-w-0">
                           <span className="overflow-hidden whitespace-nowrap text-clip block min-w-0">
-                            min. {product.minWholesaleQty} unids.
+                            desde {product.minWholesaleQty} unids
                           </span>
                         </span>
                       )}
                     </div>
                     {/* Retail comparison */}
                     <div className="text-xs text-gray-500 font-normal mt-0.5">
-                      ${product.retailPrice.toLocaleString('es-AR')} x1 unidad
+                      1 unidad ${product.retailPrice.toLocaleString('es-AR')}
                     </div>
                   </div>
                 </div>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Category } from '../types';
 import { isProductCompletelyOutOfStock } from '../utils/variantHelpers';
 import { getStorefrontCategories } from '../utils/categoryHelpers';
-import { Truck, ArrowRight, ArrowLeftRight, Banknote, MapPin, Building2, Store, ChevronLeft, ChevronRight, Sparkles, ShieldCheck, Tag } from 'lucide-react';
+import { Truck, ArrowRight, ArrowLeftRight, Banknote, MapPin, Building2, Store, ChevronLeft, ChevronRight, Sparkles, ShieldCheck, Tag, Rocket } from 'lucide-react';
 import { ImageWithSkeleton } from './common/ImageWithSkeleton';
 import { ProductGridSkeleton } from './common/ProductCardSkeleton';
 import {
@@ -31,6 +31,7 @@ interface HomeViewProps {
   onSelectCategory: (category: string) => void;
   currentCategory: string;
   searchQuery: string;
+  onOpenLaunches?: () => void;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
@@ -41,6 +42,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onSelectCategory,
   currentCategory,
   searchQuery,
+  onOpenLaunches,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(1);
   const [isTransitioning, setIsTransitioning] = useState(true);
@@ -756,14 +758,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         ) : (
                           <span className="inline-flex items-center text-[11px] sm:text-[13.2px] font-semibold bg-[#00a650] text-white px-1 py-0.5 rounded leading-tight shrink min-w-0">
                             <span className="overflow-hidden whitespace-nowrap text-clip block min-w-0">
-                              min. {product.minWholesaleQty} unids.
+                              desde {product.minWholesaleQty} unids
                             </span>
                           </span>
                         )}
                       </div>
                       {/* Retail comparison */}
                       <div className="text-xs text-gray-500 font-normal mt-0.5">
-                        ${product.retailPrice.toLocaleString('es-AR')} x1 unidad
+                        1 unidad ${product.retailPrice.toLocaleString('es-AR')}
                       </div>
                     </div>
                   </div>
@@ -882,13 +884,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         ) : (
                           <span className="inline-flex items-center text-[11px] sm:text-[13.2px] font-semibold bg-[#00a650] text-white px-1 py-0.5 rounded leading-tight shrink min-w-0">
                             <span className="overflow-hidden whitespace-nowrap text-clip block min-w-0">
-                              min. {product.minWholesaleQty} unids.
+                              desde {product.minWholesaleQty} unids
                             </span>
                           </span>
                         )}
                       </div>
                       <div className="text-xs text-gray-500 font-normal mt-0.5">
-                        ${product.retailPrice.toLocaleString('es-AR')} x1 unidad
+                        1 unidad ${product.retailPrice.toLocaleString('es-AR')}
                       </div>
                     </div>
                   </div>
@@ -993,6 +995,30 @@ export const HomeView: React.FC<HomeViewProps> = ({
               </div>
             </div>
           </div>
+        </div>
+
+        {/* 🚀 Sección de Próximos Lanzamientos Teaser */}
+        <div id="home-proximos-lanzamientos" className="bg-gradient-to-r from-[#003882] via-[#0058bb] to-[#0074f0] rounded-2xl p-4 sm:p-6 text-white shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="space-y-1 text-center sm:text-left">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 text-yellow-300 font-bold text-[10px] sm:text-[11px] uppercase tracking-wider">
+              <Sparkles className="w-3 h-3 fill-current" />
+              <span>Comunidad</span>
+            </div>
+            <h3 className="text-base sm:text-lg font-black font-['Montserrat'] text-white">
+              Próximos Lanzamientos: Tu voto define los ingresos
+            </h3>
+            <p className="text-xs sm:text-sm text-white/90 max-w-xl">
+              Modelos identificados por letras (A, B, C, D...). Votá con 3 niveles de interés sin registro previo, o proponé tus modelos favoritos.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenLaunches || (() => window.location.assign('/lanzamientos'))}
+            className="w-full sm:w-auto px-5 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-gray-950 font-black text-xs sm:text-sm rounded-xl transition-all shadow-xs active:scale-95 flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+          >
+            <Rocket className="w-4 h-4 text-gray-950 fill-current" />
+            <span>Ver y Votar Modelos</span>
+          </button>
         </div>
 
         {/* Showroom Image showcase */}

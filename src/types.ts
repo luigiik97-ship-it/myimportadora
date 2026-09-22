@@ -233,3 +233,46 @@ export interface StoreVideo {
   createdAt?: string;
   sortOrder?: number;
 }
+
+// ---------------- PRÓXIMOS LANZAMIENTOS TYPES ---------------- //
+export type LaunchInterestLevel = 1 | 2 | 3; // 1: Me gusta, 2: Lo compraría, 3: ¡Lo quiero ya!
+
+export interface LaunchModelVotes {
+  level1: number; // Me gusta (Interés leve)
+  level2: number; // Lo compraría (Interés medio)
+  level3: number; // ¡Lo quiero ya! (Interés alto)
+  total: number;
+}
+
+export interface LaunchModel {
+  id: string;
+  letter: string; // "A", "B", "C", "D", "E" (sin nombres)
+  image: string;
+  votes: LaunchModelVotes;
+  sortOrder: number;
+}
+
+export interface LaunchCollection {
+  id: string;
+  title: string;
+  description?: string;
+  status: 'active' | 'coming_soon' | 'completed' | 'paused';
+  models: LaunchModel[];
+  createdAt: string;
+  allowCustomerProposals: boolean;
+}
+
+export interface LaunchCustomerProposal {
+  id: string;
+  collectionId?: string;
+  collectionTitle?: string;
+  imageUrl: string;
+  message: string;
+  userId: string;
+  userEmail: string;
+  userName: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+  adminNotes?: string;
+}
+

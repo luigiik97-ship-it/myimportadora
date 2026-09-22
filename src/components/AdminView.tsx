@@ -45,6 +45,7 @@ import { BannerManager } from './admin/BannerManager';
 import { VideoManager } from './admin/VideoManager';
 import { ShippingConfigManager } from './admin/ShippingConfigManager';
 import { QuickBuyLinkManager, OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
+import { LaunchesManager } from './admin/LaunchesManager';
 import { isQuickBuyOrder } from '../services/quickBuyLink';
 import {
   Lock,
@@ -84,6 +85,7 @@ import {
   BarChart3,
   ArrowUpRight,
   Video,
+  Rocket,
 } from 'lucide-react';
 
 export const resolveOrderItemPrices = (
@@ -157,7 +159,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'banners' | 'videos' | 'orders' | 'bulk_price_update' | 'integrations' | 'analytics' | 'quick_buy_link' | 'shipping'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'banners' | 'videos' | 'orders' | 'bulk_price_update' | 'integrations' | 'analytics' | 'quick_buy_link' | 'shipping' | 'launches'>('products');
 
   // Data states
   const [products, setProducts] = useState<Product[]>([]);
@@ -1473,6 +1475,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
         </button>
 
         <button
+          onClick={() => setActiveTab('launches')}
+          className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 cursor-pointer transition-colors border-b-2 whitespace-nowrap ${
+            activeTab === 'launches'
+              ? 'border-[#0058bb] text-[#0058bb]'
+              : 'border-transparent text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <Rocket className="w-4 h-4 text-[#0058bb]" />
+          Próximos Lanzamientos
+        </button>
+
+        <button
           onClick={() => setActiveTab('integrations')}
           className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 cursor-pointer transition-colors border-b-2 whitespace-nowrap ${
             activeTab === 'integrations'
@@ -2190,6 +2204,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
       {/* TAB 7: CONFIGURACIÓN Y TARIFAS DE ENVÍOS */}
       {activeTab === 'shipping' && (
         <ShippingConfigManager />
+      )}
+
+      {/* TAB 8: GESTIÓN DE PRÓXIMOS LANZAMIENTOS */}
+      {activeTab === 'launches' && (
+        <LaunchesManager />
       )}
 
       {/* ---------------- EDIT / CREATE PRODUCT MODAL ---------------- */}

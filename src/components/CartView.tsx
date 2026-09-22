@@ -280,11 +280,11 @@ export const CartView: React.FC<CartViewProps> = ({
 
         {/* Right: Resumen de compra (Cols 4) - Native flat container on mobile */}
         <div className="lg:col-span-4 bg-transparent md:bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-200 p-1 md:p-5 shadow-none md:shadow-xs space-y-4 lg:sticky lg:top-28 pt-3 md:pt-5 border-t border-gray-200 md:border-t-0">
-          <h2 className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat'] border-b border-gray-100 pb-2.5">
+          <h2 className="hidden md:block text-base sm:text-lg font-bold text-gray-900 font-['Montserrat'] border-b border-gray-100 pb-2.5">
             Resumen de compra
           </h2>
 
-          <div className="space-y-2.5 text-sm">
+          <div className="hidden md:block space-y-2.5 text-sm">
             <div className="flex justify-between text-gray-600 font-medium">
               <span>Productos ({totalQuantity} unidades)</span>
             </div>
@@ -326,7 +326,7 @@ export const CartView: React.FC<CartViewProps> = ({
             )}
           </div>
 
-          <div className="border-t border-gray-200 pt-3">
+          <div className="border-t-0 md:border-t border-gray-200 pt-1 md:pt-3">
             <div className="flex items-baseline justify-between">
               <span className="text-base font-bold text-gray-900">Total</span>
               <div className="text-right">
@@ -393,14 +393,14 @@ export const CartView: React.FC<CartViewProps> = ({
           </button>
 
           {/* Trust Guarantees */}
-          <div className="space-y-2 pt-2 border-t border-gray-100 text-xs sm:text-sm text-gray-500">
-            <div className="flex items-center gap-2">
+          <div className="space-y-2 pt-2.5 border-t border-gray-100 text-xs sm:text-sm text-gray-500 text-center">
+            <div className="flex items-center justify-center gap-2 text-center">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>Compra segura y protegida</span>
+            </div>
+            <div className="flex items-center justify-center gap-2 text-center">
               <Truck className="w-4 h-4 text-gray-400 shrink-0" />
               <span>Envíos a todo el país.</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Compra 100% segura y protegida.</span>
             </div>
           </div>
         </div>

@@ -29,6 +29,7 @@ import { CartView } from './components/CartView';
 import { CheckoutView } from './components/CheckoutView';
 import { AdminView } from './components/AdminView';
 import { QuickBuyView } from './components/QuickBuyView';
+import { LaunchesView } from './components/launches/LaunchesView';
 import { AuthModal } from './components/AuthModal';
 import { AccountModal } from './components/AccountModal';
 import { MobileOrientationLock } from './components/common/MobileOrientationLock';
@@ -104,6 +105,7 @@ export default function App() {
   const isHome = location.pathname === '/';
   const isCategory = location.pathname.startsWith('/categoria');
   const isQuickBuy = location.pathname === '/compra-rapida' || location.pathname === '/quick-buy' || location.pathname === '/quick_buy';
+  const isLaunches = location.pathname === '/lanzamientos' || location.pathname.startsWith('/lanzamientos');
   const isCart = location.pathname === '/carrito' || location.pathname.startsWith('/carrito/');
   const isCheckout = location.pathname === '/checkout' || location.pathname.startsWith('/checkout/');
   const isConfirmation = location.pathname === '/confirmacion' || location.pathname.startsWith('/confirmacion/');
@@ -742,6 +744,12 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleGoToLaunches = () => {
+    setCartNotification(null);
+    navigate('/lanzamientos');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleGoToCart = () => {
     setCartNotification(null);
     setIsFromQuickBuyCashPickup(false);
@@ -842,6 +850,8 @@ export default function App() {
         onGoHome={handleGoHome}
         onOpenQuickBuy={handleGoToQuickBuy}
         isQuickBuyActive={isQuickBuy}
+        onOpenLaunches={handleGoToLaunches}
+        isLaunchesActive={isLaunches}
         currentUser={currentUser}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onOpenAccount={() => setIsAccountModalOpen(true)}
@@ -872,6 +882,7 @@ export default function App() {
                 }}
                 currentCategory={currentCategory}
                 searchQuery={searchQuery}
+                onOpenLaunches={handleGoToLaunches}
               />
             }
           />
@@ -1017,6 +1028,19 @@ export default function App() {
           {/* Quick Buy aliases */}
           <Route path="/quick-buy" element={<Navigate to="/compra-rapida" replace />} />
           <Route path="/quick_buy" element={<Navigate to="/compra-rapida" replace />} />
+
+          {/* 🚀 Próximos Lanzamientos */}
+          <Route
+            path="/lanzamientos"
+            element={
+              <LaunchesView
+                currentUser={currentUser}
+                onOpenAuth={() => setIsAuthModalOpen(true)}
+                onGoHome={handleGoHome}
+              />
+            }
+          />
+          <Route path="/proximos-lanzamientos" element={<Navigate to="/lanzamientos" replace />} />
 
           {/* Institutional / Terms / Info routes */}
           <Route

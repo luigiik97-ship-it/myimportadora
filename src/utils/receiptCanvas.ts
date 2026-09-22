@@ -1,11 +1,15 @@
 /**
- * Generador nativo de imagen de comprobante de compra usando HTML5 Canvas 2D.
+ * Generador nativo de comprobante de compra en imagen (HTML5 Canvas 2D).
  * 
- * Ventajas:
- * 1. 100% libre de fallos por CSS moderno (Tailwind v4 oklch / lab).
- * 2. No depende del DOM externo ni de coordenadas negativas (-9999px).
- * 3. Escala nítida 2x (Retina) para legibilidad perfecta en celulares y WhatsApp.
- * 4. Generación instantánea y determinista sin dependencias externas propensas a fallos.
+ * Replicación fiel del diseño oficial:
+ * - Header con badge COMPRA RÁPIDA, Logo 'M' centralizado, badge PEDIDO #XXXX y fecha/hora.
+ * - Listado de productos ultra-compacto a lo alto con fotos de producto/variante.
+ * - Distribución adaptable en 1, 2 o 3 columnas según la cantidad de productos para máxima legibilidad.
+ * - Bloque de Totales con desglose de Subtotal, Envío y TOTAL A PAGAR destacado en verde.
+ * - Bloque de Modalidad (Retiro en local Flores / Envío a domicilio).
+ * - Bloque de Forma de Pago (Efectivo con aviso verde / Transferencia con Alias y CVU).
+ * - Pie de comprobante con leyenda para WhatsApp.
+ * - Escala 2x Retina para nitidez perfecta en móviles y WhatsApp.
  */
 
 export interface ReceiptData {
@@ -21,12 +25,24 @@ export interface ReceiptData {
   cashDiscount?: number;
   customerName?: string;
   customerWhatsapp?: string;
+  createdAt?: string;
+  deliveryAddress?: {
+    street?: string;
+    number?: string;
+    floor?: string;
+    city?: string;
+    province?: string;
+    postalCode?: string;
+    receiverName?: string;
+  };
   items: Array<{
     title: string;
     quantity: number;
     unitPrice: number;
     totalPrice?: number;
     variantText?: string;
+    image?: string;
+    isWholesale?: boolean;
   }>;
 }
 
@@ -70,32 +86,137 @@ function drawRoundedRect(
   ctx.restore();
 }
 
-function wrapText(
+function truncateText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let len = text.length;
+  while (len > 0 && ctx.measureText(text.slice(0, len) + '…').width > maxWidth) {
+    len--;
+  }
+  return text.slice(0, Math.max(1, len)) + '…';
+}
+
+/**
+ * Carga segura de imágenes con crossOrigin y timeout rápido para evitar bloquear la generación.
+ */
+function loadImageSafely(url?: string): Promise<HTMLImageElement | null> {
+  if (!url || typeof url !== 'string' || !url.trim()) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    let resolved = false;
+
+    const finish = (result: HTMLImageElement | null) => {
+      if (!resolved) {
+        resolved = true;
+        resolve(result);
+      }
+    };
+
+    img.onload = () => finish(img);
+    img.onerror = () => finish(null);
+    setTimeout(() => finish(null), 1200); // 1.2s timeout máximo
+    img.src = url;
+  });
+}
+
+/**
+ * Dibuja el logo oficial "M" estilizado con ojos recortados usando Path2D.
+ */
+function drawBrandLogo(ctx: CanvasRenderingContext2D, centerX: number, centerY: number, targetSize: number) {
+  ctx.save();
+  ctx.translate(centerX - targetSize / 2, centerY - targetSize / 2);
+  const scale = targetSize / 1000;
+  ctx.scale(scale, scale);
+
+  ctx.fillStyle = '#000000';
+  // 1. Cuerpo superior de la M
+  const pathM = new Path2D('M280 190 L130 710 L260 710 L395 670 L500 460 L605 670 L740 710 L865 710 L715 190 L500 460 Z');
+  // 2. Mejilla/ojo izquierdo
+  const pathLeftEye = new Path2D('M225 705 Q225 815 300 815 Q370 815 370 705 Z');
+  // 3. Mejilla/ojo derecho
+  const pathRightEye = new Path2D('M630 705 Q630 815 700 815 Q775 815 775 705 Z');
+
+  ctx.fill(pathM);
+  ctx.fill(pathLeftEye);
+  ctx.fill(pathRightEye);
+
+  ctx.restore();
+}
+
+/**
+ * Dibuja la miniatura cuadrada redondeada con la foto del producto/variante en modo "cover".
+ */
+function drawRoundedImage(
   ctx: CanvasRenderingContext2D,
-  text: string,
+  img: HTMLImageElement | null,
   x: number,
   y: number,
-  maxWidth: number,
-  lineHeight: number
-): number {
-  const words = text.split(' ');
-  let line = '';
-  let currentY = y;
-
-  for (let n = 0; n < words.length; n++) {
-    const testLine = line + words[n] + ' ';
-    const metrics = ctx.measureText(testLine);
-    const testWidth = metrics.width;
-    if (testWidth > maxWidth && n > 0) {
-      ctx.fillText(line.trim(), x, currentY);
-      line = words[n] + ' ';
-      currentY += lineHeight;
-    } else {
-      line = testLine;
-    }
+  size: number,
+  radius: number
+) {
+  ctx.save();
+  ctx.beginPath();
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(x, y, size, size, radius);
+  } else {
+    ctx.rect(x, y, size, size);
   }
-  ctx.fillText(line.trim(), x, currentY);
-  return currentY + lineHeight;
+  ctx.closePath();
+  ctx.clip();
+
+  if (img && img.width > 0 && img.height > 0) {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x, y, size, size);
+
+    const imgAspect = img.width / img.height;
+    let sx = 0;
+    let sy = 0;
+    let sw = img.width;
+    let sh = img.height;
+    if (imgAspect > 1) {
+      sw = img.height;
+      sx = (img.width - sw) / 2;
+    } else {
+      sh = img.width;
+      sy = (img.height - sh) / 2;
+    }
+    try {
+      ctx.drawImage(img, sx, sy, sw, sh, x, y, size, size);
+    } catch {
+      // Si la imagen lanza SecurityError al dibujar, usar fallback plano
+      ctx.fillStyle = '#f1f5f9';
+      ctx.fillRect(x, y, size, size);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🛍️', x + size / 2, y + size / 2);
+    }
+  } else {
+    ctx.fillStyle = '#f1f5f9';
+    ctx.fillRect(x, y, size, size);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🛍️', x + size / 2, y + size / 2);
+  }
+
+  ctx.restore();
+  // Borde sutil exterior
+  drawRoundedRect(ctx, x, y, size, size, radius, undefined, '#e2e8f0', 1);
+}
+
+function formatReceiptDateTime(isoDate?: string): string {
+  const d = isoDate ? new Date(isoDate) : new Date();
+  const day = d.getDate();
+  const month = d.getMonth() + 1;
+  const year = d.getFullYear();
+  let hours = d.getHours();
+  const minutes = d.getMinutes().toString().padStart(2, '0');
+  const ampm = hours >= 12 ? 'p. m.' : 'a. m.';
+  hours = hours % 12 || 12;
+  return `${day}/${month}/${year} • ${hours}:${minutes} ${ampm} hs`;
 }
 
 function dataURLToBlob(dataUrl: string): Blob {
@@ -110,66 +231,74 @@ function dataURLToBlob(dataUrl: string): Blob {
   return new Blob([u8arr], { type: mime });
 }
 
+/**
+ * Función principal que genera el comprobante nativo y devuelve un Blob PNG.
+ */
 export const generateReceiptBlob = async (data: ReceiptData): Promise<Blob> => {
-  const width = 560; // Ancho móvil óptimo vertical
-  const pad = 24;
-  const contentWidth = width - pad * 2;
+  const items = Array.isArray(data.items) ? data.items : [];
+  const itemCount = items.length;
 
-  // 1. Calcular altura necesaria para todos los productos
-  let itemsHeight = 0;
-  const itemRowHeights: number[] = [];
+  // 1. Cargar todas las fotos de las variantes concurrentemente
+  const loadedImages = await Promise.all(
+    items.map((it) => loadImageSafely(it.image))
+  );
 
-  // Canvas temporal para medir texto
-  const measureCanvas = document.createElement('canvas');
-  const measureCtx = measureCanvas.getContext('2d');
-  if (measureCtx) {
-    measureCtx.font = 'bold 13px system-ui, -apple-system, sans-serif';
+  // 2. Determinar cantidad de columnas según cantidad de productos:
+  // - Hasta 20 productos: 1 columna
+  // - De 21 a 79 productos (ej. ~40 productos): 2 columnas (duplicando la capacidad vertical)
+  // - 80 o más productos: 3 columnas (aprovechando al máximo el ancho para pedidos muy grandes)
+  let numColumns = 1;
+  let canvasWidth = 600;
+  if (itemCount >= 80) {
+    numColumns = 3;
+    canvasWidth = 960;
+  } else if (itemCount > 20) {
+    numColumns = 2;
+    canvasWidth = 760;
+  } else {
+    numColumns = 1;
+    canvasWidth = 600;
   }
 
-  for (const item of data.items) {
-    let rowH = 68; // Alto base con badge y precio
-    if (measureCtx) {
-      const words = item.title.split(' ');
-      let line = '';
-      let linesCount = 1;
-      for (let n = 0; n < words.length; n++) {
-        const testLine = line + words[n] + ' ';
-        const testWidth = measureCtx.measureText(testLine).width;
-        if (testWidth > contentWidth - 16 && n > 0) {
-          line = words[n] + ' ';
-          linesCount++;
-        } else {
-          line = testLine;
-        }
-      }
-      if (linesCount > 1) {
-        rowH += (linesCount - 1) * 16;
-      }
-    }
-    if (item.variantText) {
-      rowH += 22; // Espacio para la variante
-    }
-    itemRowHeights.push(rowH);
-    itemsHeight += rowH + 8; // 8px de margen entre productos
-  }
+  const pad = 22;
+  const contentWidth = canvasWidth - pad * 2;
+  const colGap = 10;
+  const cardWidth = Math.floor((contentWidth - (numColumns - 1) * colGap) / numColumns);
 
-  // Altura total estimada
-  let totalHeight =
-    pad + // padding top
-    85 + // Header de la tienda
-    72 + // Banner del Pedido
-    115 + // Datos del cliente y entrega
-    30 + // Título de detalle de productos
-    itemsHeight + // Productos
-    115 + // Totales
-    (data.paymentMethod === 'transfer' ? 80 : 0) + // Datos bancarios
-    60 + // Footer
-    pad; // padding bottom
+  // Fila de producto más compacta a lo alto (50px de alto en vez de 70px-90px)
+  const cardHeight = 50;
+  const gapY = 6;
+  const rowsCount = Math.max(1, Math.ceil(itemCount / numColumns));
+  const productsSectionHeight = rowsCount * (cardHeight + gapY) - gapY;
 
-  // 2. Crear Canvas con escala 2x para resolución Retina
+  // Altura de secciones fijas
+  const headerHeight = 70;
+  const productsTitleHeight = 26;
+  const totalsBoxHeight = 92;
+  const modalityBoxHeight = 68;
+  const paymentBoxHeight = data.paymentMethod === 'transfer' ? 72 : 58;
+  const footerHeight = 36;
+  const spacingBetweenCards = 12;
+
+  const totalHeight =
+    pad +
+    headerHeight +
+    productsTitleHeight +
+    productsSectionHeight +
+    spacingBetweenCards +
+    totalsBoxHeight +
+    spacingBetweenCards +
+    modalityBoxHeight +
+    spacingBetweenCards +
+    paymentBoxHeight +
+    spacingBetweenCards +
+    footerHeight +
+    pad;
+
+  // 3. Inicializar Canvas a escala 2x (Retina)
   const scale = 2;
   const canvas = document.createElement('canvas');
-  canvas.width = width * scale;
+  canvas.width = canvasWidth * scale;
   canvas.height = totalHeight * scale;
 
   const ctx = canvas.getContext('2d');
@@ -179,290 +308,286 @@ export const generateReceiptBlob = async (data: ReceiptData): Promise<Blob> => {
 
   ctx.scale(scale, scale);
 
-  // Fondo blanco nítido
+  // Fondo blanco puro
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, width, totalHeight);
+  ctx.fillRect(0, 0, canvasWidth, totalHeight);
 
-  // Borde exterior sutil del comprobante
-  drawRoundedRect(ctx, 4, 4, width - 8, totalHeight - 8, 16, undefined, '#e2e8f0', 1.5);
+  // Marco exterior sutil con esquinas redondeadas
+  drawRoundedRect(ctx, 4, 4, canvasWidth - 8, totalHeight - 8, 16, '#ffffff', '#e2e8f0', 1.5);
 
   let currentY = pad;
 
-  // ==========================
-  // HEADER DE LA TIENDA
-  // ==========================
-  // Puntos de color
-  ctx.beginPath();
-  ctx.arc(width / 2 - 110, currentY + 12, 5, 0, Math.PI * 2);
-  ctx.fillStyle = '#0058bb';
-  ctx.fill();
+  // ==========================================
+  // 1. HEADER (Igual a la imagen subida)
+  // ==========================================
+  // A la izquierda: texto COMPRA RÁPIDA • PEDIDO
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = '#64748b';
+  ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+  ctx.fillText('COMPRA RÁPIDA • PEDIDO', pad, currentY + 12);
 
-  ctx.beginPath();
-  ctx.arc(width / 2 + 110, currentY + 12, 5, 0, Math.PI * 2);
-  ctx.fillStyle = '#00a650';
-  ctx.fill();
+  // Al centro: Logo oficial 'M' estilizado con ojos recortados
+  const logoSize = 44;
+  drawBrandLogo(ctx, canvasWidth / 2, currentY + 16, logoSize);
+
+  // A la derecha: Badge PEDIDO #XXXX y debajo fecha/hora
+  const pillW = 142;
+  const pillH = 32;
+  const pillX = canvasWidth - pad - pillW;
+  const pillY = currentY + 2;
+
+  drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 8, '#eff6ff', '#bfdbfe', 1.5);
 
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#0f172a';
-  ctx.font = '900 22px system-ui, -apple-system, sans-serif';
-  ctx.fillText('MY IMPORTADORA', width / 2, currentY + 18);
-
-  ctx.fillStyle = '#64748b';
-  ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
-  ctx.fillText('Av. San Pedrito 28 local 4, CABA • WhatsApp: 1166904678', width / 2, currentY + 36);
-
-  // Línea divisoria
-  ctx.strokeStyle = '#cbd5e1';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(pad, currentY + 48);
-  ctx.lineTo(width - pad, currentY + 48);
-  ctx.stroke();
-
-  currentY += 60;
-
-  // ==========================
-  // BANNER DEL PEDIDO
-  // ==========================
-  drawRoundedRect(ctx, pad, currentY, contentWidth, 62, 10, '#0f172a');
-
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = 'bold 10px system-ui, -apple-system, sans-serif';
-  ctx.fillText('COMPROBANTE DE COMPRA', pad + 16, currentY + 22);
-
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '900 20px system-ui, -apple-system, sans-serif';
-  ctx.fillText(`Pedido #${data.orderNumber}`, pad + 16, currentY + 46);
-
-  // Fecha y hora a la derecha
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  const timeStr = `${now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} hs`;
-
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
-  ctx.fillText(dateStr, width - pad - 16, currentY + 25);
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = '11px system-ui, -apple-system, sans-serif';
-  ctx.fillText(timeStr, width - pad - 16, currentY + 44);
-
-  currentY += 74;
-
-  // ==========================
-  // DATOS DEL CLIENTE Y MODALIDAD
-  // ==========================
-  const infoBoxHeight = 100;
-  drawRoundedRect(ctx, pad, currentY, contentWidth, infoBoxHeight, 10, '#f8fafc', '#e2e8f0', 1);
-
-  ctx.textAlign = 'left';
-
-  // Columna Izquierda: Cliente y Entrega
-  ctx.fillStyle = '#64748b';
-  ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
-  ctx.fillText('CLIENTE:', pad + 14, currentY + 20);
-
-  ctx.fillStyle = '#0f172a';
-  ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
-  const customerDisplay = (data.customerName || 'Cliente').substring(0, 24);
-  ctx.fillText(customerDisplay, pad + 14, currentY + 36);
-
-  ctx.fillStyle = '#64748b';
-  ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
-  ctx.fillText('ENTREGA:', pad + 14, currentY + 62);
-
-  ctx.fillStyle = '#1e293b';
-  ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
-  const deliveryDisplay =
-    data.deliveryOption === 'pickup'
-      ? 'Retiro en Local San Pedrito'
-      : `Envío (${data.shippingMethodName || 'A coordinar'})`;
-  ctx.fillText(deliveryDisplay.substring(0, 28), pad + 14, currentY + 78);
-
-  // Columna Derecha: Pago y Unidades Totales
-  const colRightX = width / 2 + 10;
-  ctx.fillStyle = '#64748b';
-  ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
-  ctx.fillText('FORMA DE PAGO:', colRightX, currentY + 20);
-
-  ctx.fillStyle = '#0f172a';
-  ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
-  const paymentTitle = data.paymentMethod === 'transfer' ? 'Transferencia Bancaria' : 'Efectivo';
-  ctx.fillText(paymentTitle, colRightX, currentY + 36);
-
-  if (data.paymentMethod === 'transfer') {
-    ctx.fillStyle = '#0058bb';
-    ctx.font = 'bold 10px system-ui, -apple-system, sans-serif';
-    ctx.fillText('Alias: hola.retiro (Silvia Lembo)', colRightX, currentY + 48);
-  }
-
-  ctx.fillStyle = '#64748b';
-  ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
-  ctx.fillText('TOTAL UNIDADES:', colRightX, currentY + 66);
-
+  ctx.textBaseline = 'middle';
   ctx.fillStyle = '#0058bb';
-  ctx.font = '900 15px system-ui, -apple-system, sans-serif';
-  ctx.fillText(`${data.totalUnits} un.`, colRightX, currentY + 84);
-
-  currentY += infoBoxHeight + 16;
-
-  // ==========================
-  // DETALLE DE PRODUCTOS
-  // ==========================
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#0f172a';
-  ctx.font = '900 11px system-ui, -apple-system, sans-serif';
-  ctx.fillText(`DETALLE DE PRODUCTOS (${data.itemsCount})`, pad, currentY + 10);
-
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#64748b';
-  ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
-  ctx.fillText(`${data.totalUnits} unidades en total`, width - pad, currentY + 10);
-
-  currentY += 20;
-
-  // Lista de items
-  data.items.forEach((item, idx) => {
-    const rowH = itemRowHeights[idx];
-    drawRoundedRect(ctx, pad, currentY, contentWidth, rowH, 8, '#ffffff', '#e2e8f0', 1);
-
-    // 1. Badge de Unidades de alto contraste
-    const unitBadgeText = `${item.quantity} UNIDAD${item.quantity > 1 ? 'ES' : ''}`;
-    ctx.font = '900 11px system-ui, -apple-system, sans-serif';
-    const badgeMetrics = ctx.measureText(unitBadgeText);
-    const badgeW = badgeMetrics.width + 16;
-    drawRoundedRect(ctx, pad + 10, currentY + 8, badgeW, 20, 4, '#0058bb');
-
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(unitBadgeText, pad + 10 + badgeW / 2, currentY + 22);
-
-    // 2. Precio total del ítem a la derecha
-    const itemTotal = item.totalPrice ?? item.unitPrice * item.quantity;
-    ctx.textAlign = 'right';
-    ctx.fillStyle = '#0f172a';
-    ctx.font = '900 13px monospace, system-ui';
-    ctx.fillText(`$${Math.round(itemTotal).toLocaleString('es-AR')}`, width - pad - 12, currentY + 22);
-
-    // 3. Título del producto
-    ctx.textAlign = 'left';
-    ctx.fillStyle = '#1e293b';
-    ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
-    const titleNextY = wrapText(ctx, item.title, pad + 12, currentY + 44, contentWidth - 24, 16);
-
-    let nextY = titleNextY;
-
-    // 4. Variante si existe
-    if (item.variantText) {
-      const cleanVar = item.variantText.trim();
-      const varText = `Variante: ${cleanVar}`;
-      ctx.font = 'bold 10px system-ui, -apple-system, sans-serif';
-      const varW = Math.min(ctx.measureText(varText).width + 14, contentWidth - 24);
-      drawRoundedRect(ctx, pad + 12, nextY - 4, varW, 18, 4, '#fef3c7', '#fde68a', 1);
-
-      ctx.fillStyle = '#92400e';
-      ctx.fillText(varText, pad + 18, nextY + 9);
-      nextY += 20;
-    }
-
-    // 5. Precio unitario
-    ctx.textAlign = 'left';
-    ctx.fillStyle = '#64748b';
-    ctx.font = '10px system-ui, -apple-system, sans-serif';
-    ctx.fillText(`Unitario: $${Math.round(item.unitPrice).toLocaleString('es-AR')}`, pad + 12, currentY + rowH - 8);
-
-    currentY += rowH + 8;
-  });
-
-  currentY += 8;
-
-  // ==========================
-  // TOTALES Y FORMA DE PAGO
-  // ==========================
-  const totalsBoxHeight = 100;
-  drawRoundedRect(ctx, pad, currentY, contentWidth, totalsBoxHeight, 10, '#f1f5f9', '#cbd5e1', 1);
-
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#475569';
-  ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
-  ctx.fillText('Subtotal Productos:', pad + 16, currentY + 24);
-
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#1e293b';
-  ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
-  const subtotalVal = data.subtotal || data.total;
-  ctx.fillText(`$${Math.round(subtotalVal).toLocaleString('es-AR')}`, width - pad - 16, currentY + 24);
-
-  if (data.shippingCost !== undefined && data.deliveryOption === 'delivery') {
-    ctx.textAlign = 'left';
-    ctx.fillStyle = '#475569';
-    ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
-    ctx.fillText('Costo de Envío:', pad + 16, currentY + 44);
-
-    ctx.textAlign = 'right';
-    ctx.fillStyle = '#1e293b';
-    const shipText = data.shippingCost === 0 ? 'Gratis' : `$${Math.round(data.shippingCost).toLocaleString('es-AR')}`;
-    ctx.fillText(shipText, width - pad - 16, currentY + 44);
-  }
-
-  // Línea divisoria dentro del cuadro de totales
-  ctx.strokeStyle = '#0f172a';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(pad + 16, currentY + 58);
-  ctx.lineTo(width - pad - 16, currentY + 58);
-  ctx.stroke();
-
-  // TOTAL GRANDE
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#0f172a';
   ctx.font = '900 13px system-ui, -apple-system, sans-serif';
-  ctx.fillText('TOTAL A PAGAR:', pad + 16, currentY + 84);
+  ctx.fillText(`PEDIDO #${data.orderNumber}`, pillX + pillW / 2, pillY + pillH / 2);
 
+  // Fecha y hora debajo del badge de pedido
   ctx.textAlign = 'right';
-  ctx.fillStyle = '#0f172a';
-  ctx.font = '900 22px system-ui, -apple-system, sans-serif';
-  ctx.fillText(`$${Math.round(data.total).toLocaleString('es-AR')}`, width - pad - 16, currentY + 84);
-
-  currentY += totalsBoxHeight + 14;
-
-  // ==========================
-  // DATOS DE TRANSFERENCIA (si aplica)
-  // ==========================
-  if (data.paymentMethod === 'transfer') {
-    const transferH = 68;
-    drawRoundedRect(ctx, pad, currentY, contentWidth, transferH, 10, '#eff6ff', '#bfdbfe', 1);
-
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#1e40af';
-    ctx.font = 'bold 10px system-ui, -apple-system, sans-serif';
-    ctx.fillText('DATOS PARA TRANSFERIR:', width / 2, currentY + 18);
-
-    ctx.fillStyle = '#1e3a8a';
-    ctx.font = '900 15px system-ui, -apple-system, sans-serif';
-    ctx.fillText('Alias: hola.retiro', width / 2, currentY + 38);
-
-    ctx.fillStyle = '#1d4ed8';
-    ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
-    ctx.fillText('Titular: Silvia Lembo • CVU: 0000003100087788243612', width / 2, currentY + 54);
-
-    currentY += transferH + 14;
-  }
-
-  // ==========================
-  // FOOTER
-  // ==========================
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#64748b';
-  ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
-  ctx.fillText('michy.com.ar • WhatsApp oficial: 1166904678', width / 2, currentY + 12);
-
+  ctx.textBaseline = 'top';
   ctx.fillStyle = '#94a3b8';
   ctx.font = '10px system-ui, -apple-system, sans-serif';
-  ctx.fillText('Envía esta imagen a nuestro WhatsApp para procesar tu pedido de inmediato.', width / 2, currentY + 28);
+  const dateTimeStr = formatReceiptDateTime(data.createdAt);
+  ctx.fillText(dateTimeStr, canvasWidth - pad, pillY + pillH + 5);
 
-  // 3. Exportar Canvas a Blob PNG con fallback
+  // Línea divisoria suave bajo el header
+  ctx.strokeStyle = '#f1f5f9';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(pad, currentY + 54);
+  ctx.lineTo(canvasWidth - pad, currentY + 54);
+  ctx.stroke();
+
+  currentY += headerHeight;
+
+  // ==========================================
+  // 2. TÍTULO DE PRODUCTOS
+  // ==========================================
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#0f172a';
+  ctx.font = '900 13px system-ui, -apple-system, sans-serif';
+  ctx.fillText(`PRODUCTOS (${data.itemsCount})`, pad, currentY + 8);
+
+  currentY += productsTitleHeight;
+
+  // ==========================================
+  // 3. PRODUCTOS EN FILAS COMPACTAS (1, 2 O 3 COLUMNAS)
+  // ==========================================
+  items.forEach((item, index) => {
+    const col = index % numColumns;
+    const row = Math.floor(index / numColumns);
+    const cardX = pad + col * (cardWidth + colGap);
+    const cardY = currentY + row * (cardHeight + gapY);
+
+    // Tarjeta del producto
+    drawRoundedRect(ctx, cardX, cardY, cardWidth, cardHeight, 10, '#f8fafc', '#e2e8f0', 1);
+
+    // Miniatura de foto del producto/variante (38x38 compacta)
+    const imgSize = 38;
+    const imgX = cardX + 6;
+    const imgY = cardY + 6;
+    const loadedImg = loadedImages[index] || null;
+    drawRoundedImage(ctx, loadedImg, imgX, imgY, imgSize, 7);
+
+    // Área de texto
+    const textStartX = cardX + 50;
+    const itemTotal = item.totalPrice ?? item.unitPrice * item.quantity;
+    const formattedTotal = `$${Math.round(itemTotal).toLocaleString('es-AR')}`;
+
+    // Medir precio para no encimar el texto
+    ctx.font = '900 13px system-ui, -apple-system, sans-serif';
+    const priceWidth = ctx.measureText(formattedTotal).width;
+    const maxTextWidth = cardWidth - 56 - priceWidth - 8;
+
+    // Renglón 1: Título del producto (compacto y legible)
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+    const truncatedTitle = truncateText(ctx, item.title, maxTextWidth);
+    ctx.fillText(truncatedTitle, textStartX, cardY + 6);
+
+    // Renglón 2: Cantidad y Variante en pastilla destacada (ej: 3x Pikachu)
+    const variantLabel = item.variantText ? item.variantText.trim() : 'Unidad';
+    const badgeText = `${item.quantity}x ${variantLabel}`;
+
+    ctx.font = '900 10px system-ui, -apple-system, sans-serif';
+    const badgeMetrics = ctx.measureText(badgeText);
+    const badgeW = Math.min(badgeMetrics.width + 10, maxTextWidth);
+    const badgeH = 15;
+    const badgeY = cardY + 20;
+
+    drawRoundedRect(ctx, textStartX, badgeY, badgeW, badgeH, 4, '#e2e8f0');
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#0f172a';
+    const truncatedBadge = truncateText(ctx, badgeText, badgeW - 6);
+    ctx.fillText(truncatedBadge, textStartX + 5, badgeY + badgeH / 2);
+
+    // Renglón 3: Detalle de precio unitario y tipo
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillStyle = '#64748b';
+    ctx.font = '9px system-ui, -apple-system, sans-serif';
+    const unitPriceFormatted = Math.round(item.unitPrice).toLocaleString('es-AR');
+    const priceType = item.isWholesale ? 'precio mayorista' : 'precio minorista';
+    const detailText = `a $${unitPriceFormatted} · ${priceType}`;
+    ctx.fillText(truncateText(ctx, detailText, maxTextWidth), textStartX, cardY + cardHeight - 4);
+
+    // Precio total a la derecha del card (negrita grande)
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '900 14px monospace, system-ui';
+    ctx.fillText(formattedTotal, cardX + cardWidth - 10, cardY + cardHeight / 2);
+  });
+
+  currentY += productsSectionHeight + spacingBetweenCards;
+
+  // ==========================================
+  // 4. BLOQUE DE TOTALES
+  // ==========================================
+  drawRoundedRect(ctx, pad, currentY, contentWidth, totalsBoxHeight, 12, '#ffffff', '#e2e8f0', 1);
+
+  // Subtotal productos
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#64748b';
+  ctx.font = '12px system-ui, -apple-system, sans-serif';
+  ctx.fillText('Subtotal productos:', pad + 16, currentY + 20);
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
+  const subtotalVal = data.subtotal || data.total;
+  ctx.fillText(`$${Math.round(subtotalVal).toLocaleString('es-AR')}`, canvasWidth - pad - 16, currentY + 20);
+
+  // Envío
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#64748b';
+  ctx.font = '12px system-ui, -apple-system, sans-serif';
+  ctx.fillText('Envío:', pad + 16, currentY + 40);
+
+  ctx.textAlign = 'right';
+  const isFreeShipping = !data.shippingCost || data.shippingCost === 0 || data.deliveryOption === 'pickup';
+  ctx.fillStyle = isFreeShipping ? '#00a650' : '#0f172a';
+  ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
+  ctx.fillText(
+    isFreeShipping ? 'Gratis' : `$${Math.round(data.shippingCost || 0).toLocaleString('es-AR')}`,
+    canvasWidth - pad - 16,
+    currentY + 40
+  );
+
+  // Línea divisoria interior
+  ctx.strokeStyle = '#f1f5f9';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(pad + 14, currentY + 54);
+  ctx.lineTo(canvasWidth - pad - 14, currentY + 54);
+  ctx.stroke();
+
+  // TOTAL A PAGAR (Grande y Verde como en la imagen)
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#0f172a';
+  ctx.font = '900 14px system-ui, -apple-system, sans-serif';
+  ctx.fillText('TOTAL A PAGAR:', pad + 16, currentY + 72);
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#00a650';
+  ctx.font = '900 22px system-ui, -apple-system, sans-serif';
+  ctx.fillText(`$${Math.round(data.total).toLocaleString('es-AR')}`, canvasWidth - pad - 16, currentY + 72);
+
+  currentY += totalsBoxHeight + spacingBetweenCards;
+
+  // ==========================================
+  // 5. BLOQUE DE MODALIDAD (Retiro en local / Envío)
+  // ==========================================
+  drawRoundedRect(ctx, pad, currentY, contentWidth, modalityBoxHeight, 12, '#f8fbff', '#bfdbfe', 1.5);
+
+  const isPickup = data.deliveryOption === 'pickup';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = '#0058bb';
+  ctx.font = '900 12px system-ui, -apple-system, sans-serif';
+  ctx.fillText(
+    isPickup ? 'MODALIDAD: RETIRO EN EL LOCAL' : 'MODALIDAD: ENVÍO A DOMICILIO',
+    pad + 16,
+    currentY + 12
+  );
+
+  if (isPickup) {
+    ctx.fillStyle = '#334155';
+    ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+    ctx.fillText('Local Flores: Av. San Pedrito 28 local 4, CABA', pad + 16, currentY + 30);
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10px system-ui, -apple-system, sans-serif';
+    ctx.fillText('Horario: Lunes a sábados de 11:00 hs a 17:00 hs', pad + 16, currentY + 46);
+  } else {
+    const addr = data.deliveryAddress;
+    const addressStr = addr
+      ? `${addr.street || ''} ${addr.number || ''}${addr.floor ? ' ' + addr.floor : ''}, ${addr.city || ''}, ${addr.province || ''}`
+      : 'Dirección a coordinar';
+    ctx.fillStyle = '#334155';
+    ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+    ctx.fillText(truncateText(ctx, addressStr, contentWidth - 32), pad + 16, currentY + 30);
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10px system-ui, -apple-system, sans-serif';
+    const methodStr = data.shippingMethodName || 'Envío por correo/mensajería';
+    ctx.fillText(truncateText(ctx, methodStr, contentWidth - 32), pad + 16, currentY + 46);
+  }
+
+  currentY += modalityBoxHeight + spacingBetweenCards;
+
+  // ==========================================
+  // 6. BLOQUE FORMA DE PAGO
+  // ==========================================
+  const isCash = data.paymentMethod === 'cash';
+  drawRoundedRect(ctx, pad, currentY, contentWidth, paymentBoxHeight, 12, '#ffffff', '#e2e8f0', 1);
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = '#0f172a';
+  ctx.font = '900 12px system-ui, -apple-system, sans-serif';
+  ctx.fillText(isCash ? 'FORMA DE PAGO: EFECTIVO' : 'FORMA DE PAGO: TRANSFERENCIA', pad + 16, currentY + 12);
+
+  if (isCash) {
+    ctx.fillStyle = '#00a650';
+    ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+    ctx.fillText('Abonás en efectivo al retirar tu pedido en el local.', pad + 16, currentY + 32);
+  } else {
+    ctx.fillStyle = '#0058bb';
+    ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+    ctx.fillText('Alias: hola.retiro • Nombre: Silvia Lembo', pad + 16, currentY + 30);
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10px system-ui, -apple-system, sans-serif';
+    ctx.fillText('CVU: 0000003100087788243612', pad + 16, currentY + 48);
+  }
+
+  currentY += paymentBoxHeight + spacingBetweenCards;
+
+  // ==========================================
+  // 7. FOOTER
+  // ==========================================
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '10px system-ui, -apple-system, sans-serif';
+  ctx.fillText(
+    'Presentá este comprobante al coordinar tu pedido por WhatsApp',
+    canvasWidth / 2,
+    currentY + 12
+  );
+
+  // 4. Exportar a Blob PNG de alta fidelidad
   return new Promise<Blob>((resolve, reject) => {
     try {
       canvas.toBlob(
@@ -472,21 +597,19 @@ export const generateReceiptBlob = async (data: ReceiptData): Promise<Blob> => {
           } else {
             try {
               const dataUrl = canvas.toDataURL('image/png');
-              const fallbackBlob = dataURLToBlob(dataUrl);
-              resolve(fallbackBlob);
+              resolve(dataURLToBlob(dataUrl));
             } catch (err) {
               reject(err);
             }
           }
         },
         'image/png',
-        0.95
+        0.96
       );
     } catch (e) {
       try {
         const dataUrl = canvas.toDataURL('image/png');
-        const fallbackBlob = dataURLToBlob(dataUrl);
-        resolve(fallbackBlob);
+        resolve(dataURLToBlob(dataUrl));
       } catch (err) {
         reject(err);
       }

@@ -299,14 +299,14 @@ export const triggerWhatsAppOpen = (url: string) => {
 };
 
 /**
- * Construye el mensaje corto automático para WhatsApp:
- * - Empieza con número de pedido
- * - Cantidad total de unidades
- * - Precio total
- * - Forma de pago (si es por transferencia envía también el Alias: hola.retiro Nombre: Silvia Lembo)
- * - Envío o retiro
- * - Termina con "Hola buenas, te paso mi nuevo pedido. Gracias"
- * - Sin listado de productos ni descripciones.
+ * Construye el mensaje corto automático para WhatsApp (1166904678):
+ * - Comienza con saludo: "Hola buenas, te paso mi nuevo pedido. Gracias"
+ * - Pedido *#[N° Correlativo]*
+ * - Cantidad total: *[Total] unids.*
+ * - Precio total: *$[Total]*
+ * - Forma de pago: *[Transferencia / Alias: hola.retiro / Nombre: Silvia Lembo / Efectivo]*
+ * - Forma de entrega: *[Retiro en el local / Envío a domicilio]*
+ * - Con negritas entre asteriscos (*) para WhatsApp.
  */
 export const buildShortOrderWhatsAppMessage = (params: {
   orderNumber: string;
@@ -320,23 +320,25 @@ export const buildShortOrderWhatsAppMessage = (params: {
 
   const paymentText =
     paymentMethod === 'transfer'
-      ? 'Transferencia (Alias: hola.retiro Nombre: Silvia Lembo)'
-      : 'Efectivo';
+      ? `*Transferencia\nAlias: hola.retiro\nNombre: Silvia Lembo*`
+      : `*Efectivo*`;
 
   const deliveryText =
     deliveryOption === 'pickup'
-      ? 'Retiro'
+      ? '*Retiro en el local*'
       : deliveryOption === 'delivery'
-      ? (shippingMethodName ? `Envío (${shippingMethodName})` : 'Envío')
-      : 'A coordinar';
+      ? (shippingMethodName && !shippingMethodName.toLowerCase().includes('envío')
+          ? `*Envío a domicilio (${shippingMethodName})*`
+          : `*${shippingMethodName || 'Envío a domicilio'}*`)
+      : '*Retiro en el local*';
 
-  return `Pedido #${orderNumber}
-Cantidad total de unidades: ${totalUnits}
-Precio total: $${Math.round(total).toLocaleString('es-AR')}
+  return `Hola buenas, te paso mi nuevo pedido. Gracias
+
+Pedido *#${orderNumber}*
+Cantidad total: *${totalUnits} unids.*
+Precio total: *$${Math.round(total).toLocaleString('es-AR')}*
 Forma de pago: ${paymentText}
-Envío o retiro: ${deliveryText}
-
-Hola buenas, te paso mi nuevo pedido. Gracias`;
+Forma de entrega: ${deliveryText}`;
 };
 
 export const buildQuickBuyWhatsAppUrl = (

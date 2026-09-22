@@ -81,12 +81,16 @@ export const PostPurchaseModal: React.FC<PostPurchaseModalProps> = ({
       cashDiscount: order.cashDiscount,
       customerName: order.customerName,
       customerWhatsapp: order.customerWhatsapp,
+      deliveryAddress: order.deliveryAddress,
+      createdAt: order.createdAt,
       items: safeItems.map((it) => ({
         title: it.title,
         quantity: it.quantity,
         unitPrice: it.unitPrice,
         totalPrice: it.totalPrice,
         variantText: normalizeVariantText(it.variantText),
+        image: it.image,
+        isWholesale: it.isWholesale,
       })),
     };
   };

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Search, ShoppingCart, User, ChevronDown, ChevronRight, Layers, ArrowLeft, Zap } from 'lucide-react';
+import { Search, ShoppingCart, User, ChevronDown, ChevronRight, Layers, ArrowLeft, Zap, Rocket } from 'lucide-react';
 import { CartItem, Category, UserProfile } from '../types';
 import { reconcileCategoriesWithProducts } from '../utils/categoryHelpers';
 
@@ -13,6 +13,8 @@ interface NavbarProps {
   onGoHome: () => void;
   onOpenQuickBuy?: () => void;
   isQuickBuyActive?: boolean;
+  onOpenLaunches?: () => void;
+  isLaunchesActive?: boolean;
   showTopBar?: boolean;
   categories?: Category[];
   currentUser?: UserProfile | null;
@@ -30,6 +32,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onGoHome,
   onOpenQuickBuy,
   isQuickBuyActive = false,
+  onOpenLaunches,
+  isLaunchesActive = false,
   showTopBar = true,
   categories: customCategories,
   currentUser,
@@ -347,6 +351,27 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             />
           </button>
+
+          {/* 🚀 Próximos Lanzamientos */}
+          {onOpenLaunches && (
+            <button
+              id="category-tab-lanzamientos"
+              type="button"
+              onClick={() => {
+                setIsCategoriesOpen(false);
+                onOpenLaunches();
+              }}
+              className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-bold rounded-full transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 border shadow-xs ${
+                isLaunchesActive
+                  ? 'bg-yellow-400 text-gray-950 border-yellow-400 ring-2 ring-white/50'
+                  : 'bg-white/15 hover:bg-white/25 text-yellow-300 border-yellow-300/40'
+              }`}
+              title="Votá los próximos modelos de la tienda"
+            >
+              <Rocket className="w-3.5 h-3.5 fill-current" />
+              <span>Próximos Lanzamientos</span>
+            </button>
+          )}
 
           {/* Remaining categories (Bijuteria, etc.) */}
           {displayCategoryNames.map((cat, idx) => {
