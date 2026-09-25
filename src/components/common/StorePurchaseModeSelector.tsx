@@ -36,7 +36,7 @@ export const StorePurchaseModeSelector: React.FC<StorePurchaseModeSelectorProps>
           type="button"
           id="btn-mode-transfer"
           onClick={() => handleSelectMode('transfer')}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 sm:py-3.5 px-3 sm:px-4 text-sm sm:text-base font-semibold transition-all cursor-pointer select-none ${
+          className={`flex-1 flex items-center justify-center gap-2 py-2 sm:py-2.5 px-3 sm:px-4 text-sm sm:text-base font-semibold transition-all cursor-pointer select-none ${
             !isCashMode
               ? 'bg-[#0058bb] text-white shadow-xs'
               : 'text-gray-700 hover:text-gray-900 hover:bg-gray-200/50'
@@ -52,7 +52,7 @@ export const StorePurchaseModeSelector: React.FC<StorePurchaseModeSelectorProps>
           type="button"
           id="btn-mode-cash"
           onClick={() => handleSelectMode('cash')}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 sm:py-3.5 px-3 sm:px-4 text-sm sm:text-base font-semibold transition-all cursor-pointer select-none ${
+          className={`flex-1 flex items-center justify-center gap-2 py-2 sm:py-2.5 px-3 sm:px-4 text-sm sm:text-base font-semibold transition-all cursor-pointer select-none ${
             isCashMode
               ? 'bg-[#16a34a] text-white shadow-xs'
               : 'text-gray-700 hover:text-emerald-800 hover:bg-gray-200/50'
@@ -63,7 +63,7 @@ export const StorePurchaseModeSelector: React.FC<StorePurchaseModeSelectorProps>
           <Banknote className={`w-4 h-4 sm:w-4.5 sm:h-4.5 shrink-0 ${isCashMode ? 'text-white' : 'text-gray-500'}`} />
           <span>Efectivo</span>
           <span
-            className={`text-[11px] sm:text-xs font-medium px-2.5 py-0.5 rounded-full border leading-tight ${
+            className={`text-[11px] sm:text-xs font-medium px-2 py-0.5 rounded-full border leading-tight ${
               isCashMode
                 ? 'border-white/80 text-white bg-white/10'
                 : 'border-gray-500 text-gray-700 bg-transparent'
