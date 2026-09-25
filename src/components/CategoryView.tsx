@@ -5,6 +5,8 @@ import { isProductCompletelyOutOfStock } from '../utils/variantHelpers';
 import { ArrowLeft, Search, SlidersHorizontal, Sparkles, ShoppingBag, ArrowRight } from 'lucide-react';
 import { ImageWithSkeleton } from './common/ImageWithSkeleton';
 import { ProductGridSkeleton } from './common/ProductCardSkeleton';
+import { ProductCardPrice } from './common/ProductCardPrice';
+import { ProductCardBadge } from './common/ProductCardBadge';
 
 interface CategoryViewProps {
   categoryName: string;
@@ -293,6 +295,7 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
                       isOutOfStock ? 'opacity-60 grayscale-[30%]' : 'group-hover:scale-105'
                     } transition-transform duration-300`}
                   />
+                  <ProductCardBadge product={product} />
                   {isOutOfStock && (
                     <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded shadow-xs z-10">
                       Sin stock
@@ -305,30 +308,7 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
                   <h3 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
                     {product.title}
                   </h3>
-
-                  <div className="pt-0.5 sm:pt-1">
-                    {/* Wholesale Price Highlight */}
-                    <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap min-w-0">
-                      <span className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat'] shrink-0">
-                        ${product.wholesalePrice.toLocaleString('es-AR')}
-                      </span>
-                      {isOutOfStock ? (
-                        <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded shrink-0">
-                          Sin stock
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center text-[11px] sm:text-[13.2px] font-semibold bg-[#00a650] text-white px-1 py-0.5 rounded leading-tight shrink min-w-0">
-                          <span className="overflow-hidden whitespace-nowrap text-clip block min-w-0">
-                            desde {product.minWholesaleQty} unids
-                          </span>
-                        </span>
-                      )}
-                    </div>
-                    {/* Retail comparison */}
-                    <div className="text-xs text-gray-500 font-normal mt-0.5">
-                      1 unidad ${product.retailPrice.toLocaleString('es-AR')}
-                    </div>
-                  </div>
+                  <ProductCardPrice product={product} />
                 </div>
               </div>
             );

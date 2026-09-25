@@ -67,9 +67,23 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
 
   const displaySrc = hasError ? fallbackSrc : src;
 
+  // Ensure object-fit is properly applied to the <img> tag so images never distort on zoom or responsive layout
+  const hasExplicitCover = className.includes('object-cover') || imgClassName.includes('object-cover');
+  const hasExplicitContain = className.includes('object-contain') || imgClassName.includes('object-contain');
+  const resolvedObjectFit = hasExplicitCover
+    ? 'object-cover'
+    : hasExplicitContain
+    ? 'object-contain'
+    : 'object-contain';
+
+  // Clean wrapper className so object-fit isn't placed on a container div
+  const cleanedContainerClass = className
+    .replace(/\bobject-(contain|cover|fill|none|scale-down)\b/g, '')
+    .trim();
+
   return (
     <div
-      className={`relative overflow-hidden ${aspectRatio || ''} ${className}`}
+      className={`relative overflow-hidden flex items-center justify-center ${aspectRatio || ''} ${cleanedContainerClass}`}
       style={aspectRatio ? undefined : { width: '100%', height: '100%' }}
     >
       {/* Shimmer skeleton shown while loading */}
@@ -80,7 +94,7 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
         />
       )}
 
-      {/* Actual image */}
+      {/* Actual image - aspect ratio preserved under all zoom levels */}
       <img
         ref={imgRef}
         src={displaySrc}
@@ -90,7 +104,7 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
         fetchPriority={fetchPriority}
         onLoad={handleLoad}
         onError={handleError}
-        className={`w-full h-full transition-opacity duration-300 ${
+        className={`w-full h-full max-w-full max-h-full ${resolvedObjectFit} transition-opacity duration-300 ${
           isLoaded ? 'opacity-100' : 'opacity-0'
         } ${imgClassName}`}
         {...restProps}

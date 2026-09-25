@@ -234,7 +234,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
               <span>Contactar por WhatsApp</span>
             </button>
 
-            {/* BOTÓN 2 y 3: Abrir ventanita con imagen del resumen para Descargar y Compartir */}
+            {/* BOTÓN 2 y 3: Abrir ventanita con opciones en PDF para Descargar y Compartir */}
             <button
               id="open-receipt-modal-btn"
               type="button"
@@ -242,7 +242,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
               className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-4 rounded-xl text-sm uppercase tracking-wide transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer min-h-[46px]"
             >
               <Share2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>Descargar / Compartir Imagen del Resumen</span>
+              <span>Descargar / Enviar Resumen en PDF</span>
             </button>
 
             <button

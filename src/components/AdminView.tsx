@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Product, Order, SizeVariant, VariantType, ProductReview, Category } from '../types';
+import { Product, Order, SizeVariant, VariantType, ProductReview, Category, ProductTag } from '../types';
+import {
+  TAG_COLOR_PALETTE,
+  getLocalProductTags,
+  fetchProductTags,
+  createProductTag,
+  getProductTagById,
+} from '../services/productTags';
 import {
   normalizeVariantTypes,
   syncLegacyFields,
@@ -43,6 +50,7 @@ import { EmailTemplateManager } from './admin/EmailTemplateManager';
 import { AnalyticsDashboard } from './admin/AnalyticsDashboard';
 import { BannerManager } from './admin/BannerManager';
 import { VideoManager } from './admin/VideoManager';
+import { isLaunchesSectionVisible, LAUNCHES_VISIBILITY_EVENT } from '../services/launches';
 import { ShippingConfigManager } from './admin/ShippingConfigManager';
 import { QuickBuyLinkManager, OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
 import { LaunchesManager } from './admin/LaunchesManager';
@@ -161,6 +169,21 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
   // Tab state
   const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'banners' | 'videos' | 'orders' | 'bulk_price_update' | 'integrations' | 'analytics' | 'quick_buy_link' | 'shipping' | 'launches'>('products');
 
+  // Visibilidad de la sección Próximos Lanzamientos
+  const [isLaunchesVisible, setIsLaunchesVisible] = useState<boolean>(() => isLaunchesSectionVisible());
+
+  useEffect(() => {
+    const handleVis = () => {
+      setIsLaunchesVisible(isLaunchesSectionVisible());
+    };
+    window.addEventListener(LAUNCHES_VISIBILITY_EVENT, handleVis);
+    window.addEventListener('storage', handleVis);
+    return () => {
+      window.removeEventListener(LAUNCHES_VISIBILITY_EVENT, handleVis);
+      window.removeEventListener('storage', handleVis);
+    };
+  }, []);
+
   // Data states
   const [products, setProducts] = useState<Product[]>([]);
   const [adminCategories, setAdminCategories] = useState<Category[]>(() => getLocalCategories());
@@ -195,6 +218,49 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
   const [newReviewText, setNewReviewText] = useState('');
   const [newReviewAuthor, setNewReviewAuthor] = useState('');
   const [newReviewRating, setNewReviewRating] = useState(5);
+
+  // Product tags states
+  const [availableTags, setAvailableTags] = useState<ProductTag[]>(() => getLocalProductTags());
+  const [isCreatingNewTag, setIsCreatingNewTag] = useState(false);
+  const [newTagLabel, setNewTagLabel] = useState('');
+  const [newTagColor, setNewTagColor] = useState(TAG_COLOR_PALETTE[0].color);
+
+  useEffect(() => {
+    fetchProductTags().then((tags) => {
+      if (tags && tags.length > 0) {
+        setAvailableTags(tags);
+      }
+    });
+
+    const handleTagsUpdated = (e: any) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        setAvailableTags(e.detail);
+      }
+    };
+    window.addEventListener('product_tags_updated', handleTagsUpdated);
+    return () => window.removeEventListener('product_tags_updated', handleTagsUpdated);
+  }, []);
+
+  const handleCreateAndAssignTag = async () => {
+    if (!newTagLabel.trim()) return;
+    const palette = TAG_COLOR_PALETTE.find((p) => p.color === newTagColor);
+    const created = await createProductTag(
+      newTagLabel.trim(),
+      newTagColor,
+      palette?.textColor || '#ffffff'
+    );
+    const updatedTags = getLocalProductTags();
+    setAvailableTags(updatedTags);
+    if (editingProduct) {
+      setEditingProduct({
+        ...editingProduct,
+        tagId: created.id,
+        tag: created,
+      });
+    }
+    setNewTagLabel('');
+    setIsCreatingNewTag(false);
+  };
 
   const MAX_PRODUCT_IMAGES = 6;
 
@@ -1483,7 +1549,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
           }`}
         >
           <Rocket className="w-4 h-4 text-[#0058bb]" />
-          Próximos Lanzamientos
+          <span>Próximos Lanzamientos</span>
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+              isLaunchesVisible
+                ? 'bg-emerald-100 text-emerald-800'
+                : 'bg-amber-100 text-amber-800'
+            }`}
+          >
+            {isLaunchesVisible ? 'Visible' : 'Oculto'}
+          </span>
         </button>
 
         <button
@@ -1571,7 +1646,21 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                               className="w-10 h-10 object-contain rounded border border-gray-200 p-0.5 bg-white shrink-0"
                             />
                             <div>
-                              <p className="font-semibold text-gray-900 line-clamp-1 max-w-xs">{prod.title}</p>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="font-semibold text-gray-900 line-clamp-1 max-w-xs">{prod.title}</p>
+                                {(() => {
+                                  const tag = prod.tag || (prod.tagId ? getProductTagById(prod.tagId) : undefined);
+                                  if (!tag) return null;
+                                  return (
+                                    <span
+                                      className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shadow-2xs leading-none shrink-0"
+                                      style={{ backgroundColor: tag.color, color: tag.textColor || '#ffffff' }}
+                                    >
+                                      {tag.label}
+                                    </span>
+                                  );
+                                })()}
+                              </div>
                               <span className="text-[10px] text-gray-400">{(prod.images || []).length} fotos</span>
                             </div>
                           </div>
@@ -2277,6 +2366,157 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-[#0058bb]"
                   />
                 </div>
+              </div>
+
+              {/* Etiqueta del Producto */}
+              <div className="bg-white p-3 sm:p-3.5 rounded-xl border border-gray-200/90 shadow-2xs space-y-2.5">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <label className="font-semibold text-gray-800 text-xs sm:text-sm flex items-center gap-1.5">
+                      <span>🏷️</span> Etiqueta del Producto
+                      <span className="text-[11px] font-normal text-gray-500 hidden sm:inline">
+                        (Aparece en la esquina superior izquierda de la foto en toda la tienda)
+                      </span>
+                    </label>
+                    <p className="text-[11px] text-gray-500">
+                      Selecciona una etiqueta existente o crea una nueva con un color profesional.
+                    </p>
+                  </div>
+                  {editingProduct.tagId && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingProduct({ ...editingProduct, tagId: undefined, tag: undefined })}
+                      className="text-xs text-red-600 hover:text-red-700 font-semibold hover:underline cursor-pointer"
+                    >
+                      ✕ Quitar etiqueta
+                    </button>
+                  )}
+                </div>
+
+                {/* Lista de etiquetas disponibles para seleccionar */}
+                <div className="flex flex-wrap gap-1.5 sm:gap-2 items-center">
+                  <button
+                    type="button"
+                    onClick={() => setEditingProduct({ ...editingProduct, tagId: undefined, tag: undefined })}
+                    className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                      !editingProduct.tagId
+                        ? 'bg-gray-800 text-white border-gray-800 shadow-xs'
+                        : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
+                    }`}
+                  >
+                    Sin etiqueta
+                  </button>
+
+                  {availableTags.map((t) => {
+                    const isSelected = editingProduct.tagId === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() =>
+                          setEditingProduct({
+                            ...editingProduct,
+                            tagId: t.id,
+                            tag: t,
+                          })
+                        }
+                        className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs select-none ${
+                          isSelected
+                            ? 'ring-2 ring-offset-2 ring-gray-900 scale-105'
+                            : 'opacity-85 hover:opacity-100 hover:scale-102'
+                        }`}
+                        style={{
+                          backgroundColor: t.color,
+                          color: t.textColor || '#ffffff',
+                          borderColor: t.color,
+                        }}
+                      >
+                        {isSelected && <span>✓</span>}
+                        <span>{t.label}</span>
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatingNewTag(!isCreatingNewTag)}
+                    className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold border border-dashed border-[#0058bb] text-[#0058bb] hover:bg-blue-50/70 transition-all cursor-pointer flex items-center gap-1"
+                  >
+                    {isCreatingNewTag ? '✕ Cancelar' : '+ Crear nueva etiqueta'}
+                  </button>
+                </div>
+
+                {/* Formulario para crear nueva etiqueta */}
+                {isCreatingNewTag && (
+                  <div className="mt-2 p-3 bg-gray-50 rounded-xl border border-blue-200/70 space-y-2.5 animate-fadeIn">
+                    <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-end">
+                      <div className="flex-1">
+                        <label className="text-xs font-semibold text-gray-700 block mb-1">
+                          Texto de la etiqueta:
+                        </label>
+                        <input
+                          type="text"
+                          value={newTagLabel}
+                          onChange={(e) => setNewTagLabel(e.target.value)}
+                          placeholder="Ej: TOP 1, Oferta Relámpago, Edición Limitada"
+                          className="w-full bg-white border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-[#0058bb]"
+                        />
+                      </div>
+
+                      {newTagLabel.trim() && (
+                        <div className="shrink-0 flex flex-col items-center">
+                          <span className="text-[10px] text-gray-400 mb-0.5">Vista previa</span>
+                          <span
+                            className="px-2.5 py-1 rounded text-xs font-bold uppercase shadow-xs tracking-wide"
+                            style={{
+                              backgroundColor: newTagColor,
+                              color: TAG_COLOR_PALETTE.find((p) => p.color === newTagColor)?.textColor || '#ffffff',
+                            }}
+                          >
+                            {newTagLabel.trim()}
+                          </span>
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handleCreateAndAssignTag}
+                        disabled={!newTagLabel.trim()}
+                        className="px-3.5 py-1.5 bg-[#0058bb] text-white rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all shadow-xs shrink-0"
+                      >
+                        Crear y Asignar
+                      </button>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-gray-600 block mb-1">
+                        Paleta de colores profesionales:
+                      </label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {TAG_COLOR_PALETTE.map((pal) => (
+                          <button
+                            key={pal.name}
+                            type="button"
+                            onClick={() => setNewTagColor(pal.color)}
+                            title={`${pal.name} (${pal.color})`}
+                            className={`w-6 h-6 rounded-full border transition-all cursor-pointer flex items-center justify-center ${
+                              newTagColor === pal.color
+                                ? 'ring-2 ring-offset-2 ring-gray-900 scale-110 border-white'
+                                : 'border-black/10 hover:scale-105'
+                            }`}
+                            style={{ backgroundColor: pal.color }}
+                          >
+                            {newTagColor === pal.color && (
+                              <span className="text-[10px]" style={{ color: pal.textColor }}>
+                                ✓
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Precios Generales & Stock */}

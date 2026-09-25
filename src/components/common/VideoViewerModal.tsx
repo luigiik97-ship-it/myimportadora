@@ -6,12 +6,14 @@ import {
   Play,
   Share2,
   Check,
-  ChevronLeft,
-  ChevronRight,
-  ShoppingBag,
+  ChevronUp,
+  ChevronDown,
   ArrowRight,
 } from 'lucide-react';
 import { StoreVideo, Product } from '../../types';
+import { ProductCardPrice } from './ProductCardPrice';
+import { ImageWithSkeleton } from './ImageWithSkeleton';
+import { isProductCompletelyOutOfStock } from '../../utils/variantHelpers';
 
 interface VideoViewerModalProps {
   isOpen: boolean;
@@ -20,6 +22,7 @@ interface VideoViewerModalProps {
   initialIndex?: number;
   products?: Product[];
   onSelectProduct?: (productId: string) => void;
+  showAssociatedProduct?: boolean;
 }
 
 export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
@@ -29,6 +32,7 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
   initialIndex = 0,
   products = [],
   onSelectProduct,
+  showAssociatedProduct = true,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -39,7 +43,6 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const modalContainerRef = useRef<HTMLDivElement | null>(null);
   const touchStartY = useRef<number | null>(null);
-  const touchStartX = useRef<number | null>(null);
 
   // Sync initial index
   useEffect(() => {
@@ -65,9 +68,9 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
-      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      } else if (e.key === 'ArrowDown') {
         goToNext();
-      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      } else if (e.key === 'ArrowUp') {
         goToPrev();
       } else if (e.key === ' ') {
         e.preventDefault();
@@ -177,58 +180,53 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
     }
   }, [currentIndex, isOpen, isMuted]);
 
-  // Touch swipe handling for Reels navigation (swipe up/down or left/right)
+  // Touch swipe handling for Reels navigation: ONLY vertical swipe is allowed
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
-    touchStartX.current = e.touches[0].clientX;
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartY.current === null || touchStartX.current === null) return;
+    if (touchStartY.current === null) return;
     const deltaY = e.changedTouches[0].clientY - touchStartY.current;
-    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
 
-    // Detect swipe (40px threshold)
-    if (Math.abs(deltaY) > Math.abs(deltaX)) {
-      if (deltaY < -40) {
+    // Detect swipe (40px threshold) - strictly vertical only
+    if (Math.abs(deltaY) > 40) {
+      if (deltaY < 0) {
         // Swiped UP -> Next video
         goToNext();
-      } else if (deltaY > 40) {
+      } else {
         // Swiped DOWN -> Prev video
-        goToPrev();
-      }
-    } else {
-      if (deltaX < -40) {
-        // Swiped LEFT -> Next video
-        goToNext();
-      } else if (deltaX > 40) {
-        // Swiped RIGHT -> Prev video
         goToPrev();
       }
     }
 
     touchStartY.current = null;
-    touchStartX.current = null;
   };
 
   if (!isOpen || !currentVideo) return null;
 
-  // Check if video is assigned to a publication in the admin panel
+  // Check if video is assigned to a publication in the admin panel and allowed to be shown
   const hasAssignedProduct = Boolean(
+    showAssociatedProduct &&
     currentVideo.productId &&
     currentVideo.productId.trim() !== '' &&
     currentVideo.productId !== 'none'
   );
 
   const linkedProduct = hasAssignedProduct
-    ? products.find((p) => p.id === currentVideo.productId)
+    ? products.find((p) => p.id === currentVideo.productId) || (currentVideo.productPrice !== undefined ? {
+        id: currentVideo.productId!,
+        title: currentVideo.productTitle || currentVideo.title || 'Producto',
+        category: '',
+        wholesalePrice: currentVideo.productPrice,
+        retailPrice: currentVideo.productPrice,
+        minWholesaleQty: 1,
+        stock: 99,
+        images: currentVideo.productImage ? [currentVideo.productImage] : [],
+        description: '',
+        createdAt: currentVideo.createdAt,
+      } as Product : undefined)
     : undefined;
-
-  const productTitle = linkedProduct?.title || currentVideo.productTitle || currentVideo.title || 'Producto';
-  const wholesalePrice = linkedProduct ? linkedProduct.wholesalePrice : currentVideo.productPrice;
-  const minWholesaleQty = linkedProduct ? (linkedProduct.minWholesaleQty || 1) : 1;
-  const retailPrice = linkedProduct ? linkedProduct.retailPrice : undefined;
-  const productThumbnail = linkedProduct?.images?.[0] || currentVideo.productImage;
 
   return (
     <div
@@ -336,7 +334,7 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
           </div>
         )}
 
-        {/* Left / Right Quick Navigation Buttons (Desktop friendly) */}
+        {/* Quick Navigation Buttons (Desktop friendly, vertical) */}
         {videos.length > 1 && (
           <>
             <button
@@ -345,10 +343,10 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
                 e.stopPropagation();
                 goToPrev();
               }}
-              className="hidden md:flex absolute left-2 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white items-center justify-center backdrop-blur-xs border border-white/10 transition-transform active:scale-90 cursor-pointer"
+              className="hidden md:flex absolute right-3 top-[44%] -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white items-center justify-center backdrop-blur-xs border border-white/10 transition-transform active:scale-90 cursor-pointer"
               aria-label="Video anterior"
             >
-              <ChevronLeft className="w-6 h-6" />
+              <ChevronUp className="w-6 h-6" />
             </button>
             <button
               type="button"
@@ -356,76 +354,67 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
                 e.stopPropagation();
                 goToNext();
               }}
-              className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white items-center justify-center backdrop-blur-xs border border-white/10 transition-transform active:scale-90 cursor-pointer"
+              className="hidden md:flex absolute right-3 top-[56%] -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white items-center justify-center backdrop-blur-xs border border-white/10 transition-transform active:scale-90 cursor-pointer"
               aria-label="Siguiente video"
             >
-              <ChevronRight className="w-6 h-6" />
+              <ChevronDown className="w-6 h-6" />
             </button>
           </>
         )}
 
-        {/* Bottom Area: Only shows Product Card if the video is assigned to a publication */}
+        {/* Bottom Area: Shows Product Card if the video is assigned to a publication and showAssociatedProduct is enabled */}
         <div className="absolute bottom-4 sm:bottom-6 inset-x-3 sm:inset-x-4 z-20 flex flex-col gap-2">
-          {hasAssignedProduct && (
+          {hasAssignedProduct && linkedProduct && (
             <div
               onClick={(e) => {
                 e.stopPropagation();
-                if (onSelectProduct && currentVideo.productId) {
+                if (onSelectProduct && linkedProduct.id) {
                   onClose();
-                  onSelectProduct(currentVideo.productId);
+                  onSelectProduct(linkedProduct.id);
                 }
               }}
-              className="bg-black/10 backdrop-blur-xs border border-white/15 rounded-xl p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-lg cursor-pointer transition-all hover:bg-black/25 active:scale-[0.99]"
+              className="group bg-black/10 backdrop-blur-md rounded-2xl border border-white/20 hover:border-white/35 shadow-2xl p-2.5 sm:p-3 flex items-center justify-between gap-3 cursor-pointer transition-all duration-300 hover:bg-black/15 active:scale-[0.99]"
             >
-              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                {productThumbnail ? (
-                  <img
-                    src={productThumbnail}
-                    alt={productTitle}
-                    className="w-12 h-12 rounded-lg object-cover bg-white/5 border border-white/10 shrink-0"
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                {/* Imagen del producto asociado idéntica a la tarjeta original */}
+                <div className="relative aspect-square w-14 h-14 sm:w-16 sm:h-16 bg-black/20 rounded-xl overflow-hidden shrink-0 border border-white/15 shadow-inner">
+                  <ImageWithSkeleton
+                    src={(linkedProduct.images && linkedProduct.images[0]) || currentVideo.productImage || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'}
+                    alt={linkedProduct.title}
+                    className={`w-full h-full object-cover ${
+                      isProductCompletelyOutOfStock(linkedProduct) ? 'opacity-60 grayscale-[30%]' : 'group-hover:scale-105'
+                    } transition-transform duration-300`}
                   />
-                ) : (
-                  <div className="w-12 h-12 rounded-lg bg-white/10 flex items-center justify-center shrink-0 border border-white/10">
-                    <ShoppingBag className="w-5 h-5 text-emerald-400" />
-                  </div>
-                )}
-                <div className="min-w-0 flex-1 space-y-0.5">
-                  {/* Nombre en color blanco */}
-                  <h4 className="text-white font-bold text-xs sm:text-sm leading-snug line-clamp-1 font-['Montserrat'] drop-shadow-xs">
-                    {productTitle}
-                  </h4>
-                  {/* Precios en verde y blanco */}
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
-                    {wholesalePrice !== undefined && (
-                      <p className="text-emerald-400 font-extrabold text-xs sm:text-[13px] leading-tight">
-                        ${wholesalePrice.toLocaleString('es-AR')}
-                        <span className="text-emerald-300 font-normal text-[11px] sm:text-xs ml-1">
-                          x mayor (mín. {minWholesaleQty} u.)
-                        </span>
-                      </p>
-                    )}
-                    {retailPrice !== undefined && (
-                      <p className="text-white font-semibold text-xs sm:text-[13px] leading-tight">
-                        ${retailPrice.toLocaleString('es-AR')}
-                        <span className="text-white/80 font-normal text-[11px] sm:text-xs ml-1">
-                          x menor (x 1 u.)
-                        </span>
-                      </p>
-                    )}
-                  </div>
+                  {isProductCompletelyOutOfStock(linkedProduct) && (
+                    <span className="absolute top-1 right-1 bg-red-600/90 backdrop-blur-xs text-white text-[9px] font-bold px-1 rounded shadow-xs z-10">
+                      Sin stock
+                    </span>
+                  )}
+                </div>
+
+                {/* Detalles y Precio: reutilizando exactamente la lógica y componente con tema dark */}
+                <div className="min-w-0 flex-1 space-y-0.5 sm:space-y-1">
+                  <h3 className="text-xs sm:text-sm font-semibold text-white line-clamp-1 leading-snug group-hover:text-blue-200 transition-colors drop-shadow-xs">
+                    {linkedProduct.title}
+                  </h3>
+                  <ProductCardPrice product={linkedProduct} theme="dark" className="!pt-0" />
                 </div>
               </div>
-              <div className="inline-flex items-center gap-1 bg-emerald-500 hover:bg-emerald-600 text-gray-950 px-2.5 py-1.5 rounded-lg text-xs font-black shrink-0 shadow-xs transition-colors">
+
+              {/* Botón Ver sin fondo (el fondo es el recuadro de la tarjeta negra con opacidad del 10%) */}
+              <div className="inline-flex items-center gap-1.5 bg-transparent hover:bg-white/10 active:scale-95 text-white px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-xl text-xs font-semibold shrink-0 border border-white/25 transition-all">
                 <span>Ver</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </div>
             </div>
           )}
 
-          {/* Swipe indicator label on mobile */}
-          <div className="text-center text-[11px] text-white/50 font-medium tracking-wide">
-            {videos.length > 1 ? `${currentIndex + 1} de ${videos.length} • Desliza para cambiar de video` : 'Desliza hacia abajo o toca fuera para cerrar'}
-          </div>
+          {/* Flecha discreta hacia abajo sin línea media (solo líneas oblicuas) */}
+          {videos.length > 1 && (
+            <div className="flex justify-center items-center py-0.5 pointer-events-none">
+              <ChevronDown className="w-5 h-5 text-white/50 animate-bounce drop-shadow-xs" strokeWidth={2} />
+            </div>
+          )}
         </div>
       </div>
     </div>

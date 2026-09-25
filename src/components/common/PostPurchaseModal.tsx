@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Download, Share2, Loader2, CheckCircle2, Info, X, AlertCircle } from 'lucide-react';
+import { Download, FileText, Loader2, CheckCircle2, Info, X, AlertCircle, MessageCircle } from 'lucide-react';
 import { OfficialWhatsAppIcon } from '../admin/QuickBuyLinkManager';
 import {
   getDirectWhatsAppChatUrl,
   triggerWhatsAppOpen,
   normalizeVariantText,
 } from '../../services/quickBuyLink';
-import { generateReceiptBlob, ReceiptData } from '../../utils/receiptCanvas';
+import { generateReceiptPdfBlob, ReceiptData } from '../../utils/receiptCanvas';
 
 export interface PostPurchaseModalProps {
   isOpen: boolean;
@@ -25,6 +25,7 @@ export interface PostPurchaseModalProps {
     customerName?: string;
     customerWhatsapp?: string;
     customerEmail?: string;
+    createdAt?: string;
     deliveryAddress?: {
       street?: string;
       number?: string;
@@ -48,15 +49,25 @@ export interface PostPurchaseModalProps {
   onContinueShopping?: () => void;
 }
 
+function triggerDownloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
 export const PostPurchaseModal: React.FC<PostPurchaseModalProps> = ({
   isOpen,
   onClose,
   order,
   onContinueShopping,
 }) => {
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
-  const [shareSuccessToast, setShareSuccessToast] = useState<string | null>(null);
-  const [shareErrorToast, setShareErrorToast] = useState<string | null>(null);
+  const [generatingAction, setGeneratingAction] = useState<'detail' | 'summary' | 'whatsapp' | null>(null);
+  const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   if (!isOpen || !order) return null;
 
@@ -66,7 +77,7 @@ export const PostPurchaseModal: React.FC<PostPurchaseModalProps> = ({
     safeItems.reduce((acc, item) => acc + (item.quantity || 1), 0);
   const itemsCount = order.itemsCount ?? safeItems.length;
 
-  // Preparar datos para el generador nativo de comprobantes en Canvas 2D
+  // Preparar datos para el generador nativo de comprobantes PDF multipágina
   const buildReceiptData = (): ReceiptData => {
     return {
       orderNumber: order.orderNumber,
@@ -95,55 +106,74 @@ export const PostPurchaseModal: React.FC<PostPurchaseModalProps> = ({
     };
   };
 
-  // Botón 1: Contactar por WhatsApp (abre directamente a 1166904678 sin mensajes prellenados)
-  const handleContactWhatsApp = () => {
-    const waUrl = getDirectWhatsAppChatUrl();
-    triggerWhatsAppOpen(waUrl);
-  };
-
-  // Botón 2: Descargar imagen del resumen
-  const handleDownloadImage = async () => {
+  // OPCIÓN 1: Descargar detalle (PDF completo con todos los productos, variantes y precios unitarios)
+  const handleDownloadDetail = async () => {
     try {
-      setIsGeneratingImage(true);
-      setShareErrorToast(null);
+      setGeneratingAction('detail');
+      setToastMessage(null);
 
       const receiptData = buildReceiptData();
-      const blob = await generateReceiptBlob(receiptData);
+      const pdfBlob = await generateReceiptPdfBlob(receiptData, { mode: 'detail' });
+      const fileName = `Pedido-${order.orderNumber}-Detalle.pdf`;
+      triggerDownloadBlob(pdfBlob, fileName);
 
-      const fileName = `Pedido-${order.orderNumber}-Resumen.png`;
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
-
-      setShareSuccessToast('¡Imagen descargada con éxito! Ya puedes enviarla.');
-      setTimeout(() => setShareSuccessToast(null), 4500);
+      setToastMessage({
+        type: 'success',
+        text: '¡Detalle del pedido descargado en PDF con éxito!',
+      });
+      setTimeout(() => setToastMessage(null), 4500);
     } catch (err) {
-      console.error('Error al generar la imagen del resumen:', err);
-      setShareErrorToast('No se pudo generar la imagen. Por favor reintenta.');
-      setTimeout(() => setShareErrorToast(null), 4000);
+      console.error('Error al generar el PDF de detalle:', err);
+      setToastMessage({
+        type: 'error',
+        text: 'No se pudo generar el detalle en PDF. Por favor reintenta.',
+      });
+      setTimeout(() => setToastMessage(null), 4000);
     } finally {
-      setIsGeneratingImage(false);
+      setGeneratingAction(null);
     }
   };
 
-  // Botón 3: Compartir imagen del resumen por WhatsApp
-  const handleShareImage = async () => {
+  // OPCIÓN 2: Descargar resumen de pedido (PDF oficial con totales, modalidad y resumen)
+  const handleDownloadSummary = async () => {
     try {
-      setIsGeneratingImage(true);
-      setShareErrorToast(null);
+      setGeneratingAction('summary');
+      setToastMessage(null);
 
       const receiptData = buildReceiptData();
-      const blob = await generateReceiptBlob(receiptData);
+      const pdfBlob = await generateReceiptPdfBlob(receiptData, { mode: 'summary' });
+      const fileName = `Pedido-${order.orderNumber}-Resumen.pdf`;
+      triggerDownloadBlob(pdfBlob, fileName);
 
-      const fileName = `Pedido-${order.orderNumber}-Resumen.png`;
-      const file = new File([blob], fileName, { type: 'image/png' });
+      setToastMessage({
+        type: 'success',
+        text: '¡Resumen de pedido descargado en PDF con éxito!',
+      });
+      setTimeout(() => setToastMessage(null), 4500);
+    } catch (err) {
+      console.error('Error al generar el PDF de resumen:', err);
+      setToastMessage({
+        type: 'error',
+        text: 'No se pudo generar el resumen en PDF. Por favor reintenta.',
+      });
+      setTimeout(() => setToastMessage(null), 4000);
+    } finally {
+      setGeneratingAction(null);
+    }
+  };
 
-      // En móviles compatibles (Android / iOS), navigator.share permite adjuntar el archivo directamente a WhatsApp
+  // OPCIÓN 3: Enviar resumen de pedido por WhatsApp (Genera PDF y comparte directamente o descarga + abre WhatsApp)
+  const handleShareSummaryWhatsApp = async () => {
+    try {
+      setGeneratingAction('whatsapp');
+      setToastMessage(null);
+
+      const receiptData = buildReceiptData();
+      const pdfBlob = await generateReceiptPdfBlob(receiptData, { mode: 'summary' });
+      const fileName = `Pedido-${order.orderNumber}-Resumen.pdf`;
+      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+      // Si el navegador soporta compartir archivos por Web Share API (Móviles Android / iOS)
       if (
         typeof navigator !== 'undefined' &&
         navigator.canShare &&
@@ -153,43 +183,48 @@ export const PostPurchaseModal: React.FC<PostPurchaseModalProps> = ({
           await navigator.share({
             files: [file],
             title: `Resumen Pedido #${order.orderNumber}`,
-            text: `Hola, te comparto el resumen de mi Pedido #${order.orderNumber}.`,
+            text: `Hola, te comparto el resumen en PDF de mi Pedido #${order.orderNumber}.`,
           });
           return;
         } catch (err: any) {
           if (err?.name === 'AbortError') {
-            return; // El usuario cerró el diálogo nativo de compartir
+            return; // Usuario canceló el share
           }
           console.warn('Error en navigator.share:', err);
         }
       }
 
-      // En computadoras o navegadores sin soporte directo de Web Share de archivos:
-      // 1. Se descarga la imagen automáticamente al dispositivo
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      // En computadoras o navegadores sin soporte Web Share de archivos:
+      // 1. Descarga el archivo PDF
+      triggerDownloadBlob(pdfBlob, fileName);
 
-      // 2. Notificación en pantalla
-      setShareSuccessToast('¡Imagen descargada! Ya abrimos WhatsApp para que la adjuntes.');
-      setTimeout(() => setShareSuccessToast(null), 5000);
+      // 2. Feedback en pantalla
+      setToastMessage({
+        type: 'success',
+        text: '¡PDF descargado! Ya abrimos WhatsApp para que lo adjuntes al chat.',
+      });
+      setTimeout(() => setToastMessage(null), 5000);
 
-      // 3. Abrir WhatsApp directamente al 1166904678
+      // 3. Abrir WhatsApp directamente
       setTimeout(() => {
         triggerWhatsAppOpen(getDirectWhatsAppChatUrl());
       }, 400);
     } catch (err) {
-      console.error('Error al compartir la imagen del resumen:', err);
-      setShareErrorToast('No se pudo procesar la imagen para compartir. Por favor reintenta.');
-      setTimeout(() => setShareErrorToast(null), 4000);
+      console.error('Error al compartir el resumen por WhatsApp:', err);
+      setToastMessage({
+        type: 'error',
+        text: 'No se pudo preparar el PDF para compartir. Por favor reintenta.',
+      });
+      setTimeout(() => setToastMessage(null), 4000);
     } finally {
-      setIsGeneratingImage(false);
+      setGeneratingAction(null);
     }
+  };
+
+  // Contactar directamente por WhatsApp sin archivo
+  const handleContactWhatsAppDirect = () => {
+    const waUrl = getDirectWhatsAppChatUrl();
+    triggerWhatsAppOpen(waUrl);
   };
 
   const handleClose = () => {
@@ -203,7 +238,7 @@ export const PostPurchaseModal: React.FC<PostPurchaseModalProps> = ({
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
       {/* Tarjeta Modal Post-Compra */}
       <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 text-center shadow-2xl space-y-4 animate-scale-up border border-emerald-100 my-auto relative">
-        {/* Botón "X" en la parte superior derecha (solicitado) */}
+        {/* Botón "X" en la parte superior derecha */}
         <button
           type="button"
           id="modal-btn-close-x"
@@ -243,85 +278,108 @@ export const PostPurchaseModal: React.FC<PostPurchaseModalProps> = ({
           </span>
         </div>
 
-        {/* Aviso instructivo claro */}
+        {/* Aviso instructivo claro sobre el PDF */}
         <div className="bg-blue-50/90 border border-blue-200/90 rounded-xl p-3 text-left text-xs sm:text-sm text-blue-950 space-y-1 shadow-2xs">
           <div className="flex items-center gap-1.5 font-bold text-blue-900 text-xs sm:text-sm">
             <Info className="w-4 h-4 text-[#0058bb] shrink-0" />
-            <span>¿Querés enviar el resumen completo?</span>
+            <span>Comprobante en PDF</span>
           </div>
           <p className="text-blue-800 text-[11px] sm:text-xs leading-relaxed">
-            Tu pedido ya fue notificado con un mensaje corto. Si deseas enviarnos el listado completo con variantes y cantidades,{' '}
-            <strong>descargá la imagen del resumen</strong> y <strong>compartila por WhatsApp</strong>.
+            Podés <strong>descargar el detalle</strong>, <strong>descargar el resumen de pedido en PDF</strong> (soporta pedidos grandes en múltiples páginas) o <strong>enviar el resumen por WhatsApp</strong>.
           </p>
         </div>
 
-        {/* Notificación de feedback (toast éxito) */}
-        {shareSuccessToast && (
-          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs p-2.5 rounded-xl font-medium flex items-center justify-center gap-1.5 animate-fade-in">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>{shareSuccessToast}</span>
-          </div>
-        )}
-
-        {/* Notificación de error si ocurre */}
-        {shareErrorToast && (
-          <div className="bg-red-50 border border-red-200 text-red-800 text-xs p-2.5 rounded-xl font-medium flex items-center justify-center gap-1.5 animate-fade-in">
-            <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-            <span>{shareErrorToast}</span>
-          </div>
-        )}
-
-        {/* Los 3 Botones Solicitados */}
-        <div className="space-y-2.5 pt-1">
-          {/* BOTÓN 1: Contactar por WhatsApp (Abre directamente sin mensajes escritos) */}
-          <button
-            type="button"
-            id="modal-btn-contact-whatsapp"
-            onClick={handleContactWhatsApp}
-            className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-sm py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all cursor-pointer min-h-[46px]"
+        {/* Notificación de feedback (toast) */}
+        {toastMessage && (
+          <div
+            className={`text-xs p-2.5 rounded-xl font-medium flex items-center justify-center gap-1.5 animate-fade-in ${
+              toastMessage.type === 'success'
+                ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                : 'bg-red-50 border border-red-200 text-red-800'
+            }`}
           >
-            <OfficialWhatsAppIcon className="w-5 h-5 text-white shrink-0" />
-            <span>Contactar por WhatsApp</span>
-          </button>
+            {toastMessage.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+            )}
+            <span>{toastMessage.text}</span>
+          </div>
+        )}
 
-          {/* BOTÓN 2: Descargar imagen del resumen */}
+        {/* Las 3 Opciones Solicitadas */}
+        <div className="space-y-2.5 pt-1">
+          {/* OPCIÓN 1: Descargar detalle */}
           <button
             type="button"
-            id="modal-btn-download-receipt"
-            onClick={handleDownloadImage}
-            disabled={isGeneratingImage}
+            id="modal-btn-download-detail"
+            onClick={handleDownloadDetail}
+            disabled={generatingAction !== null}
             className="w-full bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold text-sm py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all cursor-pointer disabled:opacity-60 min-h-[46px]"
           >
-            {isGeneratingImage ? (
-              <Loader2 className="w-5 h-5 animate-spin text-white" />
+            {generatingAction === 'detail' ? (
+              <Loader2 className="w-5 h-5 animate-spin text-white shrink-0" />
+            ) : (
+              <FileText className="w-5 h-5 text-white shrink-0" />
+            )}
+            <span>
+              {generatingAction === 'detail' ? 'Generando PDF...' : 'Descargar detalle'}
+            </span>
+          </button>
+
+          {/* OPCIÓN 2: Descargar resumen de pedido */}
+          <button
+            type="button"
+            id="modal-btn-download-summary"
+            onClick={handleDownloadSummary}
+            disabled={generatingAction !== null}
+            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all cursor-pointer disabled:opacity-60 min-h-[46px]"
+          >
+            {generatingAction === 'summary' ? (
+              <Loader2 className="w-5 h-5 animate-spin text-white shrink-0" />
             ) : (
               <Download className="w-5 h-5 text-white shrink-0" />
             )}
-            <span>{isGeneratingImage ? 'Generando imagen...' : 'Descarga imagen del resumen'}</span>
+            <span>
+              {generatingAction === 'summary' ? 'Generando PDF...' : 'Descargar resumen de pedido'}
+            </span>
           </button>
 
-          {/* BOTÓN 3: Compartir imagen del resumen por WhatsApp */}
+          {/* OPCIÓN 3: Enviar resumen de pedido por WhatsApp */}
           <button
             type="button"
-            id="modal-btn-share-receipt"
-            onClick={handleShareImage}
-            disabled={isGeneratingImage}
-            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all cursor-pointer disabled:opacity-60 min-h-[46px]"
+            id="modal-btn-share-whatsapp"
+            onClick={handleShareSummaryWhatsApp}
+            disabled={generatingAction !== null}
+            className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-sm py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all cursor-pointer disabled:opacity-60 min-h-[46px]"
           >
-            {isGeneratingImage ? (
-              <Loader2 className="w-5 h-5 animate-spin text-white" />
+            {generatingAction === 'whatsapp' ? (
+              <Loader2 className="w-5 h-5 animate-spin text-white shrink-0" />
             ) : (
-              <Share2 className="w-5 h-5 text-emerald-400 shrink-0" />
+              <OfficialWhatsAppIcon className="w-5 h-5 text-white shrink-0" />
             )}
-            <span>Compartir imagen del resumen por WhatsApp</span>
+            <span>
+              {generatingAction === 'whatsapp' ? 'Preparando PDF...' : 'Enviar resumen de pedido por WhatsApp'}
+            </span>
           </button>
 
-          {/* Botón de cierre alternativo */}
+          {/* Contactar directamente por WhatsApp si solo desea chatear */}
+          <button
+            type="button"
+            id="modal-btn-contact-whatsapp-direct"
+            onClick={handleContactWhatsAppDirect}
+            className="w-full text-xs text-[#0058bb] hover:text-[#004bb0] font-semibold py-1.5 flex items-center justify-center gap-1.5 cursor-pointer hover:underline"
+          >
+            <MessageCircle className="w-3.5 h-3.5" />
+            <span>O abrir chat de WhatsApp directo</span>
+          </button>
+
+          {/* Botón de cierre */}
           <button
             type="button"
             id="modal-btn-close"
             onClick={handleClose}
-            className="w-full py-2.5 text-xs text-gray-500 hover:text-gray-800 font-semibold transition-colors cursor-pointer"
+            className="w-full py-2 text-xs text-gray-500 hover:text-gray-800 font-medium transition-colors cursor-pointer"
           >
             Cerrar y seguir explorando
           </button>

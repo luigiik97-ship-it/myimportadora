@@ -14,6 +14,8 @@ import { getActiveVariantImages, getItemEffectiveNormalPrice, getSelectedVariant
 import { slugifyCategory, reconcileCategoriesWithProducts } from './utils/categoryHelpers';
 import { recordSiteVisit } from './services/analytics';
 import { isQuickBuyCustomLinkActive, fetchQuickBuyLinkConfigFromSupabase } from './services/quickBuyLink';
+import { isLaunchesSectionVisible, LAUNCHES_VISIBILITY_EVENT } from './services/launches';
+import { fetchProductTags } from './services/productTags';
 import { fetchStoreBannersFromSupabase } from './services/storeBanners';
 import { fetchShippingConfigFromSupabase } from './services/shippingConfig';
 import {
@@ -34,6 +36,7 @@ import { AuthModal } from './components/AuthModal';
 import { AccountModal } from './components/AccountModal';
 import { MobileOrientationLock } from './components/common/MobileOrientationLock';
 import { AddedToCartNotification, CartNotificationData } from './components/common/AddedToCartNotification';
+import { PurchaseModeProvider, PURCHASE_MODE_STORAGE_KEY } from './context/PurchaseModeContext';
 
 // Helper to serialize cart in a lightweight way, maintaining variant selection, image and price metadata
 const serializeCartForStorage = (items: CartItem[]) => {
@@ -100,6 +103,20 @@ export default function App() {
   });
   const [cartNotification, setCartNotification] = useState<CartNotificationData | null>(null);
   const [lastShoppingView, setLastShoppingView] = useState<'home' | 'category' | 'quick_buy'>('home');
+  const [isLaunchesVisible, setIsLaunchesVisible] = useState<boolean>(() => isLaunchesSectionVisible());
+
+  // Sincronizar visibilidad de Próximos Lanzamientos desde cambios en administración o pestañas
+  useEffect(() => {
+    const handleVisChange = () => {
+      setIsLaunchesVisible(isLaunchesSectionVisible());
+    };
+    window.addEventListener(LAUNCHES_VISIBILITY_EVENT, handleVisChange);
+    window.addEventListener('storage', handleVisChange);
+    return () => {
+      window.removeEventListener(LAUNCHES_VISIBILITY_EVENT, handleVisChange);
+      window.removeEventListener('storage', handleVisChange);
+    };
+  }, []);
 
   // Route matching helpers
   const isHome = location.pathname === '/';
@@ -171,10 +188,12 @@ export default function App() {
 
   const [paymentMethod, setPaymentMethod] = useState<'transfer' | 'cash'>(() => {
     try {
+      const mode = localStorage.getItem(PURCHASE_MODE_STORAGE_KEY);
+      if (mode === 'cash' || mode === 'transfer') return mode;
       const saved = localStorage.getItem('my_commerce_checkout_payment_method');
       if (saved === 'cash' || saved === 'transfer') return saved;
     } catch (e) {}
-    return 'cash'; // Default to cash for pickup
+    return 'transfer'; // Modalidad predeterminada: transferencia por defecto en toda la tienda
   });
 
   // Track if user came from Compra Rápida with Retiro en local and Pago en efectivo
@@ -266,7 +285,11 @@ export default function App() {
       if (products.length === 0) {
         setIsLoadingData(true);
       }
-      const [prods, cats] = await Promise.all([fetchProducts({ force }), fetchCategories({ force })]);
+      const [prods, cats] = await Promise.all([
+        fetchProducts({ force }),
+        fetchCategories({ force }),
+        fetchProductTags(force).catch(() => []),
+      ]);
       const safeProds = prods && prods.length > 0 ? prods : [];
       let safeCats = cats && cats.length > 0 ? cats : getCachedCategories();
 
@@ -385,6 +408,7 @@ export default function App() {
         fetchQuickBuyLinkConfigFromSupabase().catch(() => {});
         fetchEmailTemplatesFromSupabase().catch(() => {});
         fetchStoreBannersFromSupabase().catch(() => {});
+        fetchProductTags(true).catch(() => {});
       },
     });
 
@@ -621,6 +645,8 @@ export default function App() {
       setPaymentMethod('transfer');
       try {
         localStorage.setItem('my_commerce_checkout_payment_method', 'transfer');
+        localStorage.setItem(PURCHASE_MODE_STORAGE_KEY, 'transfer');
+        window.dispatchEvent(new CustomEvent('my_commerce_purchase_mode_changed', { detail: 'transfer' }));
       } catch (e) {}
     }
   };
@@ -629,6 +655,12 @@ export default function App() {
     setPaymentMethod(method);
     try {
       localStorage.setItem('my_commerce_checkout_payment_method', method);
+      localStorage.setItem(PURCHASE_MODE_STORAGE_KEY, method);
+      if (method === 'cash') {
+        setDeliveryOption('pickup');
+        localStorage.setItem('my_commerce_checkout_delivery_option', 'pickup');
+      }
+      window.dispatchEvent(new CustomEvent('my_commerce_purchase_mode_changed', { detail: method }));
     } catch (e) {}
   };
 
@@ -745,6 +777,7 @@ export default function App() {
   };
 
   const handleGoToLaunches = () => {
+    if (!isLaunchesVisible) return;
     setCartNotification(null);
     navigate('/lanzamientos');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -820,7 +853,17 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#fbf9f8] text-[#1b1c1c] font-sans antialiased">
+    <PurchaseModeProvider
+      onModeChangeExternal={(newMode) => {
+        if (newMode === 'cash') {
+          setDeliveryOption('pickup');
+          setPaymentMethod('cash');
+        } else {
+          setPaymentMethod('transfer');
+        }
+      }}
+    >
+      <div className="min-h-screen flex flex-col bg-[#fbf9f8] text-[#1b1c1c] font-sans antialiased">
       {/* Global Navigation Header (Royal Blue) */}
       <Navbar
         showTopBar={showTopBar}
@@ -850,8 +893,9 @@ export default function App() {
         onGoHome={handleGoHome}
         onOpenQuickBuy={handleGoToQuickBuy}
         isQuickBuyActive={isQuickBuy}
-        onOpenLaunches={handleGoToLaunches}
-        isLaunchesActive={isLaunches}
+        onOpenLaunches={isLaunchesVisible ? handleGoToLaunches : undefined}
+        isLaunchesActive={isLaunchesVisible && isLaunches}
+        isLaunchesVisible={isLaunchesVisible}
         currentUser={currentUser}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onOpenAccount={() => setIsAccountModalOpen(true)}
@@ -882,7 +926,8 @@ export default function App() {
                 }}
                 currentCategory={currentCategory}
                 searchQuery={searchQuery}
-                onOpenLaunches={handleGoToLaunches}
+                onOpenLaunches={isLaunchesVisible ? handleGoToLaunches : undefined}
+                isLaunchesVisible={isLaunchesVisible}
               />
             }
           />
@@ -1033,14 +1078,21 @@ export default function App() {
           <Route
             path="/lanzamientos"
             element={
-              <LaunchesView
-                currentUser={currentUser}
-                onOpenAuth={() => setIsAuthModalOpen(true)}
-                onGoHome={handleGoHome}
-              />
+              isLaunchesVisible ? (
+                <LaunchesView
+                  currentUser={currentUser}
+                  onOpenAuth={() => setIsAuthModalOpen(true)}
+                  onGoHome={handleGoHome}
+                />
+              ) : (
+                <Navigate to="/" replace />
+              )
             }
           />
-          <Route path="/proximos-lanzamientos" element={<Navigate to="/lanzamientos" replace />} />
+          <Route
+            path="/proximos-lanzamientos"
+            element={<Navigate to={isLaunchesVisible ? "/lanzamientos" : "/"} replace />}
+          />
 
           {/* Institutional / Terms / Info routes */}
           <Route
@@ -1123,5 +1175,6 @@ export default function App() {
         />
       )}
     </div>
+    </PurchaseModeProvider>
   );
 }

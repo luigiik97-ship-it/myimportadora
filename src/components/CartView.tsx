@@ -1,8 +1,9 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { CartItem, Product } from '../types';
-import { Trash2, Plus, Minus, ArrowRight, ArrowLeft, ShieldCheck, Truck, ShoppingBag, Info, CheckCircle2, Banknote } from 'lucide-react';
+import { Trash2, Plus, Minus, ArrowRight, ArrowLeft, ShieldCheck, Truck, ShoppingBag, Info, CheckCircle2, Banknote, CreditCard, ArrowLeftRight, Store } from 'lucide-react';
 import { getItemEffectiveNormalPrice, getItemEffectiveCashPrice, getSelectedVariantStock } from '../utils/variantHelpers';
+import { usePurchaseMode } from '../context/PurchaseModeContext';
 
 interface CartViewProps {
   cartItems: CartItem[];
@@ -26,6 +27,7 @@ export const CartView: React.FC<CartViewProps> = ({
   showCashEquivalent = false,
 }) => {
   const location = useLocation();
+  const { purchaseMode, setPurchaseMode, isCashMode } = usePurchaseMode();
 
   const isCashEquivalentActive = Boolean(
     showCashEquivalent ||
@@ -79,6 +81,10 @@ export const CartView: React.FC<CartViewProps> = ({
     );
     const cashTotalPrice = cashUnitPrice * item.quantity;
 
+    // Active price strictly adhering to the selected purchase mode
+    const effectiveUnitPrice = isCashMode ? cashUnitPrice : unitPrice;
+    const effectiveTotalPrice = isCashMode ? cashTotalPrice : totalPrice;
+
     return {
       ...item,
       isWholesale,
@@ -88,6 +94,8 @@ export const CartView: React.FC<CartViewProps> = ({
       totalPrice,
       cashUnitPrice,
       cashTotalPrice,
+      effectiveUnitPrice,
+      effectiveTotalPrice,
       savings,
       remainingToWholesale,
       minQty,
@@ -100,6 +108,7 @@ export const CartView: React.FC<CartViewProps> = ({
   const subtotalProducts = processedItems.reduce((acc, i) => acc + i.totalPrice, 0);
   const totalSavings = processedItems.reduce((acc, i) => acc + i.savings, 0);
   const cashSubtotalProducts = processedItems.reduce((acc, i) => acc + i.cashTotalPrice, 0);
+  const activeSubtotal = isCashMode ? cashSubtotalProducts : subtotalProducts;
 
   if (cartItems.length === 0) {
     return (
@@ -136,6 +145,54 @@ export const CartView: React.FC<CartViewProps> = ({
           <ArrowLeft className="w-4 h-4" />
           <span>Seguir comprando</span>
         </button>
+      </div>
+
+      {/* Banner de Modalidad Activa en Carrito */}
+      <div
+        id="cart-purchase-mode-banner"
+        className={`p-3 sm:p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
+          isCashMode
+            ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950 shadow-2xs'
+            : 'bg-blue-50/80 border-blue-200 text-blue-950 shadow-2xs'
+        }`}
+      >
+        <div className="flex items-start sm:items-center gap-2.5">
+          <div className={`p-2 rounded-lg shrink-0 ${isCashMode ? 'bg-emerald-600 text-white' : 'bg-[#0058bb] text-white'}`}>
+            {isCashMode ? <Banknote className="w-5 h-5" /> : <CreditCard className="w-5 h-5" />}
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs sm:text-sm font-bold">
+                Modalidad activa: {isCashMode ? 'Efectivo' : 'Transferencia bancaria'}
+              </span>
+              {isCashMode && (
+                <span className="text-[11px] font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-full">
+                  exclusivo para retiro en local
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-600 mt-0.5 leading-snug">
+              {isCashMode
+                ? 'Precios en efectivo activados. Tu pedido se preparará para abonar y retirar en nuestro local comercial.'
+                : 'Precios de transferencia activados. Válido tanto para envío a domicilio como retiro en local.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+          <button
+            type="button"
+            id="cart-toggle-mode-btn"
+            onClick={() => setPurchaseMode(isCashMode ? 'transfer' : 'cash')}
+            className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer select-none ${
+              isCashMode
+                ? 'bg-white hover:bg-emerald-100 text-emerald-800 border-emerald-300'
+                : 'bg-white hover:bg-blue-100 text-[#0058bb] border-blue-300'
+            }`}
+          >
+            Cambiar a {isCashMode ? 'Transferencia' : 'Efectivo (Retiro en local)'}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
@@ -241,11 +298,11 @@ export const CartView: React.FC<CartViewProps> = ({
                       </div>
 
                       <div className="text-right shrink-0">
-                        <span className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat'] whitespace-nowrap block">
-                          $ {item.totalPrice.toLocaleString('es-AR')}
+                        <span className={`text-base sm:text-lg font-bold font-['Montserrat'] whitespace-nowrap block ${isCashMode ? 'text-emerald-700' : 'text-gray-900'}`}>
+                          $ {item.effectiveTotalPrice.toLocaleString('es-AR')}
                         </span>
                         <span className="text-xs text-gray-500 block whitespace-nowrap">
-                          ($ {item.unitPrice.toLocaleString('es-AR')} c/u)
+                          ($ {item.effectiveUnitPrice.toLocaleString('es-AR')} c/u {isCashMode ? 'efectivo' : ''})
                         </span>
                       </div>
                     </div>
@@ -310,7 +367,7 @@ export const CartView: React.FC<CartViewProps> = ({
                       {itemLabel}
                     </span>
                     <span className="font-normal text-gray-900 shrink-0">
-                      ${item.totalPrice.toLocaleString('es-AR')}
+                      ${item.effectiveTotalPrice.toLocaleString('es-AR')}
                     </span>
                   </div>
                 );
@@ -326,47 +383,46 @@ export const CartView: React.FC<CartViewProps> = ({
             )}
           </div>
 
-          <div className="border-t-0 md:border-t border-gray-200 pt-1 md:pt-3">
+          <div className="border-t-0 md:border-t border-gray-200 pt-1 md:pt-3 space-y-2">
             <div className="flex items-baseline justify-between">
-              <span className="text-base font-bold text-gray-900">Total</span>
+              <div>
+                <span className="text-base font-bold text-gray-900 block leading-tight">Total</span>
+                <span className={`text-[11px] font-semibold block mt-0.5 ${isCashMode ? 'text-emerald-700' : 'text-[#0058bb]'}`}>
+                  {isCashMode ? 'Efectivo (exclusivo retiro en local)' : 'Transferencia bancaria'}
+                </span>
+              </div>
               <div className="text-right">
-                <span id="cart-total-amount" className="text-2xl font-bold text-gray-900 font-['Montserrat']">
-                  $ {subtotalProducts.toLocaleString('es-AR')}
+                <span id="cart-total-amount" className={`text-2xl font-bold font-['Montserrat'] ${isCashMode ? 'text-emerald-700' : 'text-gray-900'}`}>
+                  $ {activeSubtotal.toLocaleString('es-AR')}
                 </span>
                 <span className="text-xs text-gray-400 block">* sin envío</span>
               </div>
             </div>
 
-            {/* Equivalente en efectivo: solo si en Compra Rápida se eligió Retiro en local y Pago en efectivo */}
-            {isCashEquivalentActive && (
+            {/* Alternativa interactiva si está en transferencia */}
+            {!isCashMode && cashSubtotalProducts < subtotalProducts && (
               <div
                 id="cart-cash-equivalent-section"
-                className="mt-3 pt-2.5 border-t border-dashed border-gray-200 flex items-center justify-between text-emerald-800 bg-emerald-50/70 border border-emerald-100 rounded-lg px-3 py-2.5"
+                className="pt-2 border-t border-dashed border-gray-200 flex items-center justify-between text-emerald-800 bg-emerald-50/70 border border-emerald-100 rounded-lg px-3 py-2"
               >
                 <div className="flex items-center gap-2">
                   <Banknote className="w-4 h-4 text-emerald-600 shrink-0" />
                   <div>
-                    <span className="text-xs sm:text-sm font-bold text-gray-900 block leading-tight">
-                      Total en efectivo
+                    <span className="text-xs font-bold text-gray-900 block leading-tight">
+                      ¿Retirás en local?
                     </span>
-                    <span className="text-[10px] sm:text-xs text-emerald-700 font-medium block">
-                      Retiro en local
+                    <span className="text-[10px] text-emerald-700 font-medium block">
+                      En efectivo abonás: <strong>${cashSubtotalProducts.toLocaleString('es-AR')}</strong>
                     </span>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span
-                    id="cart-cash-equivalent-amount"
-                    className="text-lg sm:text-xl font-bold text-emerald-700 font-['Montserrat'] block leading-tight"
-                  >
-                    $ {cashSubtotalProducts.toLocaleString('es-AR')}
-                  </span>
-                  {cashSubtotalProducts < subtotalProducts && (
-                    <span className="text-[10px] text-emerald-600 font-semibold block">
-                      Ahorro: $ {(subtotalProducts - cashSubtotalProducts).toLocaleString('es-AR')}
-                    </span>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setPurchaseMode('cash')}
+                  className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-md transition-colors cursor-pointer shrink-0"
+                >
+                  Activar
+                </button>
               </div>
             )}
           </div>

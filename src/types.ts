@@ -43,6 +43,13 @@ export interface ProductReview {
   date?: string;
 }
 
+export interface ProductTag {
+  id: string;
+  label: string; // e.g. "TOP 1", "Más vendido", "Pocas unidades", "Nuevo", "Oferta"
+  color: string; // Hex color code (e.g. "#0058bb", "#dc2626")
+  textColor?: string; // Optional text color (defaults to "#ffffff")
+}
+
 export interface Product {
   id: string;
   title: string;
@@ -71,6 +78,8 @@ export interface Product {
   reviews?: ProductReview[]; // Lista de comentarios y opiniones
   specs?: ProductSpec[];
   isBestSeller?: boolean;
+  tagId?: string; // ID de la etiqueta asignada
+  tag?: ProductTag; // Datos de la etiqueta asignada
   createdAt?: string;
 }
 

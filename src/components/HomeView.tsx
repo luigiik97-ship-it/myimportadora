@@ -5,6 +5,9 @@ import { getStorefrontCategories } from '../utils/categoryHelpers';
 import { Truck, ArrowRight, ArrowLeftRight, Banknote, MapPin, Building2, Store, ChevronLeft, ChevronRight, Sparkles, ShieldCheck, Tag, Rocket } from 'lucide-react';
 import { ImageWithSkeleton } from './common/ImageWithSkeleton';
 import { ProductGridSkeleton } from './common/ProductCardSkeleton';
+import { ProductCardPrice } from './common/ProductCardPrice';
+import { ProductCardBadge } from './common/ProductCardBadge';
+import { StorePurchaseModeSelector } from './common/StorePurchaseModeSelector';
 import {
   getStoreBannersConfig,
   DEFAULT_STORE_BANNERS,
@@ -32,6 +35,7 @@ interface HomeViewProps {
   currentCategory: string;
   searchQuery: string;
   onOpenLaunches?: () => void;
+  isLaunchesVisible?: boolean;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
@@ -43,6 +47,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   currentCategory,
   searchQuery,
   onOpenLaunches,
+  isLaunchesVisible = true,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(1);
   const [isTransitioning, setIsTransitioning] = useState(true);
@@ -668,7 +673,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         {/* Horizontal scrollable row */}
         <div
           ref={categoriesScrollRef}
-          className="flex items-stretch gap-2.5 sm:gap-4 overflow-x-auto pt-2 pb-3.5 sm:pb-4 px-1 sm:px-1.5 -mb-2 sm:-mb-2.5 no-scrollbar scroll-smooth snap-x touch-auto"
+          className="flex items-stretch gap-2.5 sm:gap-4 overflow-x-auto pt-2 pb-2.5 sm:pb-3 px-1 sm:px-1.5 -mb-2 sm:-mb-2 no-scrollbar scroll-smooth snap-x touch-auto"
         >
           {storefrontCategories.map((cat, idx) => (
             <button
@@ -694,6 +699,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
           ))}
         </div>
       </section>
+
+      {/* Selector de modalidad de compra (debajo de categorías y antes de productos) */}
+      <StorePurchaseModeSelector />
 
       {/* 3. Más vendidos */}
       <section id="mas-vendidos" className="space-y-2 sm:space-y-3">
@@ -732,6 +740,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         isOutOfStock ? 'opacity-60 grayscale-[30%]' : 'group-hover:scale-105'
                       } transition-transform duration-300`}
                     />
+                    <ProductCardBadge product={product} />
                     {isOutOfStock && (
                       <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded shadow-xs z-10">
                         Sin stock
@@ -744,30 +753,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     <h3 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
                       {product.title}
                     </h3>
-
-                    <div className="pt-0.5 sm:pt-1">
-                      {/* Wholesale Price Highlight */}
-                      <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap min-w-0">
-                        <span className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat'] shrink-0">
-                          ${product.wholesalePrice.toLocaleString('es-AR')}
-                        </span>
-                        {isOutOfStock ? (
-                          <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded shrink-0">
-                            Sin stock
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center text-[11px] sm:text-[13.2px] font-semibold bg-[#00a650] text-white px-1 py-0.5 rounded leading-tight shrink min-w-0">
-                            <span className="overflow-hidden whitespace-nowrap text-clip block min-w-0">
-                              desde {product.minWholesaleQty} unids
-                            </span>
-                          </span>
-                        )}
-                      </div>
-                      {/* Retail comparison */}
-                      <div className="text-xs text-gray-500 font-normal mt-0.5">
-                        1 unidad ${product.retailPrice.toLocaleString('es-AR')}
-                      </div>
-                    </div>
+                    <ProductCardPrice product={product} />
                   </div>
                 </div>
               );
@@ -859,6 +845,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         isOutOfStock ? 'opacity-60 grayscale-[30%]' : 'group-hover:scale-105'
                       } transition-transform duration-300`}
                     />
+                    <ProductCardBadge product={product} />
                     {isOutOfStock && (
                       <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded shadow-xs z-10">
                         Sin stock
@@ -871,28 +858,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     <h3 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
                       {product.title}
                     </h3>
-
-                    <div className="pt-0.5 sm:pt-1">
-                      <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap min-w-0">
-                        <span className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat'] shrink-0">
-                          ${product.wholesalePrice.toLocaleString('es-AR')}
-                        </span>
-                        {isOutOfStock ? (
-                          <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded shrink-0">
-                            Sin stock
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center text-[11px] sm:text-[13.2px] font-semibold bg-[#00a650] text-white px-1 py-0.5 rounded leading-tight shrink min-w-0">
-                            <span className="overflow-hidden whitespace-nowrap text-clip block min-w-0">
-                              desde {product.minWholesaleQty} unids
-                            </span>
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-gray-500 font-normal mt-0.5">
-                        1 unidad ${product.retailPrice.toLocaleString('es-AR')}
-                      </div>
-                    </div>
+                    <ProductCardPrice product={product} />
                   </div>
                 </div>
               );
@@ -997,29 +963,31 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
         </div>
 
-        {/* 🚀 Sección de Próximos Lanzamientos Teaser */}
-        <div id="home-proximos-lanzamientos" className="bg-gradient-to-r from-[#003882] via-[#0058bb] to-[#0074f0] rounded-2xl p-4 sm:p-6 text-white shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="space-y-1 text-center sm:text-left">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 text-yellow-300 font-bold text-[10px] sm:text-[11px] uppercase tracking-wider">
-              <Sparkles className="w-3 h-3 fill-current" />
-              <span>Comunidad</span>
+        {/* 🚀 Sección de Próximos Lanzamientos Teaser (Solo si está visible por administración) */}
+        {isLaunchesVisible && onOpenLaunches && (
+          <div id="home-proximos-lanzamientos" className="bg-gradient-to-r from-[#003882] via-[#0058bb] to-[#0074f0] rounded-2xl p-4 sm:p-6 text-white shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="space-y-1 text-center sm:text-left">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 text-yellow-300 font-bold text-[10px] sm:text-[11px] uppercase tracking-wider">
+                <Sparkles className="w-3 h-3 fill-current" />
+                <span>Comunidad</span>
+              </div>
+              <h3 className="text-base sm:text-lg font-black font-['Montserrat'] text-white">
+                Próximos Lanzamientos: Tu voto define los ingresos
+              </h3>
+              <p className="text-xs sm:text-sm text-white/90 max-w-xl">
+                Modelos identificados por letras (A, B, C, D...). Votá con 3 niveles de interés sin registro previo, o proponé tus modelos favoritos.
+              </p>
             </div>
-            <h3 className="text-base sm:text-lg font-black font-['Montserrat'] text-white">
-              Próximos Lanzamientos: Tu voto define los ingresos
-            </h3>
-            <p className="text-xs sm:text-sm text-white/90 max-w-xl">
-              Modelos identificados por letras (A, B, C, D...). Votá con 3 niveles de interés sin registro previo, o proponé tus modelos favoritos.
-            </p>
+            <button
+              type="button"
+              onClick={onOpenLaunches || (() => window.location.assign('/lanzamientos'))}
+              className="w-full sm:w-auto px-5 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-gray-950 font-black text-xs sm:text-sm rounded-xl transition-all shadow-xs active:scale-95 flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+            >
+              <Rocket className="w-4 h-4 text-gray-950 fill-current" />
+              <span>Ver y Votar Modelos</span>
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onOpenLaunches || (() => window.location.assign('/lanzamientos'))}
-            className="w-full sm:w-auto px-5 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-gray-950 font-black text-xs sm:text-sm rounded-xl transition-all shadow-xs active:scale-95 flex items-center justify-center gap-2 shrink-0 cursor-pointer"
-          >
-            <Rocket className="w-4 h-4 text-gray-950 fill-current" />
-            <span>Ver y Votar Modelos</span>
-          </button>
-        </div>
+        )}
 
         {/* Showroom Image showcase */}
         <div className="space-y-2">
@@ -1056,6 +1024,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         videos={allReelVideos}
         initialIndex={selectedViewerVideoIndex}
         products={products}
+        showAssociatedProduct={true}
         onSelectProduct={(productId) => {
           const prod = products.find((p) => p.id === productId);
           if (prod) onSelectProduct(prod);

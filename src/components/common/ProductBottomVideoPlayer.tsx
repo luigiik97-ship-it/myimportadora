@@ -69,9 +69,20 @@ export const ProductBottomVideoPlayer: React.FC<ProductBottomVideoPlayerProps> =
     <div
       ref={containerRef}
       id="product-detail-bottom-video"
-      className="w-full py-4 sm:py-6 flex flex-col items-center select-none"
+      className="w-full h-full py-2 lg:py-0 flex flex-col items-center justify-center select-none"
     >
-      <div className="relative aspect-[9/16] w-full max-w-[340px] sm:max-w-[380px] bg-black rounded-2xl overflow-hidden shadow-lg border border-gray-200 group">
+      <div className="relative aspect-[9/16] w-full max-w-[320px] sm:max-w-[340px] lg:max-w-[320px] xl:max-w-[340px] h-[480px] sm:h-[500px] lg:h-full lg:max-h-[520px] bg-black rounded-2xl overflow-hidden shadow-md border border-gray-200/80 group flex items-center justify-center">
+        {/* Ambient blurred backdrop for aesthetic cohesion */}
+        <video
+          src={videoUrl}
+          playsInline
+          muted
+          loop
+          autoPlay
+          aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover blur-xl opacity-35 scale-110 pointer-events-none"
+        />
+
         {/* Video Element */}
         <video
           ref={videoRef}
@@ -82,11 +93,11 @@ export const ProductBottomVideoPlayer: React.FC<ProductBottomVideoPlayerProps> =
           autoPlay
           muted={isMuted}
           onClick={togglePlay}
-          className="w-full h-full object-cover cursor-pointer"
+          className="relative z-10 w-full h-full object-cover cursor-pointer"
         />
 
         {/* Top Vignette with Controls */}
-        <div className="absolute top-0 inset-x-0 h-16 bg-gradient-to-b from-black/70 to-transparent p-3 flex items-center justify-between z-10">
+        <div className="absolute top-0 inset-x-0 h-16 bg-gradient-to-b from-black/70 to-transparent p-3 flex items-center justify-between z-20">
           <div className="flex items-center gap-1.5 text-white/90 text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span>Video del Producto</span>
@@ -116,7 +127,7 @@ export const ProductBottomVideoPlayer: React.FC<ProductBottomVideoPlayerProps> =
         {!isPlaying && (
           <div
             onClick={togglePlay}
-            className="absolute inset-0 bg-black/30 flex items-center justify-center cursor-pointer z-10"
+            className="absolute inset-0 bg-black/30 flex items-center justify-center cursor-pointer z-20"
           >
             <div className="w-14 h-14 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-xs border border-white/20 shadow-xl">
               <Play className="w-7 h-7 ml-1 fill-white text-white" />
@@ -127,7 +138,7 @@ export const ProductBottomVideoPlayer: React.FC<ProductBottomVideoPlayerProps> =
         {/* Bottom Expand Prompt */}
         <div
           onClick={onOpenFullscreen}
-          className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-black/80 to-transparent p-3 flex items-end justify-center z-10 cursor-pointer"
+          className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-black/80 to-transparent p-3 flex items-end justify-center z-20 cursor-pointer"
         >
           <span className="text-[11px] font-bold text-white/90 bg-white/20 hover:bg-white/30 backdrop-blur-md px-3 py-1 rounded-full transition-colors">
             Toca para pantalla completa (Reels)

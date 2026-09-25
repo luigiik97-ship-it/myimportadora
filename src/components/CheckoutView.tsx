@@ -167,6 +167,11 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     }
   };
 
+  const handleSelectPaymentMethod = (method: 'transfer' | 'cash') => {
+    setPaymentMethod(method);
+    onPaymentMethodChange?.(method);
+  };
+
   const handleSelectShippingOption = (optionId: string) => {
     setSelectedShippingOptionId(optionId);
     setDeliveryOptionError(null);
@@ -337,6 +342,11 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
       }
     }
 
+    if (deliveryOption === 'delivery' && paymentMethod === 'cash') {
+      setErrorMessage('El envío a domicilio únicamente admite transferencia bancaria. El pago en efectivo es exclusivo para retiro en local.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -438,6 +448,33 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           <span>{errorMessage}</span>
         </div>
       )}
+
+      {/* Banner de Modalidad de Compra Activa en Checkout */}
+      <div
+        id="checkout-purchase-mode-indicator"
+        className={`rounded-xl p-3 border flex items-center justify-between gap-2.5 transition-colors ${
+          paymentMethod === 'cash'
+            ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
+            : 'bg-blue-50/80 border-blue-200 text-blue-950'
+        }`}
+      >
+        <div className="flex items-center gap-2.5">
+          <div className={`p-1.5 rounded-lg shrink-0 ${paymentMethod === 'cash' ? 'bg-emerald-600 text-white' : 'bg-[#0058bb] text-white'}`}>
+            {paymentMethod === 'cash' ? <Banknote className="w-4 h-4" /> : <CreditCard className="w-4 h-4" />}
+          </div>
+          <div>
+            <span className="text-xs sm:text-sm font-bold block leading-tight">
+              Modalidad activa:{' '}
+              {paymentMethod === 'cash' ? 'Efectivo (exclusivo para retiro en local)' : 'Transferencia bancaria'}
+            </span>
+            <span className="text-[11px] text-gray-600 block mt-0.5">
+              {paymentMethod === 'cash'
+                ? 'Los precios de tus productos coinciden con la modalidad en efectivo seleccionada.'
+                : 'Precios de transferencia bancaria aplicados.'}
+            </span>
+          </div>
+        </div>
+      </div>
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8 items-start">
         {/* Left Column: Form Details (Cols 8) */}
@@ -782,7 +819,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     type="radio"
                     name="payment"
                     checked={paymentMethod === 'transfer'}
-                    onChange={() => setPaymentMethod('transfer')}
+                    onChange={() => handleSelectPaymentMethod('transfer')}
                     className="mt-1 text-[#0058bb] focus:ring-[#0058bb]"
                   />
                   <div>
@@ -815,7 +852,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       type="radio"
                       name="payment"
                       checked={paymentMethod === 'cash'}
-                      onChange={() => setPaymentMethod('cash')}
+                      onChange={() => handleSelectPaymentMethod('cash')}
                       className="mt-1 text-[#0058bb] focus:ring-[#0058bb]"
                     />
                     <div>

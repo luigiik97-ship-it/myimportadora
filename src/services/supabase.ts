@@ -664,6 +664,32 @@ export const fetchProducts = async (options?: { force?: boolean }): Promise<Prod
                 }
               }
 
+              let resolvedTagId: string | undefined = item.tag_id || item.tagId || undefined;
+              let resolvedTag: any = undefined;
+              if (item.tag) {
+                try {
+                  resolvedTag = typeof item.tag === 'string' ? JSON.parse(item.tag) : item.tag;
+                } catch (e) {}
+              }
+              if (!resolvedTagId && Array.isArray(rawSpecs)) {
+                const tagIdSpec = rawSpecs.find(
+                  (s: any) => s && (s.key === '__tag_id' || s.label === '__tag_id')
+                );
+                if (tagIdSpec && tagIdSpec.value) {
+                  resolvedTagId = tagIdSpec.value;
+                }
+              }
+              if (!resolvedTag && Array.isArray(rawSpecs)) {
+                const tagSpec = rawSpecs.find(
+                  (s: any) => s && (s.key === '__tag_data' || s.label === '__tag_data')
+                );
+                if (tagSpec && tagSpec.value) {
+                  try {
+                    resolvedTag = JSON.parse(tagSpec.value);
+                  } catch (e) {}
+                }
+              }
+
               return {
                 id: item.id || String(item.product_id),
                 title: item.title,
@@ -689,6 +715,8 @@ export const fetchProducts = async (options?: { force?: boolean }): Promise<Prod
                 reviews: resolvedReviews,
                 specs,
                 isBestSeller: Boolean(item.is_best_seller ?? item.isBestSeller),
+                tagId: resolvedTagId,
+                tag: resolvedTag,
                 createdAt: item.created_at || item.createdAt
               };
             });
@@ -761,7 +789,9 @@ export const createProduct = async (product: Omit<Product, 'id'> & { id?: string
     ...(newProduct.videoUrl ? [{ label: '__video_url', value: newProduct.videoUrl }] : []),
     ...(newProduct.rating !== undefined ? [{ label: '__rating', value: String(newProduct.rating) }] : []),
     ...(newProduct.reviewsCount !== undefined ? [{ label: '__reviews_count', value: String(newProduct.reviewsCount) }] : []),
-    ...(newProduct.reviews && newProduct.reviews.length > 0 ? [{ label: '__reviews', value: JSON.stringify(newProduct.reviews) }] : [])
+    ...(newProduct.reviews && newProduct.reviews.length > 0 ? [{ label: '__reviews', value: JSON.stringify(newProduct.reviews) }] : []),
+    ...(newProduct.tagId ? [{ label: '__tag_id', value: newProduct.tagId }] : []),
+    ...(newProduct.tag ? [{ label: '__tag_data', value: JSON.stringify(newProduct.tag) }] : [])
   ];
 
   console.log(`[CASH & VARIANT DEBUG - PRE-SAVE] (createProduct) Título: "${newProduct.title}"`);
@@ -802,7 +832,9 @@ export const createProduct = async (product: Omit<Product, 'id'> & { id?: string
         reviews_count: newProduct.reviewsCount !== undefined ? newProduct.reviewsCount : (newProduct.reviews?.length || 128),
         reviews: newProduct.reviews || null,
         specs: specsWithMeta,
-        is_best_seller: newProduct.isBestSeller || false
+        is_best_seller: newProduct.isBestSeller || false,
+        tag_id: newProduct.tagId || null,
+        tag: newProduct.tag ? JSON.stringify(newProduct.tag) : null
       };
 
       console.log(`[VARIANT DEBUG - DB-PAYLOAD] (createProduct) Payload completo enviado a Supabase:`);
@@ -899,7 +931,13 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
     ...(targetVideoUrl ? [{ label: '__video_url', value: targetVideoUrl }] : []),
     ...(targetRating !== undefined ? [{ label: '__rating', value: String(targetRating) }] : []),
     ...(targetReviewsCount !== undefined ? [{ label: '__reviews_count', value: String(targetReviewsCount) }] : []),
-    ...(targetReviews && targetReviews.length > 0 ? [{ label: '__reviews', value: JSON.stringify(targetReviews) }] : [])
+    ...(targetReviews && targetReviews.length > 0 ? [{ label: '__reviews', value: JSON.stringify(targetReviews) }] : []),
+    ...(updates.tagId !== undefined
+      ? (updates.tagId ? [{ label: '__tag_id', value: updates.tagId }] : [])
+      : (existingProduct?.tagId ? [{ label: '__tag_id', value: existingProduct.tagId }] : [])),
+    ...(updates.tag !== undefined
+      ? (updates.tag ? [{ label: '__tag_data', value: JSON.stringify(updates.tag) }] : [])
+      : (existingProduct?.tag ? [{ label: '__tag_data', value: JSON.stringify(existingProduct.tag) }] : []))
   ];
 
   console.log(`\n================== [CASH & VARIANT DEBUG - PRE-SAVE] (updateProduct) ==================`);
@@ -955,6 +993,8 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
       if (updates.stock !== undefined) dbPayload.stock = updates.stock;
       if (updates.soldCount !== undefined) dbPayload.sold_count = updates.soldCount;
       if (updates.isBestSeller !== undefined) dbPayload.is_best_seller = updates.isBestSeller;
+      if (updates.tagId !== undefined) dbPayload.tag_id = updates.tagId || null;
+      if (updates.tag !== undefined) dbPayload.tag = updates.tag ? JSON.stringify(updates.tag) : null;
 
       console.log(`[CASH & VARIANT DEBUG - DB-PAYLOAD] (updateProduct) Payload enviado a Supabase:`);
       console.log(JSON.stringify(dbPayload, null, 2));
@@ -988,6 +1028,8 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
         cashPrice: targetCashPrice,
         retailCashPrice: targetRetailCashPrice,
         wholesaleCashPrice: targetWholesaleCashPrice,
+        tagId: updates.tagId !== undefined ? updates.tagId : existingProduct?.tagId,
+        tag: updates.tag !== undefined ? updates.tag : existingProduct?.tag,
       }
     : {
         id,
@@ -1011,6 +1053,8 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
         reviews: targetReviews,
         specs: baseSpecs,
         isBestSeller: updates.isBestSeller || false,
+        tagId: updates.tagId,
+        tag: updates.tag,
         createdAt: updates.createdAt || new Date().toISOString()
       };
 
@@ -1448,6 +1492,11 @@ export const saveOrder = async (
     } catch (e) {
       console.warn('Error verificando unicidad de número de pedido en Supabase:', e);
     }
+  }
+
+  // Validación de seguridad backend: impedimos estrictamente envío a domicilio con pago en efectivo
+  if (orderData.deliveryOption === 'delivery' && orderData.paymentMethod === 'cash') {
+    throw new Error('El envío a domicilio únicamente admite transferencia bancaria. El pago en efectivo es exclusivo para retiro en local.');
   }
 
   const createdAt = new Date().toISOString();

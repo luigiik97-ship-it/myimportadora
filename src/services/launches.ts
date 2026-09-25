@@ -481,3 +481,36 @@ export async function convertProposalToModel(
 
   return { collections, proposals: updatedProposals };
 }
+
+// ---------------- GESTIÓN DE VISIBILIDAD DE PRÓXIMOS LANZAMIENTOS ---------------- //
+export const LAUNCHES_VISIBILITY_STORAGE_KEY = 'my_commerce_launches_visible';
+export const LAUNCHES_VISIBILITY_EVENT = 'launches_visibility_change';
+
+/**
+ * Consulta si la sección de Próximos Lanzamientos está visible públicamente en la tienda.
+ * Por defecto es true.
+ */
+export function isLaunchesSectionVisible(): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    const val = localStorage.getItem(LAUNCHES_VISIBILITY_STORAGE_KEY);
+    if (val === null) return true;
+    return val === 'true';
+  } catch (e) {
+    console.warn('Error al leer visibilidad de próximos lanzamientos:', e);
+    return true;
+  }
+}
+
+/**
+ * Activa u oculta la sección de Próximos Lanzamientos en la tienda (menú, banner de inicio y acceso).
+ */
+export function setLaunchesSectionVisible(visible: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(LAUNCHES_VISIBILITY_STORAGE_KEY, String(visible));
+    window.dispatchEvent(new CustomEvent(LAUNCHES_VISIBILITY_EVENT, { detail: { visible } }));
+  } catch (e) {
+    console.warn('Error al guardar visibilidad de próximos lanzamientos:', e);
+  }
+}

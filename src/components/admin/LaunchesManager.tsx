@@ -14,6 +14,7 @@ import {
   Clock,
   Sparkles,
   Eye,
+  EyeOff,
   AlertCircle,
   ExternalLink,
 } from 'lucide-react';
@@ -26,6 +27,8 @@ import {
   updateProposalStatus,
   deleteCustomerProposal,
   convertProposalToModel,
+  isLaunchesSectionVisible,
+  setLaunchesSectionVisible,
 } from '../../services/launches';
 import { uploadProductImage } from '../../services/supabase';
 
@@ -44,6 +47,20 @@ export const LaunchesManager: React.FC = () => {
   const [colTitle, setColTitle] = useState('');
   const [colDesc, setColDesc] = useState('');
   const [colStatus, setColStatus] = useState<'active' | 'coming_soon' | 'paused'>('active');
+
+  // Visibilidad pública en la tienda
+  const [isSectionVisible, setIsSectionVisible] = useState<boolean>(() => isLaunchesSectionVisible());
+
+  const handleToggleVisibility = () => {
+    const next = !isSectionVisible;
+    setIsSectionVisible(next);
+    setLaunchesSectionVisible(next);
+    showToast(
+      next
+        ? '¡Sección Próximos Lanzamientos activada y visible en la tienda!'
+        : 'Sección Próximos Lanzamientos oculta en la tienda (menú y banner desactivados).'
+    );
+  };
 
   // Proposal preview image modal
   const [zoomedProposalImg, setZoomedProposalImg] = useState<string | null>(null);
@@ -337,50 +354,129 @@ export const LaunchesManager: React.FC = () => {
           </div>
         </div>
 
-        {/* Sub-tab Navigation */}
-        <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-xl border border-gray-200">
-          <button
-            type="button"
-            onClick={() => setActiveSubTab('collections')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeSubTab === 'collections'
-                ? 'bg-white text-gray-900 shadow-xs'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Colecciones y Modelos
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveSubTab('stats')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeSubTab === 'stats'
-                ? 'bg-white text-gray-900 shadow-xs'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <BarChart3 className="w-3.5 h-3.5 text-[#0058bb]" />
-            <span>Estadísticas de Apoyo</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveSubTab('proposals')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeSubTab === 'proposals'
-                ? 'bg-white text-gray-900 shadow-xs'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            <MessageSquare className="w-3.5 h-3.5 text-amber-600" />
-            <span>Propuestas</span>
-            {pendingProposalsCount > 0 && (
-              <span className="w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
-                {pendingProposalsCount}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Toggle de visibilidad pública en la tienda */}
+          <div className="flex items-center gap-3 bg-gray-50 hover:bg-gray-100/80 transition-colors px-3.5 py-2 rounded-xl border border-gray-200">
+            <div className="text-right">
+              <span className="text-xs font-bold text-gray-900 flex items-center justify-end gap-1.5">
+                {isSectionVisible ? (
+                  <>
+                    <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Visible en la tienda</span>
+                  </>
+                ) : (
+                  <>
+                    <EyeOff className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Oculto en la tienda</span>
+                  </>
+                )}
               </span>
-            )}
-          </button>
+              <span className="text-[10px] text-gray-500 block">
+                {isSectionVisible ? 'Clientes pueden ver y votar' : 'Pestaña y banner desactivados'}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleToggleVisibility}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                isSectionVisible ? 'bg-[#00a650]' : 'bg-gray-300'
+              }`}
+              role="switch"
+              aria-checked={isSectionVisible}
+              title={isSectionVisible ? 'Clic para ocultar sección en la tienda' : 'Clic para hacer visible sección en la tienda'}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                  isSectionVisible ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Sub-tab Navigation */}
+          <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-xl border border-gray-200">
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('collections')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeSubTab === 'collections'
+                  ? 'bg-white text-gray-900 shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Colecciones y Modelos
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('stats')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeSubTab === 'stats'
+                  ? 'bg-white text-gray-900 shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-[#0058bb]" />
+              <span>Estadísticas de Apoyo</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('proposals')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeSubTab === 'proposals'
+                  ? 'bg-white text-gray-900 shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-amber-600" />
+              <span>Propuestas</span>
+              {pendingProposalsCount > 0 && (
+                <span className="w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {pendingProposalsCount}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Banner de estado de visibilidad */}
+      {!isSectionVisible ? (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900 animate-in fade-in duration-200">
+          <div className="flex items-center gap-2.5">
+            <EyeOff className="w-5 h-5 text-amber-700 shrink-0" />
+            <div className="text-xs">
+              <p className="font-bold">La página "Próximos Lanzamientos" está actualmente OCULTA al público</p>
+              <p className="text-amber-800/90 mt-0.5">
+                La pestaña en el menú de navegación y el banner de la página de inicio están desactivados para los clientes.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleToggleVisibility}
+            className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl transition-colors cursor-pointer shrink-0"
+          >
+            Mostrar en la tienda
+          </button>
+        </div>
+      ) : (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-emerald-900 text-xs">
+          <div className="flex items-center gap-2">
+            <Eye className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              <strong>Visible en la tienda:</strong> Los clientes pueden ver la pestaña en el menú, el banner en la página de inicio y votar los modelos.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleToggleVisibility}
+            className="text-emerald-800 hover:text-emerald-950 font-bold underline cursor-pointer shrink-0"
+          >
+            Ocultar de la tienda
+          </button>
+        </div>
+      )}
 
       {/* ---------------- SUB-TAB 1: COLECCIONES Y MODELOS ---------------- */}
       {activeSubTab === 'collections' && (

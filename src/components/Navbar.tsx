@@ -15,6 +15,7 @@ interface NavbarProps {
   isQuickBuyActive?: boolean;
   onOpenLaunches?: () => void;
   isLaunchesActive?: boolean;
+  isLaunchesVisible?: boolean;
   showTopBar?: boolean;
   categories?: Category[];
   currentUser?: UserProfile | null;
@@ -34,6 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   isQuickBuyActive = false,
   onOpenLaunches,
   isLaunchesActive = false,
+  isLaunchesVisible = true,
   showTopBar = true,
   categories: customCategories,
   currentUser,
@@ -353,7 +355,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           {/* 🚀 Próximos Lanzamientos */}
-          {onOpenLaunches && (
+          {onOpenLaunches && isLaunchesVisible && (
             <button
               id="category-tab-lanzamientos"
               type="button"
