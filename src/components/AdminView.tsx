@@ -50,16 +50,18 @@ import { EmailTemplateManager } from './admin/EmailTemplateManager';
 import { AnalyticsDashboard } from './admin/AnalyticsDashboard';
 import { BannerManager } from './admin/BannerManager';
 import { VideoManager } from './admin/VideoManager';
-import { isLaunchesSectionVisible, LAUNCHES_VISIBILITY_EVENT } from '../services/launches';
+import { isLaunchesSectionVisible, fetchLaunchesVisibilityFromSupabase, LAUNCHES_VISIBILITY_EVENT } from '../services/launches';
 import { ShippingConfigManager } from './admin/ShippingConfigManager';
 import { QuickBuyLinkManager, OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
 import { LaunchesManager } from './admin/LaunchesManager';
+import { BestSellersManager } from './admin/BestSellersManager';
 import { isQuickBuyOrder } from '../services/quickBuyLink';
 import {
   Lock,
   Package,
   ShoppingBag,
   Settings,
+  Flame,
   Plus,
   Edit2,
   Trash2,
@@ -167,12 +169,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'banners' | 'videos' | 'orders' | 'bulk_price_update' | 'integrations' | 'analytics' | 'quick_buy_link' | 'shipping' | 'launches'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'best_sellers' | 'banners' | 'videos' | 'orders' | 'bulk_price_update' | 'integrations' | 'analytics' | 'quick_buy_link' | 'shipping' | 'launches'>('products');
+  const [updatingBestSellerId, setUpdatingBestSellerId] = useState<string | null>(null);
 
   // Visibilidad de la sección Próximos Lanzamientos
   const [isLaunchesVisible, setIsLaunchesVisible] = useState<boolean>(() => isLaunchesSectionVisible());
 
   useEffect(() => {
+    fetchLaunchesVisibilityFromSupabase()
+      .then((vis) => setIsLaunchesVisible(vis))
+      .catch(() => {});
+
     const handleVis = () => {
       setIsLaunchesVisible(isLaunchesSectionVisible());
     };
@@ -798,6 +805,41 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
       });
     } finally {
       setIsDeletingProduct(false);
+    }
+  };
+
+  const handleToggleBestSeller = async (prod: Product) => {
+    const newStatus = !prod.isBestSeller;
+    setUpdatingBestSellerId(prod.id);
+
+    // Actualización optimista inmediata
+    setProducts((prev) =>
+      prev.map((p) => (p.id === prod.id ? { ...p, isBestSeller: newStatus } : p))
+    );
+
+    try {
+      const updated = await updateProduct(prod.id, { isBestSeller: newStatus });
+      setProducts((prev) =>
+        prev.map((p) => (p.id === updated.id ? updated : p))
+      );
+      setActionFeedback({
+        type: 'success',
+        text: newStatus
+          ? `«${prod.title}» fue agregado a Más Vendidos.`
+          : `«${prod.title}» fue quitado de Más Vendidos.`,
+      });
+    } catch (err: any) {
+      console.error('Error al actualizar Más Vendidos:', err);
+      // Revertir optimismo
+      setProducts((prev) =>
+        prev.map((p) => (p.id === prod.id ? { ...p, isBestSeller: !newStatus } : p))
+      );
+      setActionFeedback({
+        type: 'error',
+        text: 'Error al actualizar el producto en Más Vendidos.',
+      });
+    } finally {
+      setUpdatingBestSellerId(null);
     }
   };
 
@@ -1445,6 +1487,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
         </button>
 
         <button
+          onClick={() => setActiveTab('best_sellers')}
+          className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 cursor-pointer transition-colors border-b-2 whitespace-nowrap ${
+            activeTab === 'best_sellers'
+              ? 'border-amber-500 text-amber-700'
+              : 'border-transparent text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <Flame className="w-4 h-4 text-amber-500" />
+          Más Vendidos ({products.filter((p) => p.isBestSeller).length})
+        </button>
+
+        <button
           onClick={() => setActiveTab('categories')}
           className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 cursor-pointer transition-colors border-b-2 whitespace-nowrap ${
             activeTab === 'categories'
@@ -1766,6 +1820,15 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* TAB: MÁS VENDIDOS */}
+      {activeTab === 'best_sellers' && (
+        <BestSellersManager
+          products={products}
+          onToggleBestSeller={handleToggleBestSeller}
+          isUpdatingId={updatingBestSellerId}
+        />
       )}
 
       {/* TAB 2: PEDIDOS FINALIZADOS */}
@@ -2366,6 +2429,36 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-[#0058bb]"
                   />
                 </div>
+              </div>
+
+              {/* Sección Más Vendidos */}
+              <div className="bg-amber-50/50 p-3 sm:p-3.5 rounded-xl border border-amber-200/90 shadow-2xs flex items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <label
+                    className="font-semibold text-gray-900 text-xs sm:text-sm flex items-center gap-1.5 cursor-pointer select-none"
+                    onClick={() => setEditingProduct({ ...editingProduct, isBestSeller: !editingProduct.isBestSeller })}
+                  >
+                    <Flame className="w-4 h-4 text-amber-500 fill-amber-500/20" />
+                    <span>Incluir en “Más Vendidos”</span>
+                  </label>
+                  <p className="text-[11px] text-gray-600 leading-tight">
+                    Marcá esta casilla para que este producto aparezca en la sección de Más Vendidos en la tienda.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={Boolean(editingProduct.isBestSeller)}
+                  onClick={() => setEditingProduct({ ...editingProduct, isBestSeller: !editingProduct.isBestSeller })}
+                  className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl border flex items-center justify-center shrink-0 transition-all cursor-pointer ${
+                    editingProduct.isBestSeller
+                      ? 'bg-[#16a34a] border-[#16a34a] text-white shadow-xs'
+                      : 'bg-white border-gray-300 hover:border-[#16a34a] text-transparent hover:text-gray-300'
+                  }`}
+                  title={editingProduct.isBestSeller ? 'Quitar de Más vendidos' : 'Incluir en Más vendidos'}
+                >
+                  <Check className={`w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5] ${editingProduct.isBestSeller ? 'text-white' : 'text-gray-300'}`} />
+                </button>
               </div>
 
               {/* Etiqueta del Producto */}

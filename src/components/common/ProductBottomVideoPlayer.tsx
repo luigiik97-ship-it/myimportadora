@@ -77,7 +77,6 @@ export const ProductBottomVideoPlayer: React.FC<ProductBottomVideoPlayerProps> =
           src={videoUrl}
           playsInline
           muted
-          loop
           autoPlay
           aria-hidden="true"
           className="absolute inset-0 w-full h-full object-cover blur-xl opacity-35 scale-110 pointer-events-none"
@@ -89,9 +88,9 @@ export const ProductBottomVideoPlayer: React.FC<ProductBottomVideoPlayerProps> =
           src={videoUrl}
           playsInline
           preload="metadata"
-          loop
           autoPlay
           muted={isMuted}
+          onEnded={() => setIsPlaying(false)}
           onClick={togglePlay}
           className="relative z-10 w-full h-full object-cover cursor-pointer"
         />
@@ -123,7 +122,7 @@ export const ProductBottomVideoPlayer: React.FC<ProductBottomVideoPlayerProps> =
           </div>
         </div>
 
-        {/* Center Play Overlay when paused */}
+        {/* Center Play Overlay when paused or ended */}
         {!isPlaying && (
           <div
             onClick={togglePlay}
@@ -134,16 +133,6 @@ export const ProductBottomVideoPlayer: React.FC<ProductBottomVideoPlayerProps> =
             </div>
           </div>
         )}
-
-        {/* Bottom Expand Prompt */}
-        <div
-          onClick={onOpenFullscreen}
-          className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-black/80 to-transparent p-3 flex items-end justify-center z-20 cursor-pointer"
-        >
-          <span className="text-[11px] font-bold text-white/90 bg-white/20 hover:bg-white/30 backdrop-blur-md px-3 py-1 rounded-full transition-colors">
-            Toca para pantalla completa (Reels)
-          </span>
-        </div>
       </div>
     </div>
   );

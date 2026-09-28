@@ -482,13 +482,14 @@ export async function convertProposalToModel(
   return { collections, proposals: updatedProposals };
 }
 
-// ---------------- GESTIÓN DE VISIBILIDAD DE PRÓXIMOS LANZAMIENTOS ---------------- //
+// ---------------- GESTIÓN DE VISIBILIDAD DE PRÓXIMOS LANZAMIENTOS (CENTRALIZADO EN SUPABASE) ---------------- //
 export const LAUNCHES_VISIBILITY_STORAGE_KEY = 'my_commerce_launches_visible';
 export const LAUNCHES_VISIBILITY_EVENT = 'launches_visibility_change';
+export const SYSTEM_LAUNCHES_CONFIG_ROW_ID = '__system_launches_config_v1__';
 
 /**
  * Consulta si la sección de Próximos Lanzamientos está visible públicamente en la tienda.
- * Por defecto es true.
+ * Usa caché local/memoria para render inmediato y fallback resiliente.
  */
 export function isLaunchesSectionVisible(): boolean {
   if (typeof window === 'undefined') return true;
@@ -503,14 +504,80 @@ export function isLaunchesSectionVisible(): boolean {
 }
 
 /**
- * Activa u oculta la sección de Próximos Lanzamientos en la tienda (menú, banner de inicio y acceso).
+ * Consulta y sincroniza la visibilidad de Próximos Lanzamientos directamente desde Supabase.
+ * Esto asegura sincronización única y centralizada entre el panel, Supabase, Vercel y todos los dispositivos.
  */
-export function setLaunchesSectionVisible(visible: boolean): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(LAUNCHES_VISIBILITY_STORAGE_KEY, String(visible));
-    window.dispatchEvent(new CustomEvent(LAUNCHES_VISIBILITY_EVENT, { detail: { visible } }));
-  } catch (e) {
-    console.warn('Error al guardar visibilidad de próximos lanzamientos:', e);
+export async function fetchLaunchesVisibilityFromSupabase(): Promise<boolean> {
+  const supabase = getSupabase();
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('description')
+        .eq('id', SYSTEM_LAUNCHES_CONFIG_ROW_ID)
+        .maybeSingle();
+
+      if (!error && data && data.description) {
+        try {
+          const parsed = JSON.parse(data.description);
+          if (parsed && typeof parsed.isVisible === 'boolean') {
+            const isVis = parsed.isVisible;
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(LAUNCHES_VISIBILITY_STORAGE_KEY, String(isVis));
+              window.dispatchEvent(new CustomEvent(LAUNCHES_VISIBILITY_EVENT, { detail: { visible: isVis } }));
+            }
+            return isVis;
+          }
+        } catch (parseErr) {
+          console.warn('Error parseando configuración remota de visibilidad de lanzamientos:', parseErr);
+        }
+      }
+    } catch (e) {
+      console.warn('Error consultando visibilidad de lanzamientos en Supabase:', e);
+    }
+  }
+  return isLaunchesSectionVisible();
+}
+
+/**
+ * Activa u oculta la sección de Próximos Lanzamientos tanto en memoria/local como centralizadamente en Supabase.
+ * Garantiza que el cambio se refleje en Vercel y en todos los navegadores/clientes.
+ */
+export async function setLaunchesSectionVisible(visible: boolean): Promise<void> {
+  // 1. Guardar inmediatamente en localStorage y notificar componentes locales
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(LAUNCHES_VISIBILITY_STORAGE_KEY, String(visible));
+      window.dispatchEvent(new CustomEvent(LAUNCHES_VISIBILITY_EVENT, { detail: { visible } }));
+    } catch (e) {
+      console.warn('Error al guardar visibilidad local:', e);
+    }
+  }
+
+  // 2. Persistir en la fila centralizada de configuración de Supabase
+  const supabase = getSupabase();
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      const payload = {
+        isVisible: visible,
+        lastUpdated: new Date().toISOString(),
+      };
+      const { error } = await supabase.from('products').upsert({
+        id: SYSTEM_LAUNCHES_CONFIG_ROW_ID,
+        title: '__SYSTEM_LAUNCHES_CONFIG__',
+        description: JSON.stringify(payload),
+        category: '__system__',
+        wholesale_price: 0,
+        retail_price: 0,
+        stock: 0,
+        specs: [{ key: 'updated_at', value: payload.lastUpdated }],
+      });
+
+      if (error) {
+        console.warn('Advertencia al guardar visibilidad de lanzamientos en Supabase:', error.message);
+      }
+    } catch (err) {
+      console.warn('Error sincronizando visibilidad de lanzamientos con Supabase:', err);
+    }
   }
 }

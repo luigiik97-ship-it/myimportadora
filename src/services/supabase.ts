@@ -714,7 +714,11 @@ export const fetchProducts = async (options?: { force?: boolean }): Promise<Prod
                 reviewsCount: resolvedReviewsCount,
                 reviews: resolvedReviews,
                 specs,
-                isBestSeller: Boolean(item.is_best_seller ?? item.isBestSeller),
+                isBestSeller: Boolean(
+                  item.is_best_seller ??
+                  item.isBestSeller ??
+                  (Array.isArray(specs) && specs.find((s: any) => (s.label === '__is_best_seller__' || s.key === '__is_best_seller__'))?.value === 'true')
+                ),
                 tagId: resolvedTagId,
                 tag: resolvedTag,
                 createdAt: item.created_at || item.createdAt
@@ -791,7 +795,8 @@ export const createProduct = async (product: Omit<Product, 'id'> & { id?: string
     ...(newProduct.reviewsCount !== undefined ? [{ label: '__reviews_count', value: String(newProduct.reviewsCount) }] : []),
     ...(newProduct.reviews && newProduct.reviews.length > 0 ? [{ label: '__reviews', value: JSON.stringify(newProduct.reviews) }] : []),
     ...(newProduct.tagId ? [{ label: '__tag_id', value: newProduct.tagId }] : []),
-    ...(newProduct.tag ? [{ label: '__tag_data', value: JSON.stringify(newProduct.tag) }] : [])
+    ...(newProduct.tag ? [{ label: '__tag_data', value: JSON.stringify(newProduct.tag) }] : []),
+    ...(newProduct.isBestSeller ? [{ label: '__is_best_seller__', value: 'true' }] : [])
   ];
 
   console.log(`[CASH & VARIANT DEBUG - PRE-SAVE] (createProduct) Título: "${newProduct.title}"`);
@@ -937,7 +942,10 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
       : (existingProduct?.tagId ? [{ label: '__tag_id', value: existingProduct.tagId }] : [])),
     ...(updates.tag !== undefined
       ? (updates.tag ? [{ label: '__tag_data', value: JSON.stringify(updates.tag) }] : [])
-      : (existingProduct?.tag ? [{ label: '__tag_data', value: JSON.stringify(existingProduct.tag) }] : []))
+      : (existingProduct?.tag ? [{ label: '__tag_data', value: JSON.stringify(existingProduct.tag) }] : [])),
+    ...(updates.isBestSeller !== undefined
+      ? [{ label: '__is_best_seller__', value: String(updates.isBestSeller) }]
+      : (existingProduct?.isBestSeller !== undefined ? [{ label: '__is_best_seller__', value: String(existingProduct.isBestSeller) }] : []))
   ];
 
   console.log(`\n================== [CASH & VARIANT DEBUG - PRE-SAVE] (updateProduct) ==================`);
@@ -1052,7 +1060,7 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
         reviewsCount: targetReviewsCount,
         reviews: targetReviews,
         specs: baseSpecs,
-        isBestSeller: updates.isBestSeller || false,
+        isBestSeller: updates.isBestSeller !== undefined ? updates.isBestSeller : (existingProduct?.isBestSeller ?? false),
         tagId: updates.tagId,
         tag: updates.tag,
         createdAt: updates.createdAt || new Date().toISOString()
@@ -1064,6 +1072,7 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
     current.unshift(updated);
   }
   saveLocalProducts(current);
+  window.dispatchEvent(new CustomEvent('products-updated', { detail: current }));
   console.log('[updateProduct SALIDA] Retornando producto actualizado a la interfaz:', updated);
   console.log(`================== [updateProduct FIN] ==================\n`);
   return updated;
@@ -1785,7 +1794,9 @@ export const subscribeToProductsAndSystemConfig = (callbacks: {
           } else if (
             changedId === '__system_quick_buy_config_v1__' ||
             changedId === '__system_email_templates_v1__' ||
-            changedId === '__system_store_banners_v1__'
+            changedId === '__system_store_banners_v1__' ||
+            changedId === '__system_launches_config_v1__' ||
+            changedId === '__system_shipping_config_v1__'
           ) {
             if (callbacks.onSystemConfigChanged) {
               callbacks.onSystemConfigChanged();

@@ -28,6 +28,7 @@ import {
   deleteCustomerProposal,
   convertProposalToModel,
   isLaunchesSectionVisible,
+  fetchLaunchesVisibilityFromSupabase,
   setLaunchesSectionVisible,
 } from '../../services/launches';
 import { uploadProductImage } from '../../services/supabase';
@@ -51,14 +52,14 @@ export const LaunchesManager: React.FC = () => {
   // Visibilidad pública en la tienda
   const [isSectionVisible, setIsSectionVisible] = useState<boolean>(() => isLaunchesSectionVisible());
 
-  const handleToggleVisibility = () => {
+  const handleToggleVisibility = async () => {
     const next = !isSectionVisible;
     setIsSectionVisible(next);
-    setLaunchesSectionVisible(next);
+    await setLaunchesSectionVisible(next);
     showToast(
       next
-        ? '¡Sección Próximos Lanzamientos activada y visible en la tienda!'
-        : 'Sección Próximos Lanzamientos oculta en la tienda (menú y banner desactivados).'
+        ? '¡Sección Próximos Lanzamientos activada y sincronizada en toda la tienda!'
+        : 'Sección Próximos Lanzamientos oculta y sincronizada en toda la tienda (menú y banner desactivados).'
     );
   };
 
@@ -71,9 +72,14 @@ export const LaunchesManager: React.FC = () => {
 
   const loadData = async () => {
     setIsLoading(true);
-    const [cols, props] = await Promise.all([fetchLaunchCollections(), fetchCustomerProposals()]);
+    const [cols, props, vis] = await Promise.all([
+      fetchLaunchCollections(),
+      fetchCustomerProposals(),
+      fetchLaunchesVisibilityFromSupabase(),
+    ]);
     setCollections(cols);
     setProposals(props);
+    setIsSectionVisible(vis);
     if (cols.length > 0 && !selectedCollectionId) {
       setSelectedCollectionId(cols[0].id);
     }

@@ -412,16 +412,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
     }
   };
 
-  // Mapas de pesos aleatorios independientes para cada sector (estables por carga/visita, aleatorios en cada actualización/recarga)
-  const bestSellersRandomMap = useRef<Map<string, number>>(new Map());
+  // Mapa de pesos aleatorios independiente para catálogo (estables por carga/visita, aleatorios en cada actualización/recarga)
   const catalogRandomMap = useRef<Map<string, number>>(new Map());
-
-  const getBestSellerWeight = (id: string) => {
-    if (!bestSellersRandomMap.current.has(id)) {
-      bestSellersRandomMap.current.set(id, Math.random());
-    }
-    return bestSellersRandomMap.current.get(id)!;
-  };
 
   const getCatalogWeight = (id: string) => {
     if (!catalogRandomMap.current.has(id)) {
@@ -430,12 +422,31 @@ export const HomeView: React.FC<HomeViewProps> = ({
     return catalogRandomMap.current.get(id)!;
   };
 
-  // 1. Más vendidos: productos destacados en orden aleatorio independiente
+  // Función determinista pseudoaleatoria para "Más vendidos", que genera un orden aleatorio
+  // que cambia automáticamente cada 24 horas y se mantiene 100% igual durante ese periodo
+  // en todos los dispositivos y plataformas (Vercel, móviles, tablets y computadoras).
+  const getBestSeller24hWeight = (id: string) => {
+    // Periodo universal de 24 horas (86.400.000 ms) idéntico en cualquier dispositivo y zona horaria
+    const dayPeriod = Math.floor(Date.now() / (24 * 60 * 60 * 1000));
+    let h = 0;
+    const seed = `mas_vendidos_24h_universal_${dayPeriod}_${id}`;
+    for (let i = 0; i < seed.length; i++) {
+      h = (Math.imul(31, h) + seed.charCodeAt(i)) | 0;
+    }
+    // Algoritmo mezclador pseudoaleatorio Mulberry32 de alta entropía
+    let t = (h >>> 0) + 0x6D2B79F5;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  // 1. Más vendidos: únicamente productos marcados como Más Vendidos.
+  // Su orden se genera aleatoriamente una vez cada 24 horas y se mantiene igual durante ese periodo.
+  // Desmarcar un producto lo quita de la sección inmediatamente.
   const bestSellers = useMemo(() => {
-    const sellers = products.filter((p) => p.isBestSeller);
-    return [...sellers]
-      .sort((a, b) => getBestSellerWeight(a.id) - getBestSellerWeight(b.id))
-      .slice(0, 4);
+    const sellers = products.filter((p) => Boolean(p.isBestSeller));
+    if (sellers.length === 0) return [];
+    return [...sellers].sort((a, b) => getBestSeller24hWeight(a.id) - getBestSeller24hWeight(b.id));
   }, [products]);
 
   // 2. Todos los productos: catálogo filtrado en orden aleatorio independiente
@@ -703,64 +714,66 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {/* Selector de modalidad de compra (debajo de categorías y antes de productos) */}
       <StorePurchaseModeSelector />
 
-      {/* 3. Más vendidos */}
-      <section id="mas-vendidos" className="space-y-2 sm:space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="inline-flex items-center">
-            <img
-              src="https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/yjgjghkutut.png?v=3"
-              alt="Más vendidos"
-              className="h-[24px] sm:h-[27px] md:h-[31px] w-auto object-contain select-none pointer-events-none rounded-[6px] sm:rounded-[7px]"
-              draggable={false}
-            />
-            <span className="sr-only">Más vendidos</span>
-          </h2>
-        </div>
+      {/* 3. Más vendidos: únicamente productos marcados */}
+      {(bestSellers.length > 0 || isLoadingData) && (
+        <section id="mas-vendidos" className="space-y-2 sm:space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="inline-flex items-center">
+              <img
+                src="https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/yjgjghkutut.png?v=3"
+                alt="Más vendidos"
+                className="h-[24px] sm:h-[27px] md:h-[31px] w-auto object-contain select-none pointer-events-none rounded-[6px] sm:rounded-[7px]"
+                draggable={false}
+              />
+              <span className="sr-only">Más vendidos</span>
+            </h2>
+          </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3.5 md:gap-5">
-          {isLoadingData && bestSellers.length === 0 ? (
-            <ProductGridSkeleton count={4} />
-          ) : (
-            bestSellers.map((product) => {
-              const isOutOfStock = isProductCompletelyOutOfStock(product);
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3.5 md:gap-5">
+            {isLoadingData && bestSellers.length === 0 ? (
+              <ProductGridSkeleton count={4} />
+            ) : (
+              bestSellers.map((product) => {
+                const isOutOfStock = isProductCompletelyOutOfStock(product);
 
-              return (
-                <div
-                  key={product.id}
-                  id={`product-card-${product.id}`}
-                  onClick={() => onSelectProduct(product)}
-                  className="group bg-white rounded-xl border border-gray-100 sm:border-gray-200/90 overflow-hidden shadow-2xs hover:shadow-lg hover:border-[#0058bb]/50 transition-all cursor-pointer flex flex-col"
-                >
-                  {/* Product Thumbnail */}
-                  <div className="relative aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
-                    <ImageWithSkeleton
-                      src={(product.images && product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'}
-                      alt={product.title}
-                      className={`w-full h-full object-cover ${
-                        isOutOfStock ? 'opacity-60 grayscale-[30%]' : 'group-hover:scale-105'
-                      } transition-transform duration-300`}
-                    />
-                    <ProductCardBadge product={product} />
-                    {isOutOfStock && (
-                      <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded shadow-xs z-10">
-                        Sin stock
-                      </span>
-                    )}
+                return (
+                  <div
+                    key={product.id}
+                    id={`product-card-${product.id}`}
+                    onClick={() => onSelectProduct(product)}
+                    className="group bg-white rounded-xl border border-gray-100 sm:border-gray-200/90 overflow-hidden shadow-2xs hover:shadow-lg hover:border-[#0058bb]/50 transition-all cursor-pointer flex flex-col"
+                  >
+                    {/* Product Thumbnail */}
+                    <div className="relative aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
+                      <ImageWithSkeleton
+                        src={(product.images && product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'}
+                        alt={product.title}
+                        className={`w-full h-full object-cover ${
+                          isOutOfStock ? 'opacity-60 grayscale-[30%]' : 'group-hover:scale-105'
+                        } transition-transform duration-300`}
+                      />
+                      <ProductCardBadge product={product} />
+                      {isOutOfStock && (
+                        <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded shadow-xs z-10">
+                          Sin stock
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="p-2.5 sm:p-3.5 flex-1 flex flex-col justify-between space-y-1.5 sm:space-y-2">
+                      <h3 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
+                        {product.title}
+                      </h3>
+                      <ProductCardPrice product={product} />
+                    </div>
                   </div>
-
-                  {/* Info */}
-                  <div className="p-2.5 sm:p-3.5 flex-1 flex flex-col justify-between space-y-1.5 sm:space-y-2">
-                    <h3 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
-                      {product.title}
-                    </h3>
-                    <ProductCardPrice product={product} />
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </section>
+                );
+              })
+            )}
+          </div>
+        </section>
+      )}
 
       {/* 4. Middle Promotional Banners (Independientes: estático si es 1 imagen, carrusel si son 2 o más) */}
       <section id="promo-banners-mid" className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">

@@ -14,7 +14,7 @@ import { getActiveVariantImages, getItemEffectiveNormalPrice, getSelectedVariant
 import { slugifyCategory, reconcileCategoriesWithProducts } from './utils/categoryHelpers';
 import { recordSiteVisit } from './services/analytics';
 import { isQuickBuyCustomLinkActive, fetchQuickBuyLinkConfigFromSupabase } from './services/quickBuyLink';
-import { isLaunchesSectionVisible, LAUNCHES_VISIBILITY_EVENT } from './services/launches';
+import { isLaunchesSectionVisible, fetchLaunchesVisibilityFromSupabase, LAUNCHES_VISIBILITY_EVENT } from './services/launches';
 import { fetchProductTags } from './services/productTags';
 import { fetchStoreBannersFromSupabase } from './services/storeBanners';
 import { fetchShippingConfigFromSupabase } from './services/shippingConfig';
@@ -409,6 +409,7 @@ export default function App() {
         fetchEmailTemplatesFromSupabase().catch(() => {});
         fetchStoreBannersFromSupabase().catch(() => {});
         fetchProductTags(true).catch(() => {});
+        fetchLaunchesVisibilityFromSupabase().then((vis) => setIsLaunchesVisible(vis)).catch(() => {});
       },
     });
 
@@ -419,12 +420,13 @@ export default function App() {
     };
   }, []);
 
-  // Cargar configuraciones compartidas desde Supabase (Compra Rápida, Plantillas, Banners y Envíos)
+  // Cargar configuraciones compartidas desde Supabase (Compra Rápida, Plantillas, Banners, Envíos y Próximos Lanzamientos)
   useEffect(() => {
     fetchQuickBuyLinkConfigFromSupabase().catch(() => {});
     fetchEmailTemplatesFromSupabase().catch(() => {});
     fetchStoreBannersFromSupabase().catch(() => {});
     fetchShippingConfigFromSupabase().catch(() => {});
+    fetchLaunchesVisibilityFromSupabase().then((vis) => setIsLaunchesVisible(vis)).catch(() => {});
   }, []);
 
   // Redirigir a modo Compra Rápida si se accede mediante el enlace personalizado

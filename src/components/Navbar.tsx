@@ -149,7 +149,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     >
       {/* Top micro announcement bar */}
       {showTopBar && (
-        <div className="bg-black text-white text-xs sm:text-sm py-2 px-4 text-center font-medium tracking-wide flex items-center justify-center gap-2">
+        <div className="bg-black text-white text-xs md:text-sm py-1 sm:py-1.5 px-4 text-center font-medium tracking-wide flex items-center justify-center gap-2">
           <span>Envíos a todo el país</span>
           <span className="opacity-60">|</span>
           <span className="font-semibold text-white">Precio mayorista</span>
