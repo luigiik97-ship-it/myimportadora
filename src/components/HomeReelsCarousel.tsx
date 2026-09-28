@@ -151,7 +151,7 @@ export const HomeReelsCarousel: React.FC<HomeReelsCarouselProps> = ({
   return (
     <section
       id="home-reels-carousel"
-      className="relative w-full max-w-[1240px] mx-auto py-2 group select-none"
+      className="relative w-full max-w-[1240px] mx-auto group select-none"
     >
       {/* Navigation Arrows for Desktop */}
       {canScrollLeft && (
@@ -180,7 +180,7 @@ export const HomeReelsCarousel: React.FC<HomeReelsCarouselProps> = ({
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="flex gap-2.5 sm:gap-3.5 md:gap-4 overflow-x-auto snap-x snap-mandatory no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-1 sm:px-2 py-1"
+        className="flex gap-2 sm:gap-4 overflow-x-auto snap-x snap-mandatory no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden p-0.5 -m-0.5"
       >
         {videos.map((vid, idx) => {
           const isActive = idx === activePlayingIndex && isCarouselInView;
@@ -211,8 +211,8 @@ export const HomeReelsCarousel: React.FC<HomeReelsCarouselProps> = ({
                 </div>
                 {isActive && (
                   <span className="flex h-2 w-2 relative">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#16a34a] opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#16a34a]"></span>
                   </span>
                 )}
               </div>
@@ -238,7 +238,7 @@ export const HomeReelsCarousel: React.FC<HomeReelsCarouselProps> = ({
                       </p>
                     )}
                     {showPrice && (
-                      <p className="text-emerald-400 text-[11px] sm:text-xs font-black mt-0.5">
+                      <p className="text-[#16a34a] text-[11px] sm:text-xs font-black mt-0.5">
                         ${vid.productPrice!.toLocaleString('es-AR')}
                       </p>
                     )}

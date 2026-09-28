@@ -22,7 +22,7 @@ export const StorePurchaseModeSelector: React.FC<StorePurchaseModeSelectorProps>
   return (
     <div
       id="store-purchase-mode-selector"
-      className={`w-full !-mt-1.5 sm:!-mt-1 mb-2.5 sm:mb-3.5 ${className}`}
+      className={`w-full ${className}`}
     >
       {/* Tarjeta compacta: fondo blanco limpio, texto a la izquierda en dos renglones y botón único 'efectivo' a la derecha */}
       <div className="w-full bg-white border border-gray-300 rounded-2xl overflow-hidden shadow-2xs flex items-stretch justify-between">

@@ -2326,7 +2326,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
 
       {/* TAB 3.5: VIDEOS Y REELS CLOUDINARY */}
       {activeTab === 'videos' && (
-        <VideoManager products={products} />
+        <VideoManager products={products} onProductUpdated={loadData} />
       )}
 
       {/* TAB 4: ACTUALIZACIÓN MASIVA DE PRECIOS */}

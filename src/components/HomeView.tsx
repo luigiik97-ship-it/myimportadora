@@ -70,8 +70,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
     };
 
     window.addEventListener('my_commerce_videos_updated' as any, handleVideosUpdate as any);
+    window.addEventListener('store-videos-updated' as any, handleVideosUpdate as any);
     return () => {
       window.removeEventListener('my_commerce_videos_updated' as any, handleVideosUpdate as any);
+      window.removeEventListener('store-videos-updated' as any, handleVideosUpdate as any);
     };
   }, []);
 
@@ -650,7 +652,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </section>
 
       {/* Main Content Area */}
-      <div className="max-w-[1240px] mx-auto px-2 sm:px-4 pt-1.5 sm:pt-2.5 pb-4 sm:pb-6 space-y-4 sm:space-y-6">
+      <div className="max-w-[1240px] mx-auto px-2 sm:px-4 pt-2 sm:pt-4 pb-4 sm:pb-6 flex flex-col gap-2 sm:gap-4">
         {/* 2. Categorías principales (Fila horizontal desplazable) */}
       <section id="categorias-principales">
         <div className="hidden">
@@ -684,7 +686,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         {/* Horizontal scrollable row */}
         <div
           ref={categoriesScrollRef}
-          className="flex items-stretch gap-2.5 sm:gap-4 overflow-x-auto pt-2 pb-2.5 sm:pb-3 px-1 sm:px-1.5 -mb-2 sm:-mb-2 no-scrollbar scroll-smooth snap-x touch-auto"
+          className="flex items-stretch gap-2 sm:gap-4 overflow-x-auto p-0.5 -m-0.5 no-scrollbar scroll-smooth snap-x touch-auto"
         >
           {storefrontCategories.map((cat, idx) => (
             <button
@@ -729,7 +731,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </h2>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3.5 md:gap-5">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
             {isLoadingData && bestSellers.length === 0 ? (
               <ProductGridSkeleton count={4} />
             ) : (
@@ -776,7 +778,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       )}
 
       {/* 4. Middle Promotional Banners (Independientes: estático si es 1 imagen, carrusel si son 2 o más) */}
-      <section id="promo-banners-mid" className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+      <section id="promo-banners-mid" className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-4">
         <IntermediateBannerSlot
           slotId="promo-banner-mid-1"
           banners={secondaryBanners1}
@@ -812,7 +814,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       )}
 
       {/* 5. Catálogo Completo de Productos */}
-      <section id="todos-los-productos" className="space-y-2.5 sm:space-y-3">
+      <section id="todos-los-productos" className="space-y-2 sm:space-y-3">
         <div className="flex items-center justify-between border-b border-gray-200 pb-1.5 sm:pb-2">
           <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 font-['Montserrat']">
             {currentCategory === 'Todo' ? 'Destacados' : `Categoría: ${currentCategory}`}
@@ -820,7 +822,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         {isLoadingData && filteredProducts.length === 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3.5 md:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-4">
             <ProductGridSkeleton count={10} />
           </div>
         ) : filteredProducts.length === 0 ? (
@@ -838,7 +840,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3.5 md:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-4">
             {filteredProducts.map((product) => {
               const isOutOfStock = isProductCompletelyOutOfStock(product);
 
@@ -881,7 +883,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </section>
 
       {/* 6. Formas de Envío, Medios de Pago y Direcciones (Matching Image 9 bottom tiles) */}
-      <section id="informacion-comercial" className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-5 pt-1 sm:pt-2.5">
+      <section id="informacion-comercial" className="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-4 pt-1 sm:pt-2">
         {/* Formas de envío */}
         <div className="space-y-3">
           <h3 className="text-base font-bold text-gray-900 font-['Montserrat']">

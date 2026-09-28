@@ -147,14 +147,10 @@ export const CartView: React.FC<CartViewProps> = ({
         </button>
       </div>
 
-      {/* Banner de Modalidad Activa en Carrito */}
+      {/* Banner de Modalidad Activa en Carrito (Oculto) */}
       <div
         id="cart-purchase-mode-banner"
-        className={`p-3 sm:p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
-          isCashMode
-            ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950 shadow-2xs'
-            : 'bg-blue-50/80 border-blue-200 text-blue-950 shadow-2xs'
-        }`}
+        className="hidden"
       >
         <div className="flex items-start sm:items-center gap-2.5">
           <div className={`p-2 rounded-lg shrink-0 ${isCashMode ? 'bg-emerald-600 text-white' : 'bg-[#0058bb] text-white'}`}>
@@ -216,7 +212,7 @@ export const CartView: React.FC<CartViewProps> = ({
               <div
                 key={item.id}
                 id={`cart-item-${item.id}`}
-                className="bg-transparent md:bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-200 p-1 py-3 md:p-3.5 shadow-none md:shadow-xs space-y-2"
+                className="bg-transparent md:bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-200 px-1 py-1.5 md:py-2 md:px-3 shadow-none md:shadow-xs space-y-1.5"
               >
                 <div className="flex gap-3 sm:gap-3.5">
                   {/* Thumbnail - Enlarged for mobile readability */}
@@ -238,7 +234,7 @@ export const CartView: React.FC<CartViewProps> = ({
                     <div className="flex items-start justify-between gap-2">
                       <h3
                         onClick={() => onSelectProduct?.(item.product, item.selectedVariants, itemDisplayImage)}
-                        className="text-sm sm:text-base font-bold text-gray-900 leading-snug cursor-pointer hover:text-[#0058bb] transition-colors line-clamp-2 sm:truncate"
+                        className="text-sm sm:text-base font-bold text-gray-900 leading-snug cursor-pointer hover:text-[#0058bb] transition-colors truncate"
                         title={`Ver detalle de ${item.product.title}`}
                       >
                         {item.product.title}
@@ -246,7 +242,7 @@ export const CartView: React.FC<CartViewProps> = ({
                       <button
                         id={`remove-item-${item.id}`}
                         onClick={() => onRemoveItem(item.id)}
-                        className="text-gray-400 hover:text-red-500 p-1.5 transition-colors cursor-pointer shrink-0"
+                        className="text-gray-400 hover:text-red-500 p-1 transition-colors cursor-pointer shrink-0"
                         title="Eliminar producto"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -260,7 +256,7 @@ export const CartView: React.FC<CartViewProps> = ({
                     )}
 
                     {/* Quantity Modifier, Wholesale Tag & Line Price */}
-                    <div className="flex items-center justify-between gap-1.5 sm:gap-2 mt-2 min-w-0">
+                    <div className="flex items-center justify-between gap-1.5 sm:gap-2 mt-1 min-w-0">
                       <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                         <div className="flex items-center border border-gray-300 rounded-xl bg-white overflow-hidden shadow-2xs shrink-0">
                           <button
@@ -291,18 +287,18 @@ export const CartView: React.FC<CartViewProps> = ({
                         </div>
 
                         {item.isWholesale && (
-                          <span className="inline-flex items-center justify-center text-[10px] sm:text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-1.5 py-0.5 rounded-full text-center leading-none overflow-hidden whitespace-nowrap [text-overflow:clip] shrink">
+                          <span className="inline-flex items-center justify-center text-[10px] sm:text-[11px] font-bold text-[#16a34a] bg-white border border-[#16a34a] px-1.5 py-0.5 rounded-full text-center leading-none overflow-hidden whitespace-nowrap [text-overflow:clip] shrink">
                             Mayorista
                           </span>
                         )}
                       </div>
 
                       <div className="text-right shrink-0">
-                        <span className={`text-base sm:text-lg font-bold font-['Montserrat'] whitespace-nowrap block ${isCashMode ? 'text-emerald-700' : 'text-gray-900'}`}>
-                          $ {item.effectiveTotalPrice.toLocaleString('es-AR')}
+                        <span className="text-base sm:text-lg font-bold font-['Montserrat'] whitespace-nowrap block text-gray-900">
+                          ${item.effectiveTotalPrice.toLocaleString('es-AR')}
                         </span>
                         <span className="text-xs text-gray-500 block whitespace-nowrap">
-                          ($ {item.effectiveUnitPrice.toLocaleString('es-AR')} c/u {isCashMode ? 'efectivo' : ''})
+                          (${item.effectiveUnitPrice.toLocaleString('es-AR')} c/u)
                         </span>
                       </div>
                     </div>
@@ -311,9 +307,8 @@ export const CartView: React.FC<CartViewProps> = ({
 
                 {/* Status: Pending Units (only shown when wholesale not reached) */}
                 {!item.isWholesale && (
-                  <div className="bg-blue-50/70 md:bg-gray-50 text-blue-950 md:text-gray-700 text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 border border-blue-100 md:border-gray-200/80">
-                    <Info className="w-3.5 h-3.5 text-[#0058bb] md:text-gray-500 shrink-0" />
-                    <span className="leading-snug">
+                  <div className="bg-blue-50/70 md:bg-gray-50 text-blue-950 md:text-gray-700 text-[11px] px-2.5 py-1 rounded-lg border border-blue-100 md:border-gray-200/80">
+                    <span className="leading-tight">
                       Te faltan <strong className="text-gray-900">{item.remainingToWholesale} unidades</strong> (dentro la{' '}
                       {onSelectCategory ? (
                         <button
@@ -387,23 +382,23 @@ export const CartView: React.FC<CartViewProps> = ({
             <div className="flex items-baseline justify-between">
               <div>
                 <span className="text-base font-bold text-gray-900 block leading-tight">Total</span>
-                <span className={`text-[11px] font-semibold block mt-0.5 ${isCashMode ? 'text-emerald-700' : 'text-[#0058bb]'}`}>
+                <span className={`text-[11px] font-semibold block mt-0.5 ${isCashMode ? 'text-[#16a34a]' : 'text-[#0058bb]'}`}>
                   {isCashMode ? 'Efectivo (exclusivo retiro en local)' : 'Transferencia bancaria'}
                 </span>
               </div>
               <div className="text-right">
-                <span id="cart-total-amount" className={`text-2xl font-bold font-['Montserrat'] ${isCashMode ? 'text-emerald-700' : 'text-gray-900'}`}>
-                  $ {activeSubtotal.toLocaleString('es-AR')}
+                <span id="cart-total-amount" className="text-xl sm:text-[22px] font-bold font-['Montserrat'] text-gray-900">
+                  ${activeSubtotal.toLocaleString('es-AR')}
                 </span>
                 <span className="text-xs text-gray-400 block">* sin envío</span>
               </div>
             </div>
 
-            {/* Alternativa interactiva si está en transferencia */}
+            {/* Alternativa interactiva si está en transferencia (Oculto) */}
             {!isCashMode && cashSubtotalProducts < subtotalProducts && (
               <div
                 id="cart-cash-equivalent-section"
-                className="pt-2 border-t border-dashed border-gray-200 flex items-center justify-between text-emerald-800 bg-emerald-50/70 border border-emerald-100 rounded-lg px-3 py-2"
+                className="hidden"
               >
                 <div className="flex items-center gap-2">
                   <Banknote className="w-4 h-4 text-emerald-600 shrink-0" />

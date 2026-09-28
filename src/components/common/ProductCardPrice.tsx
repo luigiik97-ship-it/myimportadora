@@ -50,8 +50,6 @@ export const ProductCardPrice: React.FC<ProductCardPriceProps> = ({
           className={`text-base sm:text-lg font-bold font-['Montserrat'] shrink-0 ${
             isDark
               ? 'text-white'
-              : isCash
-              ? 'text-emerald-700'
               : 'text-gray-900'
           }`}
         >
@@ -68,7 +66,7 @@ export const ProductCardPrice: React.FC<ProductCardPriceProps> = ({
             Sin stock
           </span>
         ) : (
-          <span className="inline-flex items-center text-[11px] sm:text-[13.2px] font-semibold bg-[#00a650] text-white px-1.5 py-0.5 rounded leading-tight shrink min-w-0 shadow-xs">
+          <span className="inline-flex items-center text-[11px] sm:text-[13.2px] font-semibold bg-[#16a34a] text-white px-1.5 py-0.5 rounded leading-tight shrink min-w-0 shadow-xs">
             <span className="overflow-hidden whitespace-nowrap text-clip block min-w-0">
               desde {product.minWholesaleQty || 1} unids
             </span>
@@ -84,8 +82,8 @@ export const ProductCardPrice: React.FC<ProductCardPriceProps> = ({
       >
         <span>1 unidad ${effectiveRetailPrice.toLocaleString('es-AR')}</span>
         {isCash && (
-          <span title="Precio en efectivo" className="inline-flex items-center text-emerald-600 shrink-0">
-            <Banknote className="w-3.5 h-3.5 text-emerald-600" />
+          <span title="Precio en efectivo" className="inline-flex items-center text-[#16a34a] shrink-0">
+            <Banknote className="w-3.5 h-3.5 text-[#16a34a]" />
           </span>
         )}
       </div>

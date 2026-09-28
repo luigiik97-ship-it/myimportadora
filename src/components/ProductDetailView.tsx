@@ -456,7 +456,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     .slice(0, 4);
 
   return (
-    <div className="max-w-[1240px] mx-auto px-2 sm:px-4 py-1 sm:py-5 space-y-3 sm:space-y-5 md:space-y-6">
+    <div className="max-w-[1240px] mx-auto px-0 sm:px-4 pt-0 sm:py-5 pb-3 sm:pb-6 space-y-3 sm:space-y-5 md:space-y-6">
       {/* Breadcrumbs (Hidden on mobile, visible on desktop) */}
       <nav id="breadcrumbs" className="hidden md:flex items-center gap-2 text-sm text-gray-500 flex-wrap">
         <button
@@ -478,14 +478,14 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
       </nav>
 
       {/* Unified Single Product Card (on desktop, unifies showcase, purchase details, description, lifestyle, reviews & video into one cohesive card; flat on mobile) */}
-      <div className="bg-transparent md:bg-white rounded-none md:rounded-2xl border-0 md:border md:border-gray-200/90 shadow-none md:shadow-sm p-0 md:p-5 lg:p-6 space-y-3 md:space-y-6">
+      <div className="relative bg-white rounded-none md:rounded-2xl border-0 md:border md:border-gray-200/90 shadow-none md:shadow-sm p-0 md:p-4 lg:p-5 space-y-2.5 sm:space-y-3 md:space-y-4">
         {/* Top Section: Showcase Gallery & Purchase Actions */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-5 lg:gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 sm:gap-2.5 lg:gap-5 items-start">
           {/* Left Column: Vertical Thumbnails (Desktop only) + Big Showcase Image + Description directly underneath on Desktop (Lg: cols 7) */}
-          <div className="lg:col-span-7 flex flex-col space-y-3 md:space-y-4">
-            <div className="flex flex-col md:flex-row gap-3 lg:gap-4 items-start w-full">
+          <div className="lg:col-span-7 flex flex-col space-y-0 sm:space-y-2.5 md:space-y-3">
+            <div className="flex flex-col md:flex-row gap-0 sm:gap-2.5 lg:gap-3 items-start w-full">
               {/* Thumbnails (Hidden on mobile, visible on desktop) */}
-              <div className="hidden md:flex md:flex-col gap-2.5 md:overflow-y-auto max-h-[480px] no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-1 shrink-0">
+              <div className="hidden md:flex md:flex-col gap-1.5 md:overflow-y-auto max-h-[480px] no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-0.5 shrink-0">
               {galleryMedia.map((item, idx) => {
                 const isActive = activeMediaIndex === idx;
 
@@ -538,7 +538,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
             {/* Main Showcase Image: Strictly 1:1 Aspect Ratio, full bleed to screen edges on mobile, proportional without deform */}
             <div
-              className="flex-1 w-[calc(100%+1rem)] sm:w-full bg-white -mx-2 sm:mx-0 rounded-none sm:rounded-xl border-b border-gray-100 sm:border md:border-gray-200/80 aspect-square flex items-center justify-center p-0 sm:p-3 md:p-4 overflow-hidden relative group select-none touch-pan-y cursor-pointer"
+              className="w-full bg-white rounded-none sm:rounded-xl border-b border-gray-100 sm:border md:border-gray-200/80 aspect-square flex items-center justify-center p-0 sm:p-3 md:p-4 overflow-hidden relative group select-none touch-pan-y cursor-pointer"
               onClick={() => {
                 if (Date.now() - lastTouchOpenTime.current < 600 || isSwipingMobile.current) {
                   isSwipingMobile.current = false;
@@ -629,7 +629,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 </div>
               )}
 
-              {/* Navigation arrows if multiple items exist */}
+              {/* Navigation arrows if multiple items exist (Desktop only, hidden on mobile) */}
               {galleryMedia.length > 1 && (
                 <>
                   <button
@@ -639,7 +639,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                       e.stopPropagation();
                       setActiveMediaIndex((prev) => (prev > 0 ? prev - 1 : galleryMedia.length - 1));
                     }}
-                    className="absolute left-2.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 shadow-md border border-gray-200 flex items-center justify-center text-gray-700 hover:text-[#0058bb] hover:bg-white transition-all opacity-80 md:opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
+                    className="hidden md:flex absolute left-2.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 shadow-md border border-gray-200 items-center justify-center text-gray-700 hover:text-[#0058bb] hover:bg-white transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
                     title="Elemento anterior"
                   >
                     <ChevronLeft className="w-5 h-5" />
@@ -651,7 +651,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                       e.stopPropagation();
                       setActiveMediaIndex((prev) => (prev < galleryMedia.length - 1 ? prev + 1 : 0));
                     }}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 shadow-md border border-gray-200 flex items-center justify-center text-gray-700 hover:text-[#0058bb] hover:bg-white transition-all opacity-80 md:opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
+                    className="hidden md:flex absolute right-2.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 shadow-md border border-gray-200 items-center justify-center text-gray-700 hover:text-[#0058bb] hover:bg-white transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
                     title="Siguiente elemento"
                   >
                     <ChevronRight className="w-5 h-5" />
@@ -673,9 +673,9 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
           </div>
 
           {/* Right Column: Pricing, Variants & Purchase Actions (Lg: cols 5) - Clean, compact & non-sticky */}
-          <div className="lg:col-span-5 flex flex-col space-y-2.5">
+          <div className="lg:col-span-5 flex flex-col gap-1.5 sm:gap-2 md:gap-2.5 px-2 sm:px-0 pt-2 sm:pt-0">
             {/* Condition & Rating */}
-            <div className="order-1 flex items-center justify-between text-xs md:text-sm text-gray-500">
+            <div className="order-1 flex items-center justify-between text-xs text-gray-500">
               <span>Nuevo | +{formattedSoldCount} vendidos</span>
               <div className="flex items-center gap-1 text-[#0058bb]">
                 <div className="flex">
@@ -690,42 +690,40 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     />
                   ))}
                 </div>
-                <span className="font-bold text-xs md:text-sm">{(product.rating ?? 5.0).toFixed(1)}</span>
+                <span className="font-bold text-xs">{(product.rating ?? 5.0).toFixed(1)}</span>
               </div>
             </div>
 
             {/* Product Title - Prominent and balanced */}
-            <h1 id="product-detail-title" className="order-2 text-lg sm:text-xl font-bold text-gray-900 leading-snug font-['Montserrat'] tracking-tight">
+            <h1 id="product-detail-title" className="order-2 text-base sm:text-lg font-bold text-gray-900 leading-snug font-['Montserrat'] tracking-tight">
               {product.title}
             </h1>
 
             {/* Pricing Section - Aligned flush to the left margin like "Color:" */}
-            <div className="order-3 px-0 py-2 bg-transparent space-y-2 border-y border-gray-100 md:border-y-0">
+            <div className="order-3 px-0 py-1 sm:py-1.5 bg-transparent space-y-1 sm:space-y-1.5 border-y border-gray-100 md:border-y-0">
               {/* Wholesale Price Display & Integrated Mode Selector */}
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 flex-wrap">
+              <div className="space-y-0.5 sm:space-y-1">
+                <div className="flex items-center gap-1 flex-wrap">
                   <div className="flex items-baseline gap-1">
                     <span
                       id="wholesale-price-display"
-                      className={`text-2xl sm:text-3xl font-bold font-['Montserrat'] tracking-tight transition-colors ${
-                        isCashMode ? 'text-emerald-700' : 'text-gray-900'
-                      }`}
+                      className="text-2xl sm:text-3xl font-bold font-['Montserrat'] tracking-tight text-gray-900"
                     >
-                      $ {currentWholesalePrice.toLocaleString('es-AR')}
+                      ${currentWholesalePrice.toLocaleString('es-AR')}
                     </span>
-                    <span className="text-xs sm:text-sm font-bold text-[#00a650]">
+                    <span className="text-xs sm:text-sm font-bold text-gray-900">
                       c/u
                     </span>
                   </div>
 
-                  <span className="inline-flex items-center text-xs sm:text-sm font-semibold bg-[#00a650] text-white px-2 py-0.5 rounded leading-tight shrink-0 shadow-xs">
+                  <span className="inline-flex items-center text-xs sm:text-sm font-semibold bg-[#16a34a] text-white px-2 py-0.5 rounded leading-tight shrink-0 shadow-xs">
                     desde {product.minWholesaleQty || 1} unids
                   </span>
 
                   {isCashMode && (
                     <span
                       id="wholesale-cash-indicator"
-                      className="text-xs sm:text-sm font-bold text-[#16a34a] animate-fadeIn"
+                      className="inline-flex items-center text-xs sm:text-sm font-bold text-[#16a34a] bg-white border border-[#16a34a] px-2 py-0.5 rounded leading-tight shrink-0 animate-fadeIn"
                     >
                       en efectivo
                     </span>
@@ -734,20 +732,20 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
                 {/* Sub-label: Category wholesale min */}
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-xs sm:text-sm text-[#00a650] font-medium leading-tight">
+                  <p className="text-[11px] sm:text-xs text-[#16a34a] font-medium leading-tight">
                     Podes combinar {product.minWholesaleQty} productos dentro de la categoría {product.category}
                   </p>
                 </div>
               </div>
 
               {/* Retail Price line - displays only the retail price corresponding to chosen mode */}
-              <div className="border-t border-gray-100 md:border-gray-200/80 pt-1.5 flex items-baseline justify-between gap-2">
-                <div className="flex items-baseline gap-2">
+              <div className="border-t border-gray-100 md:border-gray-200/80 pt-1 flex items-baseline justify-between gap-2">
+                <div className="flex items-baseline gap-1">
                   <span id="retail-price-display" className="text-sm sm:text-base font-bold text-gray-900">
                     ${currentRetailPrice.toLocaleString('es-AR')}
                   </span>
                   <span className="text-xs sm:text-sm text-gray-600 font-medium">
-                    Precio por 1 unidad{isCashMode ? ' en efectivo' : ''}
+                    precio por 1 unidad{isCashMode ? ' en efectivo' : ''}
                   </span>
                 </div>
               </div>
@@ -755,21 +753,21 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
             {/* DYNAMIC 2-TYPE VARIANT SELECTORS (Color / Modelo, Tamaño / Medida, etc.) */}
             {variantTypes.length > 0 ? (
-              <div className="order-4 space-y-2">
+              <div className="order-4 space-y-1.5 sm:space-y-2">
                 {variantTypes.map((vt, vtIdx) => {
                   const currentSelectedName = selectedOptions[vt.id] || selectedOptions[vt.name] || (vt.options[0]?.name ?? '');
                   const hasPriceModifiers = vt.options.some((o) => o.wholesalePrice !== undefined && o.wholesalePrice !== product.wholesalePrice);
                   const hasVariantImages = vt.options.some((o) => o.images && o.images.length > 0);
 
                   return (
-                    <div key={vt.id || vtIdx} className="space-y-1.5">
+                    <div key={vt.id || vtIdx} className="space-y-1 sm:space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <label className="text-sm font-normal text-gray-700 block">
+                        <label className="text-xs sm:text-sm font-normal text-gray-700 block">
                           {formatVariantTypeName(vt.name)}: <span className="text-gray-900 font-semibold">{currentSelectedName}</span>
                         </label>
                       </div>
 
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-1 sm:gap-1.5">
                         {vt.options.map((option) => {
                           const isSelected = currentSelectedName === option.name;
                           const optionHasImages = option.images && option.images.length > 0;
@@ -784,7 +782,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                               type="button"
                               disabled={isOptOutOfStock}
                               onClick={() => handleSelectOption(vt, option)}
-                              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+                              className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all flex items-center gap-1.5 ${
                                 isOptOutOfStock
                                   ? 'border border-dashed border-gray-300 bg-gray-100/80 text-gray-400 opacity-60 cursor-not-allowed select-none'
                                   : isSelected
@@ -797,14 +795,14 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                 <img
                                   src={optionThumb}
                                   alt={option.name}
-                                  className={`w-5.5 h-5.5 rounded object-cover border border-gray-200 shrink-0 ${
+                                  className={`w-5 h-5 sm:w-5.5 sm:h-5.5 rounded object-cover border border-gray-200 shrink-0 ${
                                     isOptOutOfStock ? 'grayscale opacity-40' : ''
                                   }`}
                                 />
                               )}
 
                               <div className="flex flex-col items-start leading-tight">
-                                <span className={`text-sm ${isOptOutOfStock ? 'line-through text-gray-400' : ''}`}>
+                                <span className={`${isOptOutOfStock ? 'line-through text-gray-400' : ''}`}>
                                   {option.name}
                                 </span>
                               </div>
@@ -819,14 +817,14 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             ) : null}
 
             {/* Discount Promo Banner */}
-            <div id="cash-discount-banner" className="order-6 lg:order-5 bg-white border border-emerald-200 rounded-lg p-2 md:p-2.5 flex items-center justify-between gap-2.5">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <Banknote className="w-4 h-4 text-[#00a650] shrink-0" />
+            <div id="cash-discount-banner" className="order-6 lg:order-5 bg-white border border-emerald-200 rounded-lg p-1.5 sm:p-2 flex items-center justify-between gap-2 sm:gap-2.5">
+              <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+                <Banknote className="w-4 h-4 text-[#16a34a] shrink-0" />
                 <div className="text-xs md:text-sm min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-bold text-[#00a650]">Descuento pagando en efectivo</span>
+                    <span className="font-bold text-[#16a34a]">Descuento pagando en efectivo</span>
                   </div>
-                  <p className="text-gray-600 text-xs mt-0.5 leading-tight">
+                  <p className="text-gray-600 text-[11px] sm:text-xs mt-0.5 leading-tight">
                     Aplicable cuando pase a retirar su compra en el local
                   </p>
                 </div>
@@ -851,15 +849,15 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             </div>
 
             {/* Shipping & Delivery Highlights */}
-            <div className="order-7 lg:order-6 space-y-1.5 pt-0.5 text-xs md:text-sm text-gray-700">
+            <div className="order-7 lg:order-6 space-y-1 pt-0.5 sm:pt-1 text-xs text-gray-700">
               <div className="flex items-start gap-2">
                 <Truck className="w-3.5 h-3.5 text-[#00a650] shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold text-gray-900 block">Envío a domicilio</span>
                   <div className="flex items-center gap-1 mt-0.5">
-                    <span className="bg-[#a3e635] text-xs font-bold px-1.5 py-0.5 rounded text-gray-900">Envíos Flex</span>
-                    <span className="bg-[#facc15] text-xs font-bold px-1.5 py-0.5 rounded text-gray-900">Correo Argentino</span>
-                    <span className="bg-black text-xs font-bold px-1.5 py-0.5 rounded text-white">Uber moto</span>
+                    <span className="bg-[#a3e635] text-[11px] sm:text-xs font-bold px-1.5 py-0.5 rounded text-gray-900">Envíos Flex</span>
+                    <span className="bg-[#facc15] text-[11px] sm:text-xs font-bold px-1.5 py-0.5 rounded text-gray-900">Correo Argentino</span>
+                    <span className="bg-black text-[11px] sm:text-xs font-bold px-1.5 py-0.5 rounded text-white">Uber moto</span>
                   </div>
                 </div>
               </div>
@@ -873,10 +871,10 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             </div>
 
             {/* Action Buttons & Quantity (order 5 on mobile, order 7 on desktop) */}
-            <div className="order-5 lg:order-7 space-y-2.5 pt-2 border-t border-gray-100 md:border-gray-200">
+            <div className="order-5 lg:order-7 space-y-1.5 sm:space-y-2 pt-1 sm:pt-1.5 border-t border-gray-100 md:border-gray-200">
               {/* Stock status indicator */}
               {isCurrentSelectionOutOfStock ? (
-                <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-xs md:text-sm text-red-700 font-bold">
+                <div className="p-2 sm:p-2.5 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-xs md:text-sm text-red-700 font-bold">
                   <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
                   <span>
                     {variantTypes.length > 0
@@ -885,7 +883,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   </span>
                 </div>
               ) : currentSelectionStock === 1 ? (
-                <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-xs md:text-sm text-amber-800 font-bold">
+                <div className="p-1.5 sm:p-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-xs md:text-sm text-amber-800 font-bold">
                   <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                   <span>Última unidad disponible</span>
                 </div>
@@ -893,13 +891,13 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
               {/* Quantity Controller */}
               <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-gray-800">Cantidad:</span>
+                <span className="text-xs sm:text-sm font-bold text-gray-800">Cantidad:</span>
                 <div className="flex items-center border border-gray-300 rounded-xl overflow-hidden bg-white shadow-2xs">
                   <button
                     id="qty-minus-btn"
                     disabled={quantity <= 1 || isCurrentSelectionOutOfStock}
                     onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                    className={`px-3.5 py-2 text-gray-600 transition-colors min-h-[40px] min-w-[38px] flex items-center justify-center ${
+                    className={`px-2.5 py-1 sm:px-3 sm:py-1.5 text-gray-600 transition-colors min-h-[34px] sm:min-h-[38px] min-w-[32px] sm:min-w-[36px] flex items-center justify-center ${
                       quantity <= 1 || isCurrentSelectionOutOfStock
                         ? 'opacity-40 cursor-not-allowed bg-gray-50'
                         : 'hover:bg-gray-100 cursor-pointer'
@@ -946,7 +944,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                         (e.target as HTMLInputElement).blur();
                       }
                     }}
-                    className={`w-12 py-2 text-sm font-bold text-gray-900 text-center bg-transparent border-none outline-none focus:bg-blue-50/60 focus:text-[#0058bb] transition-colors ${
+                    className={`w-10 sm:w-11 py-1 sm:py-1.5 text-xs sm:text-sm font-bold text-gray-900 text-center bg-transparent border-none outline-none focus:bg-blue-50/60 focus:text-[#0058bb] transition-colors ${
                       isCurrentSelectionOutOfStock ? 'cursor-not-allowed opacity-40' : 'cursor-text'
                     }`}
                   />
@@ -954,7 +952,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     id="qty-plus-btn"
                     disabled={isCurrentSelectionOutOfStock || quantity >= currentSelectionStock}
                     onClick={() => setQuantity((q) => q + 1)}
-                    className={`px-3.5 py-2 text-gray-600 transition-colors min-h-[40px] min-w-[38px] flex items-center justify-center ${
+                    className={`px-2.5 py-1 sm:px-3 sm:py-1.5 text-gray-600 transition-colors min-h-[34px] sm:min-h-[38px] min-w-[32px] sm:min-w-[36px] flex items-center justify-center ${
                       isCurrentSelectionOutOfStock || quantity >= currentSelectionStock
                         ? 'opacity-40 cursor-not-allowed bg-gray-50'
                         : 'hover:bg-gray-100 cursor-pointer'
@@ -966,12 +964,12 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               </div>
 
               {/* Action Buttons */}
-              <div className="space-y-2 pt-1">
+              <div className="space-y-1.5 sm:space-y-2 pt-0.5 sm:pt-1">
                 <button
                   id="buy-now-btn"
                   disabled={isCurrentSelectionOutOfStock}
                   onClick={handleBuy}
-                  className={`w-full font-bold py-2.5 px-5 rounded-xl text-sm transition-colors shadow-xs min-h-[42px] flex items-center justify-center ${
+                  className={`w-full font-bold py-2 sm:py-2.5 px-4 sm:px-5 rounded-xl text-xs sm:text-sm transition-colors shadow-xs min-h-[36px] sm:min-h-[40px] flex items-center justify-center ${
                     isCurrentSelectionOutOfStock
                       ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
                       : 'bg-[#0058bb] hover:bg-[#004bb0] text-white cursor-pointer active:scale-[0.99]'
@@ -984,7 +982,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   id="add-to-cart-btn"
                   disabled={isCurrentSelectionOutOfStock}
                   onClick={handleAdd}
-                  className={`w-full font-bold py-2.5 px-5 rounded-xl text-sm transition-colors flex items-center justify-center gap-2 min-h-[42px] ${
+                  className={`w-full font-bold py-2 sm:py-2.5 px-4 sm:px-5 rounded-xl text-xs sm:text-sm transition-colors flex items-center justify-center gap-2 min-h-[36px] sm:min-h-[40px] ${
                     isCurrentSelectionOutOfStock
                       ? 'bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed'
                       : 'bg-white hover:bg-blue-50/50 text-[#0058bb] border-2 border-[#0058bb] cursor-pointer active:scale-[0.99]'
@@ -1008,7 +1006,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     type="button"
                     id="view-cart-link-btn"
                     onClick={onGoToCart}
-                    className="w-full py-2.5 px-3 text-center text-xs md:text-sm font-semibold text-[#0058bb] hover:text-[#004bb0] hover:bg-blue-50/60 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer group animate-in fade-in duration-200"
+                    className="w-full py-1.5 sm:py-2 px-3 text-center text-xs sm:text-sm font-semibold text-[#0058bb] hover:text-[#004bb0] hover:bg-blue-50/60 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer group animate-in fade-in duration-200"
                   >
                     <ShoppingBag className="w-4 h-4 text-[#0058bb] group-hover:scale-110 transition-transform" />
                     <span className="underline underline-offset-4">Ver carrito</span>
@@ -1019,16 +1017,16 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             </div>
 
             {/* Official Store Badge */}
-            <div className="order-8 lg:order-8 pt-1">
+            <div className="order-8 lg:order-8 pt-0.5 sm:pt-1">
               <MichyOfficialBadge />
             </div>
 
             {/* Mobile Only: Description directly below purchase info, preserving mobile order */}
-            <div className="md:hidden order-9 pt-3 border-t border-gray-100 space-y-2">
+            <div className="md:hidden order-9 pt-2.5 sm:pt-3 border-t border-gray-100 space-y-1.5 sm:space-y-2">
               <h3 className="text-base font-bold text-gray-900 font-['Montserrat']">
                 Descripción del Producto
               </h3>
-              <div className="text-xs text-gray-600 space-y-2 whitespace-pre-line leading-relaxed font-normal">
+              <div className="text-xs text-gray-600 space-y-1.5 whitespace-pre-line leading-relaxed font-normal">
                 {product.description}
               </div>
             </div>
@@ -1036,8 +1034,8 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
         </div>
 
         {/* Sección Inferior de la Tarjeta: Imagen Complementaria y Opiniones */}
-        <div className="border-t border-gray-100 md:border-gray-200/80 pt-4 md:pt-6">
-          <div className="space-y-5">
+        <div className="border-t border-gray-100 md:border-gray-200/80 pt-3 sm:pt-4 md:pt-6 px-2 sm:px-0">
+          <div className="space-y-3 sm:space-y-5">
             {/* Imagen Complementaria a ancho completo */}
             <div className="space-y-2">
               <div className="relative w-full h-48 sm:h-64 md:h-80 rounded-xl overflow-hidden bg-gray-100 border border-gray-200/70 shadow-2xs group">
@@ -1053,12 +1051,12 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             </div>
 
             {/* Clasificación y Opiniones */}
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 md:border-gray-200/80 pb-3">
+            <div className="space-y-2.5 sm:space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 border-b border-gray-100 md:border-gray-200/80 pb-2 sm:pb-3">
                 <h3 className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat']">
                   Clasificación y Opiniones
                 </h3>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <span className="text-2xl font-bold text-gray-900">
                     {(product.rating ?? 5.0).toFixed(1)}
                   </span>
@@ -1080,7 +1078,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-4">
                 {(product.reviews && product.reviews.length > 0
                   ? product.reviews
                   : [
@@ -1098,7 +1096,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 ).map((rev, idx) => (
                   <div
                     key={rev.id || idx}
-                    className="text-xs sm:text-sm text-gray-600 bg-gray-50/70 rounded-xl p-3.5 border border-gray-100 md:border-gray-200/60 space-y-1.5"
+                    className="text-xs sm:text-sm text-gray-600 bg-gray-50/70 rounded-xl p-2.5 sm:p-3.5 border border-gray-100 md:border-gray-200/60 space-y-1 sm:space-y-1.5"
                   >
                     <div className="flex text-[#0058bb]">
                       {[...Array(5)].map((_, i) => (
@@ -1122,10 +1120,16 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Mobile short transition gradient from white to page background (#fbf9f8) */}
+        <div
+          className="md:hidden absolute bottom-0 left-0 right-0 h-5 translate-y-full bg-gradient-to-b from-white to-[#fbf9f8] pointer-events-none"
+          aria-hidden="true"
+        />
       </div>
 
       {/* Related Products */}
-      <section id="productos-relacionados" className="space-y-3 sm:space-y-4 pt-2 sm:pt-4">
+      <section id="productos-relacionados" className="space-y-3 sm:space-y-4 pt-2 sm:pt-4 px-2 sm:px-0">
         <h3 className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat']">
           Productos Relacionados
         </h3>
@@ -1154,7 +1158,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     <span className="text-sm sm:text-base font-bold text-gray-900 font-['Montserrat'] shrink-0">
                       ${rel.wholesalePrice.toLocaleString('es-AR')}
                     </span>
-                    <span className="inline-flex items-center text-[11px] sm:text-[13.2px] font-semibold bg-[#00a650] text-white px-1 py-0.5 rounded leading-tight shrink min-w-0">
+                    <span className="inline-flex items-center text-[11px] sm:text-[13.2px] font-semibold bg-[#16a34a] text-white px-1 py-0.5 rounded leading-tight shrink min-w-0">
                       <span className="overflow-hidden whitespace-nowrap text-clip block min-w-0">
                         desde {rel.minWholesaleQty} unids
                       </span>

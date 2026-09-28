@@ -39,12 +39,15 @@ export const getLocalStoreVideos = (): StoreVideo[] => {
 };
 
 /**
- * Guarda los videos en localStorage y despacha un evento para reactividad instantánea
+ * Guarda los videos en localStorage y despacha eventos para reactividad instantánea
  */
 export const saveLocalStoreVideos = (videos: StoreVideo[]) => {
   try {
     localStorage.setItem(STORAGE_KEY_STORE_VIDEOS, JSON.stringify(videos));
-    window.dispatchEvent(new CustomEvent('store-videos-updated', { detail: videos }));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('store-videos-updated', { detail: videos }));
+      window.dispatchEvent(new CustomEvent('my_commerce_videos_updated', { detail: videos }));
+    }
   } catch (e) {
     console.error('Error guardando videos en localStorage:', e);
   }
@@ -95,15 +98,15 @@ export const saveStoreVideos = async (videos: StoreVideo[]): Promise<boolean> =>
   try {
     const payload = {
       id: SYSTEM_STORE_VIDEOS_ROW_ID,
-      title: 'SYSTEM_STORE_VIDEOS',
+      title: '__SYSTEM_STORE_VIDEOS__',
       description: JSON.stringify(videos),
-      category: 'System',
+      category: '__system__',
       subcategory: 'Config',
       images: [],
       wholesale_price: 0,
       retail_price: 0,
-      min_wholesale_qty: 1,
       stock: 0,
+      specs: [{ key: 'updated_at', value: new Date().toISOString() }],
     };
 
     const { error } = await supabase

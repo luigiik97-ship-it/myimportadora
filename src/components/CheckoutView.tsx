@@ -449,14 +449,10 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
         </div>
       )}
 
-      {/* Banner de Modalidad de Compra Activa en Checkout */}
+      {/* Banner de Modalidad de Compra Activa en Checkout (Oculto) */}
       <div
         id="checkout-purchase-mode-indicator"
-        className={`rounded-xl p-3 border flex items-center justify-between gap-2.5 transition-colors ${
-          paymentMethod === 'cash'
-            ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
-            : 'bg-blue-50/80 border-blue-200 text-blue-950'
-        }`}
+        className="hidden"
       >
         <div className="flex items-center gap-2.5">
           <div className={`p-1.5 rounded-lg shrink-0 ${paymentMethod === 'cash' ? 'bg-emerald-600 text-white' : 'bg-[#0058bb] text-white'}`}>
@@ -913,7 +909,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     <p className={`text-xs mt-0.5 font-medium ${
                       paymentMethod === 'cash' ? 'text-[#00a650]' : 'text-gray-500'
                     }`}>
-                      ($ {item.unitPrice.toLocaleString('es-AR')} c/u)
+                      (${item.unitPrice.toLocaleString('es-AR')} c/u)
                     </p>
                   </div>
                   <span className="text-sm sm:text-base font-bold text-gray-900 shrink-0 pt-0.5">
