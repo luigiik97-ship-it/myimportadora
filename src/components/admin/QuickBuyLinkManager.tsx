@@ -20,6 +20,7 @@ import {
   getQuickBuyLinkConfig,
   fetchQuickBuyLinkConfigFromSupabase,
   saveQuickBuyLinkConfig,
+  saveQuickBuyLinkConfigAsync,
   generateUniqueToken,
   buildQuickBuyUrl,
   QuickBuyLinkConfig,
@@ -94,8 +95,8 @@ export const QuickBuyLinkManager: React.FC<QuickBuyLinkManagerProps> = ({
   };
 
   // Toggle activo / pausado
-  const handleToggleActive = () => {
-    const updated = saveQuickBuyLinkConfig({
+  const handleToggleActive = async () => {
+    const updated = await saveQuickBuyLinkConfigAsync({
       isActive: !config.isActive,
     });
     setConfig(updated);
@@ -104,14 +105,14 @@ export const QuickBuyLinkManager: React.FC<QuickBuyLinkManagerProps> = ({
   };
 
   // Regenerar un nuevo identificador único
-  const handleRegenerateToken = () => {
+  const handleRegenerateToken = async () => {
     if (
       window.confirm(
         '¿Deseas generar un nuevo enlace único? El enlace anterior dejará de abrir la tienda en modo WhatsApp.'
       )
     ) {
       const newToken = generateUniqueToken();
-      const updated = saveQuickBuyLinkConfig({
+      const updated = await saveQuickBuyLinkConfigAsync({
         token: newToken,
       });
       setConfig(updated);
@@ -122,12 +123,12 @@ export const QuickBuyLinkManager: React.FC<QuickBuyLinkManagerProps> = ({
   };
 
   // Guardar configuración manual
-  const handleSaveCustomSettings = (e: React.FormEvent) => {
+  const handleSaveCustomSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanToken = customTokenInput.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'whatsapp';
     const cleanWa = whatsappUrlInput.trim() || 'https://wa.me/message/TSF5H4YUIQJOC1';
 
-    const updated = saveQuickBuyLinkConfig({
+    const updated = await saveQuickBuyLinkConfigAsync({
       token: cleanToken,
       whatsappUrl: cleanWa,
     });

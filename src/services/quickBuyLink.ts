@@ -49,52 +49,79 @@ export const getQuickBuyLinkConfig = (): QuickBuyLinkConfig => {
   return { ...DEFAULT_CONFIG };
 };
 
+let activeFetchQuickBuyPromise: Promise<QuickBuyLinkConfig> | null = null;
+let cachedQuickBuyConfig: QuickBuyLinkConfig | null = null;
+let lastQuickBuyFetchTime = 0;
+const QUICK_BUY_CACHE_TTL = 30000;
+
 /**
  * Consulta y sincroniza la configuración de Compra Rápida directamente desde Supabase
  */
-export const fetchQuickBuyLinkConfigFromSupabase = async (): Promise<QuickBuyLinkConfig> => {
-  const supabase = getSupabase();
-  if (isSupabaseConfigured() && supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('description')
-        .eq('id', SYSTEM_QUICK_BUY_ROW_ID)
-        .maybeSingle();
-
-      if (!error && data && data.description) {
-        try {
-          const parsed = JSON.parse(data.description);
-          if (parsed && typeof parsed === 'object') {
-            const merged: QuickBuyLinkConfig = {
-              ...DEFAULT_CONFIG,
-              ...parsed,
-            };
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(
-                new CustomEvent('my_commerce_quick_buy_config_updated', {
-                  detail: merged,
-                })
-              );
-            }
-            return merged;
-          }
-        } catch (parseErr) {
-          console.warn('Error parseando configuración remota de compra rápida:', parseErr);
-        }
-      }
-    } catch (e) {
-      console.warn('Error consultando configuración de compra rápida en Supabase:', e);
-    }
+export const fetchQuickBuyLinkConfigFromSupabase = async (force = false): Promise<QuickBuyLinkConfig> => {
+  const now = Date.now();
+  if (!force && cachedQuickBuyConfig && (now - lastQuickBuyFetchTime < QUICK_BUY_CACHE_TTL)) {
+    return cachedQuickBuyConfig;
   }
-  return getQuickBuyLinkConfig();
+
+  if (activeFetchQuickBuyPromise) {
+    return activeFetchQuickBuyPromise;
+  }
+
+  activeFetchQuickBuyPromise = (async () => {
+    const supabase = getSupabase();
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('description')
+          .eq('id', SYSTEM_QUICK_BUY_ROW_ID)
+          .maybeSingle();
+
+        if (!error && data && data.description) {
+          try {
+            const parsed = JSON.parse(data.description);
+            if (parsed && typeof parsed === 'object') {
+              const merged: QuickBuyLinkConfig = {
+                ...DEFAULT_CONFIG,
+                ...parsed,
+              };
+              cachedQuickBuyConfig = merged;
+              lastQuickBuyFetchTime = Date.now();
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(
+                  new CustomEvent('my_commerce_quick_buy_config_updated', {
+                    detail: merged,
+                  })
+                );
+              }
+              return merged;
+            }
+          } catch (parseErr) {
+            console.warn('Error parseando configuración remota de compra rápida:', parseErr);
+          }
+        }
+      } catch (e) {
+        console.warn('Error consultando configuración de compra rápida en Supabase:', e);
+      }
+    }
+    const local = getQuickBuyLinkConfig();
+    cachedQuickBuyConfig = local;
+    lastQuickBuyFetchTime = Date.now();
+    return local;
+  })().finally(() => {
+    activeFetchQuickBuyPromise = null;
+  });
+
+  return activeFetchQuickBuyPromise;
 };
 
 /**
  * Guarda la configuración del enlace tanto en local como en la base compartida de Supabase
  */
-export const saveQuickBuyLinkConfig = (config: Partial<QuickBuyLinkConfig>): QuickBuyLinkConfig => {
+export const saveQuickBuyLinkConfigAsync = async (
+  config: Partial<QuickBuyLinkConfig>
+): Promise<QuickBuyLinkConfig> => {
   try {
     const current = getQuickBuyLinkConfig();
     const updated: QuickBuyLinkConfig = {
@@ -116,27 +143,25 @@ export const saveQuickBuyLinkConfig = (config: Partial<QuickBuyLinkConfig>): Qui
     // Persistencia centralizada en Supabase para todos los dispositivos
     const supabase = getSupabase();
     if (isSupabaseConfigured() && supabase) {
-      (async () => {
-        try {
-          const { error } = await supabase
-            .from('products')
-            .upsert({
-              id: SYSTEM_QUICK_BUY_ROW_ID,
-              title: '__SYSTEM_QUICK_BUY_CONFIG__',
-              description: JSON.stringify(updated),
-              category: '__system__',
-              wholesale_price: 0,
-              retail_price: 0,
-              stock: 0,
-              specs: [{ key: 'updated_at', value: updated.lastUpdated }],
-            });
-          if (error) {
-            console.warn('Advertencia al sincronizar configuración de compra rápida en Supabase:', error.message);
-          }
-        } catch (err) {
-          console.warn('Error de red al sincronizar configuración en Supabase:', err);
+      try {
+        const { error } = await supabase
+          .from('products')
+          .upsert({
+            id: SYSTEM_QUICK_BUY_ROW_ID,
+            title: '__SYSTEM_QUICK_BUY_CONFIG__',
+            description: JSON.stringify(updated),
+            category: '__system__',
+            wholesale_price: 0,
+            retail_price: 0,
+            stock: 0,
+            specs: [{ key: 'updated_at', value: updated.lastUpdated }],
+          });
+        if (error) {
+          console.warn('Advertencia al sincronizar configuración de compra rápida en Supabase:', error.message);
         }
-      })();
+      } catch (err) {
+        console.warn('Error de red al sincronizar configuración en Supabase:', err);
+      }
     }
 
     return updated;
@@ -144,6 +169,27 @@ export const saveQuickBuyLinkConfig = (config: Partial<QuickBuyLinkConfig>): Qui
     console.error('Error guardando configuración de enlace rápido:', e);
     return { ...DEFAULT_CONFIG, ...config } as QuickBuyLinkConfig;
   }
+};
+
+export const saveQuickBuyLinkConfig = (config: Partial<QuickBuyLinkConfig>): QuickBuyLinkConfig => {
+  const current = getQuickBuyLinkConfig();
+  const updated: QuickBuyLinkConfig = {
+    ...current,
+    ...config,
+    lastUpdated: new Date().toISOString(),
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('my_commerce_quick_buy_config_updated', {
+        detail: updated,
+      })
+    );
+  }
+
+  saveQuickBuyLinkConfigAsync(config).catch(() => {});
+  return updated;
 };
 
 /**

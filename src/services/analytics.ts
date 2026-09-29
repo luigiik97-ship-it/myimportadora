@@ -9,6 +9,7 @@ const LAST_PATH_TIME_KEY = 'my_commerce_last_path_time';
 const SESSION_SOURCE_KEY = 'my_commerce_session_source';
 const VISITS_LOG_KEY = 'my_commerce_visits_log';
 const VISITS_INIT_SEEDED_KEY = 'my_commerce_visits_seeded_v1';
+export const SYSTEM_ANALYTICS_ROW_ID = '__system_analytics_log_v1__';
 
 // 30 minutes session timeout
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
@@ -17,6 +18,8 @@ const RAPID_RELOAD_MS = 60 * 1000;
 
 // Maximum visit log items in localStorage to preserve quota
 const MAX_STORED_VISITS = 800;
+
+let isSiteVisitsTableUnavailable = false;
 
 /**
  * Generates a unique anonymous visitor ID or retrieves the existing one.
@@ -193,9 +196,9 @@ export const recordSiteVisit = async (path: string, customTitle?: string): Promi
     console.warn('[Analytics] Error saving to localStorage:', e);
   }
 
-  // 2. Async save to Supabase if configured
+  // 2. Async save to Supabase if configured (only if table exists, else uses system row)
   const supabase = getSupabase();
-  if (isSupabaseConfigured() && supabase) {
+  if (isSupabaseConfigured() && supabase && !isSiteVisitsTableUnavailable) {
     try {
       supabase.from('site_visits').insert({
         id: visitRecord.id,
@@ -210,9 +213,12 @@ export const recordSiteVisit = async (path: string, customTitle?: string): Promi
         is_new_session: visitRecord.isNewSession,
         created_at: visitRecord.timestamp,
       }).then(({ error }) => {
-        if (error && error.code !== 'PGRST205') {
-          // PGRST205 means table doesn't exist in schema cache yet, which is expected before SQL setup
-          console.warn('[Analytics] Supabase visit insert warning:', error.message);
+        if (error) {
+          if (error.code === 'PGRST205' || error.code === '42P01') {
+            isSiteVisitsTableUnavailable = true;
+          } else {
+            console.warn('[Analytics] Supabase visit insert warning:', error.message);
+          }
         }
       });
     } catch (err) {}
@@ -221,8 +227,41 @@ export const recordSiteVisit = async (path: string, customTitle?: string): Promi
   return visitRecord;
 };
 
+let syncAnalyticsTimeout: any = null;
+
 /**
- * Saves a single visit into localStorage with quota limits.
+ * Persiste los registros de visitas en Supabase de forma agrupada/debounced
+ */
+export const syncVisitsLogToSupabase = async (visits: SiteVisit[]): Promise<void> => {
+  const supabase = getSupabase();
+  if (!isSupabaseConfigured() || !supabase) return;
+
+  if (syncAnalyticsTimeout) {
+    clearTimeout(syncAnalyticsTimeout);
+  }
+
+  syncAnalyticsTimeout = setTimeout(async () => {
+    try {
+      // Guardar las 300 visitas más recientes para rendimiento óptimo
+      const slice = visits.slice(0, 300);
+      await supabase.from('products').upsert({
+        id: SYSTEM_ANALYTICS_ROW_ID,
+        title: '__SYSTEM_ANALYTICS_LOG__',
+        description: JSON.stringify(slice),
+        category: '__system__',
+        wholesale_price: 0,
+        retail_price: 0,
+        stock: 0,
+        specs: [{ key: 'updated_at', value: new Date().toISOString() }],
+      });
+    } catch (e) {
+      console.warn('[Analytics] Error sincronizando log de visitas a Supabase:', e);
+    }
+  }, 1000);
+};
+
+/**
+ * Saves a single visit into localStorage with quota limits and syncs to Supabase.
  */
 const saveVisitToLocalStorage = (visit: SiteVisit) => {
   try {
@@ -239,6 +278,7 @@ const saveVisitToLocalStorage = (visit: SiteVisit) => {
     }
 
     safeLocalStorageSet(VISITS_LOG_KEY, JSON.stringify(list));
+    syncVisitsLogToSupabase(list).catch(() => {});
   } catch (e) {
     console.warn('[Analytics] Failed to serialize visits:', e);
   }
@@ -337,30 +377,27 @@ export const getAnalyticsMetrics = async (
 
   let allVisits: SiteVisit[] = [];
 
-  // Try fetching from Supabase first
+  // Try fetching from Supabase central row first
   const supabase = getSupabase();
   if (isSupabaseConfigured() && supabase) {
     try {
       const { data, error } = await supabase
-        .from('site_visits')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1000);
+        .from('products')
+        .select('description')
+        .eq('id', SYSTEM_ANALYTICS_ROW_ID)
+        .maybeSingle();
 
-      if (!error && Array.isArray(data) && data.length > 0) {
-        allVisits = data.map((d: any) => ({
-          id: d.id,
-          visitorId: d.visitor_id,
-          sessionId: d.session_id,
-          timestamp: d.created_at,
-          path: d.path,
-          pageTitle: d.page_title,
-          referrer: d.referrer || '',
-          source: d.source || 'Directo',
-          device: d.device || 'desktop',
-          isNewVisitor: !!d.is_new_visitor,
-          isNewSession: d.is_new_session !== false,
-        }));
+      if (!error && data && data.description) {
+        try {
+          const parsed = JSON.parse(data.description);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            allVisits = parsed;
+            // Guardar en local para sincronización
+            safeLocalStorageSet(VISITS_LOG_KEY, JSON.stringify(parsed));
+          }
+        } catch (pe) {
+          console.warn('[Analytics] Error parseando visitas de Supabase:', pe);
+        }
       }
     } catch (e) {
       // Supabase query error, fallback to localStorage
@@ -373,6 +410,10 @@ export const getAnalyticsMetrics = async (
       const saved = localStorage.getItem(VISITS_LOG_KEY);
       if (saved) {
         allVisits = JSON.parse(saved);
+        if (Array.isArray(allVisits) && allVisits.length > 0) {
+          // Sembrar en Supabase para que esté disponible en todos los navegadores
+          syncVisitsLogToSupabase(allVisits).catch(() => {});
+        }
       }
     } catch (e) {
       allVisits = [];

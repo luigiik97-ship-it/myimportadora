@@ -898,7 +898,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 className="w-full h-full object-cover [image-rendering:-webkit-optimize-contrast] [image-rendering:high-quality] [transform:translateZ(0)] [backface-visibility:hidden]"
                 width={2038}
                 height={512}
-                loading="eager"
+                loading="lazy"
                 decoding="async"
                 referrerPolicy="no-referrer"
               />
@@ -912,7 +912,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 className="w-full h-full object-cover [image-rendering:-webkit-optimize-contrast] [image-rendering:high-quality] [transform:translateZ(0)] [backface-visibility:hidden]"
                 width={2038}
                 height={512}
-                loading="eager"
+                loading="lazy"
                 decoding="async"
                 referrerPolicy="no-referrer"
               />
@@ -926,7 +926,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 className="w-full h-full object-cover [image-rendering:-webkit-optimize-contrast] [image-rendering:high-quality] [transform:translateZ(0)] [backface-visibility:hidden]"
                 width={2038}
                 height={512}
-                loading="eager"
+                loading="lazy"
                 decoding="async"
                 referrerPolicy="no-referrer"
               />
@@ -1023,6 +1023,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <img
               src={storeBanners.showroomImage || DEFAULT_STORE_BANNERS.showroomImage}
               alt="Anillos y piedras finas"
+              loading="lazy"
+              decoding="async"
               className={`w-full h-full object-cover ${
                 storeBanners.showroomImageLink ? 'group-hover:scale-105 transition-transform duration-500' : 'hover:scale-105 transition-transform duration-500'
               }`}

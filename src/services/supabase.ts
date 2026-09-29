@@ -1404,8 +1404,10 @@ export const generateUniqueOrderId = (): string => {
   return `ord_${timestamp}_${randomHex}`;
 };
 
+let inMemoryLatestOrderSeq = 1000;
+
 export const getNextCorrelativeOrderNumber = async (): Promise<string> => {
-  let maxSeq = 1000;
+  let maxSeq = Math.max(1000, inMemoryLatestOrderSeq);
 
   // 1. Revisar secuencia guardada en localStorage
   try {
@@ -1418,10 +1420,11 @@ export const getNextCorrelativeOrderNumber = async (): Promise<string> => {
     }
   } catch (e) {}
 
-  // 2. Escanear todos los pedidos locales existentes
+  // 2. Escanear pedidos locales existentes (ultimos 15)
   try {
     const localOrders = getLocalOrders();
-    localOrders.forEach((o) => {
+    const recentLocal = localOrders.slice(0, 15);
+    recentLocal.forEach((o) => {
       if (o.orderNumber) {
         const digits = o.orderNumber.replace(/\D/g, '');
         if (digits) {
@@ -1434,14 +1437,14 @@ export const getNextCorrelativeOrderNumber = async (): Promise<string> => {
     });
   } catch (e) {}
 
-  // 3. Escanear pedidos en Supabase para obtener la secuencia correlativa más alta en la nube
+  // 3. Escanear pedidos en Supabase para obtener la secuencia correlativa más alta en la nube (rápido limit: 5)
   if (isSupabaseConfigured() && supabaseInstance) {
     try {
       const { data } = await supabaseInstance
         .from('orders')
         .select('order_number')
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(5);
       if (data && Array.isArray(data)) {
         data.forEach((row: any) => {
           if (row.order_number) {
@@ -1459,6 +1462,7 @@ export const getNextCorrelativeOrderNumber = async (): Promise<string> => {
   }
 
   const nextSeq = maxSeq + 1;
+  inMemoryLatestOrderSeq = nextSeq;
   try {
     localStorage.setItem('my_commerce_correlative_order_seq', nextSeq.toString());
   } catch (e) {}
@@ -1474,32 +1478,14 @@ export const saveOrder = async (
 
   if (!orderNumber) {
     orderNumber = await getNextCorrelativeOrderNumber();
-  }
-
-  // Verificación y garantía de correlatividad única sin colisiones en Supabase:
-  // Si dos pedidos se realizan concurrentemente, se detecta y se incrementa el número
-  if (isSupabaseConfigured() && supabaseInstance) {
-    try {
-      let isDuplicate = true;
-      let collisionAttempts = 0;
-      while (isDuplicate && collisionAttempts < 15) {
-        collisionAttempts++;
-        const { data: existing } = await supabaseInstance
-          .from('orders')
-          .select('id')
-          .eq('order_number', orderNumber)
-          .limit(1);
-
-        if (existing && existing.length > 0 && existing[0].id !== orderId) {
-          const digits = orderNumber.replace(/\D/g, '');
-          const currentNum = digits ? parseInt(digits, 10) : 1000;
-          orderNumber = String(currentNum + 1);
-        } else {
-          isDuplicate = false;
-        }
+  } else {
+    // Mantener la secuencia en memoria actualizada
+    const digits = orderNumber.replace(/\D/g, '');
+    if (digits) {
+      const val = parseInt(digits, 10);
+      if (!isNaN(val) && val >= inMemoryLatestOrderSeq) {
+        inMemoryLatestOrderSeq = val;
       }
-    } catch (e) {
-      console.warn('Error verificando unicidad de número de pedido en Supabase:', e);
     }
   }
 
@@ -1791,13 +1777,7 @@ export const subscribeToProductsAndSystemConfig = (callbacks: {
               const freshCats = await fetchCategories({ force: true });
               callbacks.onCategoriesChanged(freshCats);
             }
-          } else if (
-            changedId === '__system_quick_buy_config_v1__' ||
-            changedId === '__system_email_templates_v1__' ||
-            changedId === '__system_store_banners_v1__' ||
-            changedId === '__system_launches_config_v1__' ||
-            changedId === '__system_shipping_config_v1__'
-          ) {
+          } else if (typeof changedId === 'string' && changedId.startsWith('__system_')) {
             if (callbacks.onSystemConfigChanged) {
               callbacks.onSystemConfigChanged();
             }

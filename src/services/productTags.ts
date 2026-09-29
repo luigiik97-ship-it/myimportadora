@@ -43,6 +43,9 @@ export const DEFAULT_PRODUCT_TAGS: ProductTag[] = [
 
 // In-memory cache
 let cachedTags: ProductTag[] | null = null;
+let activeFetchTagsPromise: Promise<ProductTag[]> | null = null;
+let lastTagsFetchTime = 0;
+const TAGS_CACHE_TTL = 30000;
 
 export const getLocalProductTags = (): ProductTag[] => {
   if (cachedTags && cachedTags.length > 0) {
@@ -74,52 +77,67 @@ export const getProductTagById = (id?: string): ProductTag | undefined => {
 };
 
 export const fetchProductTags = async (force = false): Promise<ProductTag[]> => {
-  if (!force && cachedTags && cachedTags.length > 0) {
+  const now = Date.now();
+  if (!force && cachedTags && cachedTags.length > 0 && (now - lastTagsFetchTime < TAGS_CACHE_TTL)) {
     return cachedTags;
   }
 
-  // 1. Try fetching from Supabase system row
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = getSupabase();
-      if (supabase) {
-        const { data, error } = await supabase
-          .from('products')
-          .select('description, specs')
-          .eq('id', SYSTEM_PRODUCT_TAGS_ROW_ID)
-          .maybeSingle();
-
-        if (!error && data) {
-          let loadedTags: ProductTag[] | null = null;
-          if (data.description && typeof data.description === 'string' && data.description.startsWith('[')) {
-            try {
-              loadedTags = JSON.parse(data.description);
-            } catch (e) {}
-          }
-          if (!loadedTags && Array.isArray(data.specs)) {
-            const spec = data.specs.find((s: any) => s && s.label === '__product_tags_json');
-            if (spec?.value) {
-              try {
-                loadedTags = JSON.parse(spec.value);
-              } catch (e) {}
-            }
-          }
-
-          if (Array.isArray(loadedTags) && loadedTags.length > 0) {
-            cachedTags = loadedTags;
-            try {
-              localStorage.setItem(STORAGE_KEY_PRODUCT_TAGS, JSON.stringify(loadedTags));
-            } catch (e) {}
-            return loadedTags;
-          }
-        }
-      }
-    } catch (err) {
-      console.warn('Error fetching product tags from Supabase:', err);
-    }
+  if (activeFetchTagsPromise) {
+    return activeFetchTagsPromise;
   }
 
-  return getLocalProductTags();
+  activeFetchTagsPromise = (async () => {
+    // 1. Try fetching from Supabase system row
+    if (isSupabaseConfigured()) {
+      try {
+        const supabase = getSupabase();
+        if (supabase) {
+          const { data, error } = await supabase
+            .from('products')
+            .select('description, specs')
+            .eq('id', SYSTEM_PRODUCT_TAGS_ROW_ID)
+            .maybeSingle();
+
+          if (!error && data) {
+            let loadedTags: ProductTag[] | null = null;
+            if (data.description && typeof data.description === 'string' && data.description.startsWith('[')) {
+              try {
+                loadedTags = JSON.parse(data.description);
+              } catch (e) {}
+            }
+            if (!loadedTags && Array.isArray(data.specs)) {
+              const spec = data.specs.find((s: any) => s && s.label === '__product_tags_json');
+              if (spec?.value) {
+                try {
+                  loadedTags = JSON.parse(spec.value);
+                } catch (e) {}
+              }
+            }
+
+            if (Array.isArray(loadedTags) && loadedTags.length > 0) {
+              cachedTags = loadedTags;
+              lastTagsFetchTime = Date.now();
+              try {
+                localStorage.setItem(STORAGE_KEY_PRODUCT_TAGS, JSON.stringify(loadedTags));
+              } catch (e) {}
+              return loadedTags;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Error fetching product tags from Supabase:', err);
+      }
+    }
+
+    const localTags = getLocalProductTags();
+    cachedTags = localTags;
+    lastTagsFetchTime = Date.now();
+    return localTags;
+  })().finally(() => {
+    activeFetchTagsPromise = null;
+  });
+
+  return activeFetchTagsPromise;
 };
 
 export const saveProductTags = async (tags: ProductTag[]): Promise<ProductTag[]> => {

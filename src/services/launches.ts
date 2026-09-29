@@ -149,48 +149,142 @@ const INITIAL_PROPOSALS: LaunchCustomerProposal[] = [
   },
 ];
 
+// ---------------- IDENTIFICADORES DE FILAS EN SUPABASE ---------------- //
+export const SYSTEM_LAUNCHES_COLLECTIONS_ROW_ID = '__system_launches_collections_v1__';
+export const SYSTEM_LAUNCHES_PROPOSALS_ROW_ID = '__system_launches_proposals_v1__';
+
+/**
+ * Persiste la lista completa de colecciones en Supabase para sincronización absoluta
+ */
+export async function syncCollectionsToSupabase(collections: LaunchCollection[]): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!isSupabaseConfigured() || !supabase) return false;
+
+  try {
+    const { error } = await supabase.from('products').upsert({
+      id: SYSTEM_LAUNCHES_COLLECTIONS_ROW_ID,
+      title: '__SYSTEM_LAUNCHES_COLLECTIONS__',
+      description: JSON.stringify(collections),
+      category: '__system__',
+      wholesale_price: 0,
+      retail_price: 0,
+      stock: 0,
+      specs: [{ key: 'updated_at', value: new Date().toISOString() }],
+    });
+    if (error) {
+      console.warn('[Launches] Error al sincronizar colecciones en Supabase:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('[Launches] Excepción de red al guardar colecciones en Supabase:', err);
+    return false;
+  }
+}
+
+/**
+ * Persiste la lista de propuestas comunitarias en Supabase
+ */
+export async function syncProposalsToSupabase(proposals: LaunchCustomerProposal[]): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!isSupabaseConfigured() || !supabase) return false;
+
+  try {
+    const { error } = await supabase.from('products').upsert({
+      id: SYSTEM_LAUNCHES_PROPOSALS_ROW_ID,
+      title: '__SYSTEM_LAUNCHES_PROPOSALS__',
+      description: JSON.stringify(proposals),
+      category: '__system__',
+      wholesale_price: 0,
+      retail_price: 0,
+      stock: 0,
+      specs: [{ key: 'updated_at', value: new Date().toISOString() }],
+    });
+    if (error) {
+      console.warn('[Launches] Error al sincronizar propuestas en Supabase:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('[Launches] Excepción de red al guardar propuestas en Supabase:', err);
+    return false;
+  }
+}
+
 // ---------------- SERVICE API ---------------- //
 
-export async function fetchLaunchCollections(): Promise<LaunchCollection[]> {
-  try {
-    const supabase = getSupabase();
-    if (isSupabaseConfigured() && supabase) {
-      const { data, error } = await supabase
-        .from('launch_collections')
-        .select('*')
-        .order('created_at', { ascending: false });
+let cachedCollections: LaunchCollection[] | null = null;
+let activeFetchCollectionsPromise: Promise<LaunchCollection[]> | null = null;
+let lastCollectionsFetchTime = 0;
+const COLLECTIONS_CACHE_TTL = 30000;
 
-      if (!error && data && data.length > 0) {
-        const mapped: LaunchCollection[] = data.map((item: any) => ({
-          id: item.id,
-          title: item.title,
-          description: item.description || '',
-          status: item.status || 'active',
-          models: Array.isArray(item.models) ? item.models : [],
-          createdAt: item.created_at || new Date().toISOString(),
-          allowCustomerProposals: item.allow_proposals !== false,
-        }));
-        localStorage.setItem(COLLECTIONS_STORAGE_KEY, JSON.stringify(mapped));
-        return mapped;
+export async function fetchLaunchCollections(force = false): Promise<LaunchCollection[]> {
+  const now = Date.now();
+  if (!force && cachedCollections && cachedCollections.length > 0 && (now - lastCollectionsFetchTime < COLLECTIONS_CACHE_TTL)) {
+    return cachedCollections;
+  }
+
+  if (activeFetchCollectionsPromise) {
+    return activeFetchCollectionsPromise;
+  }
+
+  activeFetchCollectionsPromise = (async () => {
+    try {
+      const supabase = getSupabase();
+      if (isSupabaseConfigured() && supabase) {
+        // 1. Consultar fila centralizada en Supabase
+        const { data, error } = await supabase
+          .from('products')
+          .select('description')
+          .eq('id', SYSTEM_LAUNCHES_COLLECTIONS_ROW_ID)
+          .maybeSingle();
+
+        if (!error && data && data.description) {
+          try {
+            const parsed = JSON.parse(data.description);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              cachedCollections = parsed;
+              lastCollectionsFetchTime = Date.now();
+              localStorage.setItem(COLLECTIONS_STORAGE_KEY, JSON.stringify(parsed));
+              return parsed;
+            }
+          } catch (e) {
+            console.warn('[Launches] Error parseando colecciones desde Supabase:', e);
+          }
+        }
       }
+    } catch (err) {
+      console.warn('Supabase fetchLaunchCollections fallback to storage:', err);
     }
-  } catch (err) {
-    console.warn('Supabase fetchLaunchCollections fallback to storage:', err);
-  }
 
-  // Fallback to localStorage
-  try {
-    const saved = localStorage.getItem(COLLECTIONS_STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved);
+    // Fallback to localStorage
+    try {
+      const saved = localStorage.getItem(COLLECTIONS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          cachedCollections = parsed;
+          lastCollectionsFetchTime = Date.now();
+          // Sembrar en Supabase en segundo plano si aún no estaba en la nube
+          syncCollectionsToSupabase(parsed).catch(() => {});
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading launch collections from storage:', e);
     }
-  } catch (e) {
-    console.warn('Error reading launch collections from storage:', e);
-  }
 
-  // First time initialization
-  localStorage.setItem(COLLECTIONS_STORAGE_KEY, JSON.stringify(INITIAL_COLLECTIONS));
-  return INITIAL_COLLECTIONS;
+    // First time initialization: guardar en local y sembrar en Supabase
+    cachedCollections = INITIAL_COLLECTIONS;
+    lastCollectionsFetchTime = Date.now();
+    localStorage.setItem(COLLECTIONS_STORAGE_KEY, JSON.stringify(INITIAL_COLLECTIONS));
+    syncCollectionsToSupabase(INITIAL_COLLECTIONS).catch(() => {});
+    return INITIAL_COLLECTIONS;
+  })().finally(() => {
+    activeFetchCollectionsPromise = null;
+  });
+
+  return activeFetchCollectionsPromise;
 }
 
 export async function saveLaunchCollection(collection: LaunchCollection): Promise<LaunchCollection[]> {
@@ -205,25 +299,12 @@ export async function saveLaunchCollection(collection: LaunchCollection): Promis
     updated = [collection, ...currentCollections];
   }
 
+  cachedCollections = updated;
+  lastCollectionsFetchTime = Date.now();
   localStorage.setItem(COLLECTIONS_STORAGE_KEY, JSON.stringify(updated));
 
-  // Sync to Supabase if table exists
-  try {
-    const supabase = getSupabase();
-    if (isSupabaseConfigured() && supabase) {
-      await supabase.from('launch_collections').upsert({
-        id: collection.id,
-        title: collection.title,
-        description: collection.description,
-        status: collection.status,
-        models: collection.models,
-        allow_proposals: collection.allowCustomerProposals,
-        updated_at: new Date().toISOString(),
-      });
-    }
-  } catch (err) {
-    console.warn('Error syncing launch collection to Supabase:', err);
-  }
+  // Persistir inmediatamente en Supabase
+  await syncCollectionsToSupabase(updated);
 
   return updated;
 }
@@ -231,23 +312,19 @@ export async function saveLaunchCollection(collection: LaunchCollection): Promis
 export async function deleteLaunchCollection(collectionId: string): Promise<LaunchCollection[]> {
   const currentCollections = await fetchLaunchCollections();
   const updated = currentCollections.filter((c) => c.id !== collectionId);
+  cachedCollections = updated;
+  lastCollectionsFetchTime = Date.now();
   localStorage.setItem(COLLECTIONS_STORAGE_KEY, JSON.stringify(updated));
 
-  try {
-    const supabase = getSupabase();
-    if (isSupabaseConfigured() && supabase) {
-      await supabase.from('launch_collections').delete().eq('id', collectionId);
-    }
-  } catch (err) {
-    console.warn('Error deleting launch collection from Supabase:', err);
-  }
+  // Persistir cambio inmediatamente en Supabase
+  await syncCollectionsToSupabase(updated);
 
   return updated;
 }
 
 /**
  * Registra o actualiza el voto de un modelo (3 niveles de interés: 1, 2 o 3).
- * Guarda en cookies y localStorage para el votante, y actualiza el contador de la colección.
+ * Guarda en cookies y localStorage para el votante, y actualiza el contador de la colección en Supabase.
  */
 export async function recordModelVote(
   collectionId: string,
@@ -297,19 +374,8 @@ export async function recordModelVote(
     collections[colIndex] = updatedCol;
     localStorage.setItem(COLLECTIONS_STORAGE_KEY, JSON.stringify(collections));
 
-    // Async sync to Supabase
-    try {
-      const supabase = getSupabase();
-      if (isSupabaseConfigured() && supabase) {
-        await supabase.from('launch_collections').upsert({
-          id: updatedCol.id,
-          models: updatedCol.models,
-          updated_at: new Date().toISOString(),
-        });
-      }
-    } catch (e) {
-      // Ignored for non-blocking local experience
-    }
+    // Sincronizar votos directamente a Supabase
+    syncCollectionsToSupabase(collections).catch(() => {});
   }
 
   return { collections, userVotes };
@@ -322,26 +388,21 @@ export async function fetchCustomerProposals(): Promise<LaunchCustomerProposal[]
     const supabase = getSupabase();
     if (isSupabaseConfigured() && supabase) {
       const { data, error } = await supabase
-        .from('launch_proposals')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .from('products')
+        .select('description')
+        .eq('id', SYSTEM_LAUNCHES_PROPOSALS_ROW_ID)
+        .maybeSingle();
 
-      if (!error && data && data.length > 0) {
-        const mapped: LaunchCustomerProposal[] = data.map((item: any) => ({
-          id: item.id,
-          collectionId: item.collection_id,
-          collectionTitle: item.collection_title,
-          imageUrl: item.image_url,
-          message: item.message,
-          userId: item.user_id,
-          userEmail: item.user_email,
-          userName: item.user_name,
-          status: item.status || 'pending',
-          createdAt: item.created_at || new Date().toISOString(),
-          adminNotes: item.admin_notes,
-        }));
-        localStorage.setItem(PROPOSALS_STORAGE_KEY, JSON.stringify(mapped));
-        return mapped;
+      if (!error && data && data.description) {
+        try {
+          const parsed = JSON.parse(data.description);
+          if (Array.isArray(parsed)) {
+            localStorage.setItem(PROPOSALS_STORAGE_KEY, JSON.stringify(parsed));
+            return parsed;
+          }
+        } catch (e) {
+          console.warn('[Launches] Error parseando propuestas de Supabase:', e);
+        }
       }
     }
   } catch (err) {
@@ -350,12 +411,19 @@ export async function fetchCustomerProposals(): Promise<LaunchCustomerProposal[]
 
   try {
     const saved = localStorage.getItem(PROPOSALS_STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        syncProposalsToSupabase(parsed).catch(() => {});
+        return parsed;
+      }
+    }
   } catch (e) {
     console.warn('Error reading proposals from storage:', e);
   }
 
   localStorage.setItem(PROPOSALS_STORAGE_KEY, JSON.stringify(INITIAL_PROPOSALS));
+  syncProposalsToSupabase(INITIAL_PROPOSALS).catch(() => {});
   return INITIAL_PROPOSALS;
 }
 
@@ -373,25 +441,8 @@ export async function submitCustomerProposal(
   const updated = [newProposal, ...current];
   localStorage.setItem(PROPOSALS_STORAGE_KEY, JSON.stringify(updated));
 
-  try {
-    const supabase = getSupabase();
-    if (isSupabaseConfigured() && supabase) {
-      await supabase.from('launch_proposals').insert({
-        id: newProposal.id,
-        collection_id: newProposal.collectionId,
-        collection_title: newProposal.collectionTitle,
-        image_url: newProposal.imageUrl,
-        message: newProposal.message,
-        user_id: newProposal.userId,
-        user_email: newProposal.userEmail,
-        user_name: newProposal.userName,
-        status: 'pending',
-        created_at: newProposal.createdAt,
-      });
-    }
-  } catch (err) {
-    console.warn('Error submitting proposal to Supabase:', err);
-  }
+  // Persistir en Supabase
+  await syncProposalsToSupabase(updated);
 
   return newProposal;
 }
@@ -408,17 +459,8 @@ export async function updateProposalStatus(
   });
   localStorage.setItem(PROPOSALS_STORAGE_KEY, JSON.stringify(updated));
 
-  try {
-    const supabase = getSupabase();
-    if (isSupabaseConfigured() && supabase) {
-      await supabase
-        .from('launch_proposals')
-        .update({ status, admin_notes: adminNotes, updated_at: new Date().toISOString() })
-        .eq('id', proposalId);
-    }
-  } catch (err) {
-    console.warn('Error updating proposal status in Supabase:', err);
-  }
+  // Persistir en Supabase
+  await syncProposalsToSupabase(updated);
 
   return updated;
 }
@@ -428,14 +470,8 @@ export async function deleteCustomerProposal(proposalId: string): Promise<Launch
   const updated = current.filter((p) => p.id !== proposalId);
   localStorage.setItem(PROPOSALS_STORAGE_KEY, JSON.stringify(updated));
 
-  try {
-    const supabase = getSupabase();
-    if (isSupabaseConfigured() && supabase) {
-      await supabase.from('launch_proposals').delete().eq('id', proposalId);
-    }
-  } catch (err) {
-    console.warn('Error deleting proposal in Supabase:', err);
-  }
+  // Persistir en Supabase
+  await syncProposalsToSupabase(updated);
 
   return updated;
 }
@@ -478,6 +514,10 @@ export async function convertProposalToModel(
       : p
   );
   localStorage.setItem(PROPOSALS_STORAGE_KEY, JSON.stringify(updatedProposals));
+
+  // Sincronizar ambos cambios en Supabase
+  await syncCollectionsToSupabase(collections);
+  await syncProposalsToSupabase(updatedProposals);
 
   return { collections, proposals: updatedProposals };
 }

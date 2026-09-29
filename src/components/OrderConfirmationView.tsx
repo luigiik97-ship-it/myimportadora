@@ -4,6 +4,7 @@ import { CheckCircle2, Copy, Check, MessageSquare, ShoppingBag, Truck, Store, Cr
 import { getDirectWhatsAppChatUrl, triggerWhatsAppOpen } from '../services/quickBuyLink';
 import { OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
 import { PostPurchaseModal } from './common/PostPurchaseModal';
+import { getOptimizedImageUrl } from '../utils/imageOptimizer';
 
 interface OrderConfirmationViewProps {
   order: Order;
@@ -278,8 +279,10 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
               <div key={item.id} className="py-3 sm:py-3.5 flex items-center justify-between gap-3 sm:gap-4">
                 <div className="flex items-center gap-3">
                   <img
-                    src={item.image}
+                    src={getOptimizedImageUrl(item.image, { width: 160, quality: 70 })}
                     alt={item.title}
+                    loading="lazy"
+                    decoding="async"
                     className="w-16 h-16 sm:w-14 sm:h-14 object-contain rounded-xl border border-gray-200 p-1 bg-white shrink-0 shadow-2xs"
                   />
                   <div>

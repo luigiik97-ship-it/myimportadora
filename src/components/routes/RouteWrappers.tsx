@@ -144,7 +144,7 @@ export function CategoryRouteWrapper({
   const { categorySlug } = useParams<{ categorySlug: string }>();
   const navigate = useNavigate();
 
-  if (categorySlug === 'todo' || categorySlug === 'todos' || (categorySlug && isObsoleteDefaultCategory(categorySlug))) {
+  if (categorySlug === 'todo' || categorySlug === 'todos') {
     return <Navigate to="/" replace />;
   }
 

@@ -4,6 +4,7 @@ import { CartItem, Product } from '../types';
 import { Trash2, Plus, Minus, ArrowRight, ArrowLeft, ShieldCheck, Truck, ShoppingBag, Info, CheckCircle2, Banknote, CreditCard, ArrowLeftRight, Store } from 'lucide-react';
 import { getItemEffectiveNormalPrice, getItemEffectiveCashPrice, getSelectedVariantStock } from '../utils/variantHelpers';
 import { usePurchaseMode } from '../context/PurchaseModeContext';
+import { getOptimizedImageUrl } from '../utils/imageOptimizer';
 
 interface CartViewProps {
   cartItems: CartItem[];
@@ -223,8 +224,10 @@ export const CartView: React.FC<CartViewProps> = ({
                     title={`Ver detalle de ${item.product.title}`}
                   >
                     <img
-                      src={itemDisplayImage}
+                      src={getOptimizedImageUrl(itemDisplayImage, { width: 160, quality: 70 })}
                       alt={item.product.title}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-200"
                     />
                   </button>

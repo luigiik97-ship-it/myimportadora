@@ -230,55 +230,84 @@ export const saveShippingConfig = async (
   return updated;
 };
 
+let activeFetchShippingPromise: Promise<ShippingConfig> | null = null;
+let cachedShippingConfig: ShippingConfig | null = null;
+let lastShippingFetchTime = 0;
+const SHIPPING_CACHE_TTL = 30000; // 30 segundos
+
 /**
  * Consulta y sincroniza la configuración de envíos desde Supabase
  */
-export const fetchShippingConfigFromSupabase = async (): Promise<ShippingConfig> => {
-  const supabase = getSupabase();
-  if (isSupabaseConfigured() && supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('description')
-        .eq('id', SYSTEM_SHIPPING_CONFIG_ROW_ID)
-        .maybeSingle();
-
-      if (!error && data && data.description) {
-        try {
-          const parsed = JSON.parse(data.description);
-          if (parsed && parsed.zones) {
-            const merged: ShippingConfig = {
-              ...DEFAULT_SHIPPING_CONFIG,
-              ...parsed,
-              zones: {
-                caba: { ...DEFAULT_SHIPPING_CONFIG.zones.caba, ...parsed.zones.caba },
-                gba: { ...DEFAULT_SHIPPING_CONFIG.zones.gba, ...parsed.zones.gba },
-                pba_sf_cba: { ...DEFAULT_SHIPPING_CONFIG.zones.pba_sf_cba, ...parsed.zones.pba_sf_cba },
-                resto_pais: { ...DEFAULT_SHIPPING_CONFIG.zones.resto_pais, ...parsed.zones.resto_pais },
-              },
-              customPostalCodeRules: Array.isArray(parsed.customPostalCodeRules)
-                ? parsed.customPostalCodeRules
-                : [],
-            };
-            localStorage.setItem(STORAGE_KEY_SHIPPING_CONFIG, JSON.stringify(merged));
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(
-                new CustomEvent('my_commerce_shipping_config_updated', {
-                  detail: merged,
-                })
-              );
-            }
-            return merged;
-          }
-        } catch (parseErr) {
-          console.warn('Error parseando configuración remota de envíos:', parseErr);
-        }
-      }
-    } catch (e) {
-      console.warn('Error consultando configuración de envíos en Supabase:', e);
-    }
+export const fetchShippingConfigFromSupabase = async (force = false): Promise<ShippingConfig> => {
+  const now = Date.now();
+  if (!force && cachedShippingConfig && (now - lastShippingFetchTime < SHIPPING_CACHE_TTL)) {
+    return cachedShippingConfig;
   }
-  return getShippingConfig();
+
+  if (activeFetchShippingPromise) {
+    return activeFetchShippingPromise;
+  }
+
+  activeFetchShippingPromise = (async () => {
+    const supabase = getSupabase();
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('description')
+          .eq('id', SYSTEM_SHIPPING_CONFIG_ROW_ID)
+          .maybeSingle();
+
+        if (!error && (!data || !data.description)) {
+          saveShippingConfig(DEFAULT_SHIPPING_CONFIG).catch(() => {});
+        }
+
+        if (!error && data && data.description) {
+          try {
+            const parsed = JSON.parse(data.description);
+            if (parsed && parsed.zones) {
+              const merged: ShippingConfig = {
+                ...DEFAULT_SHIPPING_CONFIG,
+                ...parsed,
+                zones: {
+                  caba: { ...DEFAULT_SHIPPING_CONFIG.zones.caba, ...parsed.zones.caba },
+                  gba: { ...DEFAULT_SHIPPING_CONFIG.zones.gba, ...parsed.zones.gba },
+                  pba_sf_cba: { ...DEFAULT_SHIPPING_CONFIG.zones.pba_sf_cba, ...parsed.zones.pba_sf_cba },
+                  resto_pais: { ...DEFAULT_SHIPPING_CONFIG.zones.resto_pais, ...parsed.zones.resto_pais },
+                },
+                customPostalCodeRules: Array.isArray(parsed.customPostalCodeRules)
+                  ? parsed.customPostalCodeRules
+                  : [],
+              };
+              cachedShippingConfig = merged;
+              lastShippingFetchTime = Date.now();
+              localStorage.setItem(STORAGE_KEY_SHIPPING_CONFIG, JSON.stringify(merged));
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(
+                  new CustomEvent('my_commerce_shipping_config_updated', {
+                    detail: merged,
+                  })
+                );
+              }
+              return merged;
+            }
+          } catch (parseErr) {
+            console.warn('Error parseando configuración remota de envíos:', parseErr);
+          }
+        }
+      } catch (e) {
+        console.warn('Error consultando configuración de envíos en Supabase:', e);
+      }
+    }
+    const local = getShippingConfig();
+    cachedShippingConfig = local;
+    lastShippingFetchTime = Date.now();
+    return local;
+  })().finally(() => {
+    activeFetchShippingPromise = null;
+  });
+
+  return activeFetchShippingPromise;
 };
 
 /**

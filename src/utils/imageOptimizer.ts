@@ -331,3 +331,78 @@ export const optimizeProductImagesBatch = async (
 
   return results;
 };
+
+// Global normalized URL cache to prevent duplicate image network requests
+const normalizedUrlCache = new Map<string, string>();
+
+/**
+ * Optimiza y normaliza URLs de imágenes para entrega web moderna:
+ * - Para URLs de Unsplash: ajusta ancho óptimo, calidad equilibrada y auto=format (WebP/AVIF según navegador).
+ * - Desduplica URLs en memoria para que múltiples componentes usen la misma URL exacta de caché.
+ */
+export const getOptimizedImageUrl = (
+  src?: string | null,
+  options?: {
+    width?: number;
+    quality?: number;
+    format?: 'auto' | 'webp' | 'avif';
+  }
+): string => {
+  if (!src || typeof src !== 'string') {
+    return 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400&auto=format&fit=crop&q=75';
+  }
+
+  const trimmed = src.trim();
+  if (!trimmed) {
+    return 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400&auto=format&fit=crop&q=75';
+  }
+
+  // Data URLs y SVGs se devuelven intactos
+  if (trimmed.startsWith('data:') || trimmed.endsWith('.svg') || trimmed.includes('.svg?')) {
+    return trimmed;
+  }
+
+  const width = options?.width || 600;
+  const quality = options?.quality || 75;
+  const cacheKey = `${trimmed}|w:${width}|q:${quality}`;
+
+  if (normalizedUrlCache.has(cacheKey)) {
+    return normalizedUrlCache.get(cacheKey)!;
+  }
+
+  let optimized = trimmed;
+
+  // Si es una imagen de Unsplash, estandarizar parámetros para entregar WebP/AVIF optimizado
+  if (trimmed.includes('images.unsplash.com')) {
+    try {
+      const url = new URL(trimmed);
+      url.searchParams.set('auto', 'format');
+      url.searchParams.set('fit', 'crop');
+      url.searchParams.set('w', String(width));
+      url.searchParams.set('q', String(quality));
+      optimized = url.toString();
+    } catch {
+      // Fallback regex si URL es relativa
+      optimized = trimmed.replace(/([?&])w=\d+/g, `$1w=${width}`);
+      if (!optimized.includes('auto=format')) {
+        optimized += (optimized.includes('?') ? '&' : '?') + 'auto=format&fit=crop';
+      }
+    }
+  }
+
+  normalizedUrlCache.set(cacheKey, optimized);
+  return optimized;
+};
+
+/**
+ * Genera un conjunto srcSet responsivo optimizado para pantallas retina y móviles
+ */
+export const getOptimizedSrcSet = (
+  src: string,
+  widths: number[] = [320, 480, 640, 960]
+): string => {
+  if (!src || !src.includes('images.unsplash.com')) return '';
+  return widths
+    .map((w) => `${getOptimizedImageUrl(src, { width: w })} ${w}w`)
+    .join(', ');
+};

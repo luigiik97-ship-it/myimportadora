@@ -110,7 +110,20 @@ export function getDeletedCategories(): Set<string> {
     if (saved) {
       const arr = JSON.parse(saved);
       if (Array.isArray(arr)) {
-        return new Set(arr.map((s: string) => String(s).trim().toLowerCase()));
+        // Strip any legacy auto-blacklisted words so legitimate categories like Tecnología, Juguetes, etc. can never be blocked
+        const legacyBlockedWords = new Set([
+          'tecnologia', 'tecnología', 'cat-tecnologia',
+          'juguetes', 'cat-juguetes',
+          'perfumes', 'cat-perfumes',
+          'bijuteria', 'bijutería', 'cat-bijuteria',
+          'collares', 'cat-collares',
+          'dijes', 'cat-dijes',
+          'aros', 'cat-aros'
+        ]);
+        const cleaned = arr
+          .map((s: string) => String(s).trim().toLowerCase())
+          .filter((s: string) => !legacyBlockedWords.has(s));
+        return new Set(cleaned);
       }
     }
   } catch (e) {
@@ -148,12 +161,21 @@ export function unmarkCategoryAsDeleted(id?: string, name?: string, slug?: strin
     if (typeof localStorage === 'undefined') return;
     const current = getDeletedCategories();
     let changed = false;
-    if (id && current.delete(id.trim().toLowerCase())) changed = true;
-    if (name) {
-      if (current.delete(name.trim().toLowerCase())) changed = true;
-      if (current.delete(slugifyCategory(name))) changed = true;
+    if (id) {
+      if (current.delete(id.trim().toLowerCase())) changed = true;
     }
-    if (slug && current.delete(slug.trim().toLowerCase())) changed = true;
+    if (name) {
+      const cleanName = name.trim().toLowerCase();
+      const slugName = slugifyCategory(name);
+      if (current.delete(cleanName)) changed = true;
+      if (current.delete(slugName)) changed = true;
+      if (current.delete(`cat-${slugName}`)) changed = true;
+    }
+    if (slug) {
+      const cleanSlug = slug.trim().toLowerCase();
+      if (current.delete(cleanSlug)) changed = true;
+      if (current.delete(`cat-${cleanSlug}`)) changed = true;
+    }
     if (changed) {
       localStorage.setItem(LOCAL_DELETED_CATEGORIES_KEY, JSON.stringify(Array.from(current)));
     }
@@ -210,22 +232,8 @@ export function mergeCategoriesLists(cloudCategories: Category[], localCategorie
   return result.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
 }
 
-export const OBSOLETE_DEFAULT_CATEGORIES = new Set([
-  'cat-bijuteria',
-  'cat-collares',
-  'cat-dijes',
-  'cat-aros',
-  'cat-tecnologia',
-  'cat-juguetes',
-  'cat-perfumes',
-  'bijuteria',
-  'collares',
-  'dijes',
-  'aros',
-  'tecnologia',
-  'juguetes',
-  'perfumes',
-]);
+// Vacío para permitir que categorías creadas por el usuario como "Tecnología", "Juguetes", "Perfumes", etc., se guarden y persistan permanentemente
+export const OBSOLETE_DEFAULT_CATEGORIES = new Set<string>();
 
 /**
  * Checks if a category matches any of the obsolete default categories that shouldn't appear

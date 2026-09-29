@@ -53,35 +53,64 @@ export const saveLocalStoreVideos = (videos: StoreVideo[]) => {
   }
 };
 
+let activeFetchVideosPromise: Promise<StoreVideo[]> | null = null;
+let cachedVideosList: StoreVideo[] | null = null;
+let lastVideosFetchTime = 0;
+const VIDEOS_CACHE_TTL = 30000; // 30 segundos
+
 /**
  * Consulta y sincroniza los videos desde Supabase
  */
-export const fetchStoreVideosFromSupabase = async (): Promise<StoreVideo[]> => {
-  const supabase = getSupabase();
-  if (isSupabaseConfigured() && supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('description')
-        .eq('id', SYSTEM_STORE_VIDEOS_ROW_ID)
-        .maybeSingle();
-
-      if (!error && data && data.description) {
-        try {
-          const parsed = JSON.parse(data.description);
-          if (Array.isArray(parsed)) {
-            saveLocalStoreVideos(parsed);
-            return parsed;
-          }
-        } catch (parseErr) {
-          console.warn('Error decodificando videos de Supabase:', parseErr);
-        }
-      }
-    } catch (err) {
-      console.warn('Error consultando videos en Supabase:', err);
-    }
+export const fetchStoreVideosFromSupabase = async (force = false): Promise<StoreVideo[]> => {
+  const now = Date.now();
+  if (!force && cachedVideosList && (now - lastVideosFetchTime < VIDEOS_CACHE_TTL)) {
+    return cachedVideosList;
   }
-  return getLocalStoreVideos();
+
+  if (activeFetchVideosPromise) {
+    return activeFetchVideosPromise;
+  }
+
+  activeFetchVideosPromise = (async () => {
+    const supabase = getSupabase();
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('description')
+          .eq('id', SYSTEM_STORE_VIDEOS_ROW_ID)
+          .maybeSingle();
+
+        if (!error && (!data || !data.description)) {
+          saveStoreVideos(DEFAULT_STORE_VIDEOS).catch(() => {});
+        }
+
+        if (!error && data && data.description) {
+          try {
+            const parsed = JSON.parse(data.description);
+            if (Array.isArray(parsed)) {
+              cachedVideosList = parsed;
+              lastVideosFetchTime = Date.now();
+              saveLocalStoreVideos(parsed);
+              return parsed;
+            }
+          } catch (parseErr) {
+            console.warn('Error decodificando videos de Supabase:', parseErr);
+          }
+        }
+      } catch (err) {
+        console.warn('Error consultando videos en Supabase:', err);
+      }
+    }
+    const local = getLocalStoreVideos();
+    cachedVideosList = local;
+    lastVideosFetchTime = Date.now();
+    return local;
+  })().finally(() => {
+    activeFetchVideosPromise = null;
+  });
+
+  return activeFetchVideosPromise;
 };
 
 /**

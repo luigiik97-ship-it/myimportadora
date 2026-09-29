@@ -13,6 +13,7 @@ import {
 import { ClassicStar as Star } from './common/ClassicStar';
 import { MichyOfficialBadge } from './common/MichyOfficialBadge';
 import { ImageWithSkeleton } from './common/ImageWithSkeleton';
+import { getOptimizedImageUrl } from '../utils/imageOptimizer';
 import { ProductImageLightbox } from './common/ProductImageLightbox';
 import { VideoViewerModal } from './common/VideoViewerModal';
 import { ProductCardBadge } from './common/ProductCardBadge';
@@ -534,7 +535,13 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                         : 'border-gray-200 hover:border-gray-400 opacity-70 hover:opacity-100'
                     }`}
                   >
-                    <img src={item.url} alt={`Vista ${idx + 1}`} className="w-full h-full object-contain md:object-cover" />
+                    <img
+                      src={getOptimizedImageUrl(item.url, { width: 160, quality: 75 })}
+                      alt={`Vista ${idx + 1}`}
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-contain md:object-cover"
+                    />
                   </button>
                 );
               })}
@@ -591,6 +598,8 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                       'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'
                     }
                     alt={product.title}
+                    targetWidth={800}
+                    quality={82}
                     aspectRatio="aspect-square"
                     className="w-full h-full flex items-center justify-center"
                     imgClassName="w-full h-full object-contain md:object-cover aspect-square transition-transform duration-300 ease-out md:group-hover:scale-105 select-none"
@@ -835,11 +844,11 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             ) : null}
 
             {/* Discount Promo Banner */}
-            <div id="cash-discount-banner" className="order-6 lg:order-5 bg-white border border-emerald-200 rounded-xl p-2 sm:p-2.5 flex items-center justify-between gap-2 sm:gap-3">
+            <div id="cash-discount-banner" className="order-6 lg:order-5 bg-white border border-[#16a34a] rounded-xl p-2 sm:p-2.5 flex items-center justify-between gap-2 sm:gap-3">
               <div className="flex items-center min-w-0">
                 <div className="text-xs sm:text-sm min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-bold text-sm sm:text-base text-[#16a34a]">Descuento pagando en efectivo</span>
+                    <span className="font-bold text-[14.5px] text-[#16a34a]">Descuento pagando en efectivo</span>
                   </div>
                   <p className="text-gray-600 text-xs sm:text-sm mt-0.5 leading-tight">
                     Aplicable cuando pase a retirar su compra en el local

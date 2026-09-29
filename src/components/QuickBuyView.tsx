@@ -40,6 +40,7 @@ import { ProductImageLightbox } from './common/ProductImageLightbox';
 import {
   isQuickBuyCustomLinkActive,
   getQuickBuyLinkConfig,
+  fetchQuickBuyLinkConfigFromSupabase,
   recordQuickBuyOrderPlaced,
   buildQuickBuyWhatsAppMessage,
   buildQuickBuyWhatsAppUrl,
@@ -51,6 +52,7 @@ import { getNextCorrelativeOrderNumber, saveOrder, generateUniqueOrderId } from 
 import { getLocalAuthUser, getLocalProfiles } from '../services/auth';
 import { OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
 import { PostPurchaseModal } from './common/PostPurchaseModal';
+import { getOptimizedImageUrl } from '../utils/imageOptimizer';
 
 export interface QuickBuyItem {
   itemId: string;
@@ -129,6 +131,10 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
 
   // Mantener actualizado el modo de enlace personalizado si cambia la URL o la configuración
   useEffect(() => {
+    fetchQuickBuyLinkConfigFromSupabase().then(() => {
+      setIsCustomLinkMode(isQuickBuyCustomLinkActive(window.location.search));
+    }).catch(() => {});
+
     const handleCheckMode = () => {
       setIsCustomLinkMode(isQuickBuyCustomLinkActive(window.location.search));
     };
@@ -543,7 +549,10 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
           id: item.id,
           productId: item.productId,
           title: item.product.title,
-          image: item.selectedImage || (item.product.images && item.product.images[0]) || '',
+          image: getOptimizedImageUrl(
+            item.selectedImage || (item.product.images && item.product.images[0]),
+            { width: 300, quality: 70 }
+          ),
           variantText: resolvedVariantText || item.variantText || '',
           quantity: item.quantity,
           unitPrice: unitPrice,
@@ -1116,6 +1125,8 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
               <img
                 src="https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/lgo%20ps.png"
                 alt="Logo"
+                loading="lazy"
+                decoding="async"
                 className="w-7 h-7 sm:w-8 sm:h-8 object-contain transition-transform group-hover:scale-105"
                 referrerPolicy="no-referrer"
               />

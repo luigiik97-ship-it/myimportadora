@@ -17,6 +17,7 @@ import { isQuickBuyCustomLinkActive, fetchQuickBuyLinkConfigFromSupabase } from 
 import { isLaunchesSectionVisible, fetchLaunchesVisibilityFromSupabase, LAUNCHES_VISIBILITY_EVENT } from './services/launches';
 import { fetchProductTags } from './services/productTags';
 import { fetchStoreBannersFromSupabase } from './services/storeBanners';
+import { fetchStoreVideosFromSupabase } from './services/storeVideos';
 import { fetchShippingConfigFromSupabase } from './services/shippingConfig';
 import {
   ProductDetailRouteWrapper,
@@ -107,13 +108,17 @@ export default function App() {
 
   // Sincronizar visibilidad de Próximos Lanzamientos desde cambios en administración o pestañas
   useEffect(() => {
-    const handleVisChange = () => {
-      setIsLaunchesVisible(isLaunchesSectionVisible());
+    const handleVisChange = (e?: any) => {
+      if (e?.detail?.visible !== undefined) {
+        setIsLaunchesVisible(Boolean(e.detail.visible));
+      } else {
+        setIsLaunchesVisible(isLaunchesSectionVisible());
+      }
     };
-    window.addEventListener(LAUNCHES_VISIBILITY_EVENT, handleVisChange);
+    window.addEventListener(LAUNCHES_VISIBILITY_EVENT, handleVisChange as EventListener);
     window.addEventListener('storage', handleVisChange);
     return () => {
-      window.removeEventListener(LAUNCHES_VISIBILITY_EVENT, handleVisChange);
+      window.removeEventListener(LAUNCHES_VISIBILITY_EVENT, handleVisChange as EventListener);
       window.removeEventListener('storage', handleVisChange);
     };
   }, []);
@@ -408,6 +413,8 @@ export default function App() {
         fetchQuickBuyLinkConfigFromSupabase().catch(() => {});
         fetchEmailTemplatesFromSupabase().catch(() => {});
         fetchStoreBannersFromSupabase().catch(() => {});
+        fetchStoreVideosFromSupabase().catch(() => {});
+        fetchShippingConfigFromSupabase().catch(() => {});
         fetchProductTags(true).catch(() => {});
         fetchLaunchesVisibilityFromSupabase().then((vis) => setIsLaunchesVisible(vis)).catch(() => {});
       },
@@ -420,11 +427,12 @@ export default function App() {
     };
   }, []);
 
-  // Cargar configuraciones compartidas desde Supabase (Compra Rápida, Plantillas, Banners, Envíos y Próximos Lanzamientos)
+  // Cargar configuraciones compartidas desde Supabase (Compra Rápida, Plantillas, Banners, Videos, Envíos y Próximos Lanzamientos)
   useEffect(() => {
     fetchQuickBuyLinkConfigFromSupabase().catch(() => {});
     fetchEmailTemplatesFromSupabase().catch(() => {});
     fetchStoreBannersFromSupabase().catch(() => {});
+    fetchStoreVideosFromSupabase().catch(() => {});
     fetchShippingConfigFromSupabase().catch(() => {});
     fetchLaunchesVisibilityFromSupabase().then((vis) => setIsLaunchesVisible(vis)).catch(() => {});
   }, []);

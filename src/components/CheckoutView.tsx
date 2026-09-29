@@ -10,6 +10,7 @@ import {
   buildUniversalWhatsAppUrl,
   triggerWhatsAppOpen,
 } from '../services/quickBuyLink';
+import { getOptimizedImageUrl } from '../utils/imageOptimizer';
 
 interface CheckoutViewProps {
   cartItems: CartItem[];
@@ -374,7 +375,10 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           id: item.id,
           productId: item.productId,
           title: item.product.title,
-          image: item.selectedImage || (item.product.images && item.product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800',
+          image: getOptimizedImageUrl(
+            item.selectedImage || (item.product.images && item.product.images[0]),
+            { width: 300, quality: 70 }
+          ),
           variantText: item.variantText,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
@@ -898,8 +902,13 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
               return (
                 <div key={item.id} className="flex items-start gap-2.5 sm:gap-3">
                   <img
-                    src={item.selectedImage || (item.product.images && item.product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=200'}
+                    src={getOptimizedImageUrl(
+                      item.selectedImage || (item.product.images && item.product.images[0]),
+                      { width: 160, quality: 70 }
+                    )}
                     alt={item.product.title}
+                    loading="lazy"
+                    decoding="async"
                     className="w-12 h-12 sm:w-12 sm:h-12 object-contain rounded-xl border border-gray-200 p-0.5 shrink-0 bg-white mt-0.5 shadow-2xs"
                   />
                   <div className="flex-1 min-w-0">

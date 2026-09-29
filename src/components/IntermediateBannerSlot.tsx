@@ -141,6 +141,8 @@ export const IntermediateBannerSlot: React.FC<IntermediateBannerSlotProps> = ({
         <img
           src={validBanners[0].imageUrl || defaultImage}
           alt="Banner promocional"
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover"
         />
       </div>
@@ -171,6 +173,8 @@ export const IntermediateBannerSlot: React.FC<IntermediateBannerSlotProps> = ({
             <img
               src={banner.imageUrl || defaultImage}
               alt={banner.title || `Banner ${idx + 1}`}
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover"
             />
           </div>

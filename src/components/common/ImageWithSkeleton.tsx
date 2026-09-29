@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { getOptimizedImageUrl, getOptimizedSrcSet } from '../../utils/imageOptimizer';
 
 // In-memory set of already loaded image URLs to prevent re-shimmering when navigating
 const loadedImageUrls = new Set<string>();
@@ -11,6 +12,8 @@ interface ImageWithSkeletonProps extends React.ImgHTMLAttributes<HTMLImageElemen
   aspectRatio?: string;
   fallbackSrc?: string;
   showShimmer?: boolean;
+  targetWidth?: number;
+  quality?: number;
 }
 
 export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
@@ -19,22 +22,25 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
   className = '',
   imgClassName = '',
   aspectRatio,
-  fallbackSrc = 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800',
+  fallbackSrc = 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400&auto=format&fit=crop&q=75',
   showShimmer = true,
   loading = 'lazy',
   decoding = 'async',
   fetchPriority,
+  targetWidth,
+  quality,
   onError,
   onLoad,
   ...restProps
 }) => {
-  const isPreloaded = loadedImageUrls.has(src);
+  const optimizedSrc = getOptimizedImageUrl(src, { width: targetWidth || 600, quality: quality || 75 });
+  const isPreloaded = loadedImageUrls.has(optimizedSrc) || loadedImageUrls.has(src);
   const [isLoaded, setIsLoaded] = useState<boolean>(isPreloaded);
   const [hasError, setHasError] = useState<boolean>(false);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
   useEffect(() => {
-    if (loadedImageUrls.has(src)) {
+    if (loadedImageUrls.has(optimizedSrc) || loadedImageUrls.has(src)) {
       setIsLoaded(true);
       return;
     }
@@ -42,15 +48,15 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
     setHasError(false);
     // Check if the browser has already cached/completed the image
     if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
-      loadedImageUrls.add(src);
+      loadedImageUrls.add(optimizedSrc);
       setIsLoaded(true);
     } else {
       setIsLoaded(false);
     }
-  }, [src]);
+  }, [optimizedSrc, src]);
 
   const handleLoad = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    loadedImageUrls.add(src);
+    loadedImageUrls.add(optimizedSrc);
     setIsLoaded(true);
     if (onLoad) {
       onLoad(e);
@@ -65,7 +71,8 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
     }
   };
 
-  const displaySrc = hasError ? fallbackSrc : src;
+  const displaySrc = hasError ? getOptimizedImageUrl(fallbackSrc, { width: targetWidth || 400 }) : optimizedSrc;
+  const responsiveSrcSet = !hasError && !restProps.srcSet ? getOptimizedSrcSet(src) : restProps.srcSet;
 
   // Ensure object-fit is properly applied to the <img> tag so images never distort on zoom or responsive layout
   const hasExplicitCover = className.includes('object-cover') || imgClassName.includes('object-cover');
@@ -98,6 +105,7 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
       <img
         ref={imgRef}
         src={displaySrc}
+        srcSet={responsiveSrcSet || undefined}
         alt={alt}
         loading={loading}
         decoding={decoding}

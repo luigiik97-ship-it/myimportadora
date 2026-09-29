@@ -4,6 +4,7 @@ import { getStorefrontCategories, filterProductsByCategory, slugifyCategory } fr
 import { isProductCompletelyOutOfStock } from '../utils/variantHelpers';
 import { ArrowLeft, Search, SlidersHorizontal, Sparkles, ShoppingBag, ArrowRight } from 'lucide-react';
 import { ImageWithSkeleton } from './common/ImageWithSkeleton';
+import { getOptimizedImageUrl } from '../utils/imageOptimizer';
 import { ProductGridSkeleton } from './common/ProductCardSkeleton';
 import { ProductCardPrice } from './common/ProductCardPrice';
 import { ProductCardBadge } from './common/ProductCardBadge';
@@ -98,8 +99,9 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
         {(currentCatObj?.image || categoryProducts[0]?.images?.[0]) && (
           <div className="absolute inset-0 pointer-events-none overflow-hidden">
             <img
-              src={currentCatObj?.image || categoryProducts[0]?.images?.[0]}
+              src={getOptimizedImageUrl(currentCatObj?.image || categoryProducts[0]?.images?.[0], { width: 1200, quality: 75 })}
               alt={categoryName}
+              decoding="async"
               className="w-full h-full object-cover opacity-45 group-hover:scale-105 transition-transform duration-700 ease-out"
             />
             {/* Multi-stop gradient overlay for depth and high contrast text readability */}
@@ -146,8 +148,10 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
                   }`}
                 >
                   <img
-                    src={imgUrl}
+                    src={getOptimizedImageUrl(imgUrl, { width: 140, quality: 75 })}
                     alt={prod.title}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -190,8 +194,10 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
               >
                 {cat.image && (
                   <img
-                    src={cat.image}
+                    src={getOptimizedImageUrl(cat.image, { width: 48, quality: 75 })}
                     alt={cat.name}
+                    loading="lazy"
+                    decoding="async"
                     className="w-4 h-4 rounded-full object-cover shrink-0"
                   />
                 )}
@@ -291,6 +297,8 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
                   <ImageWithSkeleton
                     src={(product.images && product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'}
                     alt={product.title}
+                    targetWidth={480}
+                    quality={75}
                     className={`w-full h-full object-cover ${
                       isOutOfStock ? 'opacity-60 grayscale-[30%]' : 'group-hover:scale-105'
                     } transition-transform duration-300`}

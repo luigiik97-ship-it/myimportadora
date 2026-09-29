@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Search, ShoppingCart, User, ChevronDown, ChevronRight, Layers, ArrowLeft, Zap, Rocket } from 'lucide-react';
 import { CartItem, Category, UserProfile } from '../types';
 import { reconcileCategoriesWithProducts } from '../utils/categoryHelpers';
+import { getOptimizedImageUrl } from '../utils/imageOptimizer';
 
 interface NavbarProps {
   currentCategory: string;
@@ -439,8 +440,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="flex items-center gap-2.5 truncate">
                     {cat.image ? (
                       <img
-                        src={cat.image}
+                        src={getOptimizedImageUrl(cat.image, { width: 48, quality: 75 })}
                         alt={cat.name}
+                        loading="lazy"
+                        decoding="async"
                         className="w-6 h-6 rounded-md object-cover shrink-0 border border-gray-200"
                         referrerPolicy="no-referrer"
                       />

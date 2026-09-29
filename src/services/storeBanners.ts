@@ -210,46 +210,75 @@ export const getStoreBannersConfig = (): StoreBannersConfig => {
   return { ...DEFAULT_STORE_BANNERS };
 };
 
+let activeFetchBannersPromise: Promise<StoreBannersConfig> | null = null;
+let cachedBannersConfig: StoreBannersConfig | null = null;
+let lastBannersFetchTime = 0;
+const BANNERS_CACHE_TTL = 30000; // 30 segundos
+
 /**
  * Consulta y sincroniza la configuración de Banners directamente desde Supabase
  */
-export const fetchStoreBannersFromSupabase = async (): Promise<StoreBannersConfig> => {
-  const supabase = getSupabase();
-  if (isSupabaseConfigured() && supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('description')
-        .eq('id', SYSTEM_STORE_BANNERS_ROW_ID)
-        .maybeSingle();
-
-      if (!error && data && data.description) {
-        try {
-          const parsed = JSON.parse(data.description);
-          if (parsed && typeof parsed === 'object') {
-            const merged: StoreBannersConfig = {
-              ...DEFAULT_STORE_BANNERS,
-              ...parsed,
-            };
-            localStorage.setItem(STORAGE_KEY_BANNERS, JSON.stringify(merged));
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(
-                new CustomEvent('my_commerce_banners_updated', {
-                  detail: merged,
-                })
-              );
-            }
-            return merged;
-          }
-        } catch (parseErr) {
-          console.warn('Error parseando configuración remota de banners:', parseErr);
-        }
-      }
-    } catch (e) {
-      console.warn('Error consultando configuración de banners en Supabase:', e);
-    }
+export const fetchStoreBannersFromSupabase = async (force = false): Promise<StoreBannersConfig> => {
+  const now = Date.now();
+  if (!force && cachedBannersConfig && (now - lastBannersFetchTime < BANNERS_CACHE_TTL)) {
+    return cachedBannersConfig;
   }
-  return getStoreBannersConfig();
+
+  if (activeFetchBannersPromise) {
+    return activeFetchBannersPromise;
+  }
+
+  activeFetchBannersPromise = (async () => {
+    const supabase = getSupabase();
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('description')
+          .eq('id', SYSTEM_STORE_BANNERS_ROW_ID)
+          .maybeSingle();
+
+        if (!error && (!data || !data.description)) {
+          saveStoreBannersConfig(DEFAULT_STORE_BANNERS).catch(() => {});
+        }
+
+        if (!error && data && data.description) {
+          try {
+            const parsed = JSON.parse(data.description);
+            if (parsed && typeof parsed === 'object') {
+              const merged: StoreBannersConfig = {
+                ...DEFAULT_STORE_BANNERS,
+                ...parsed,
+              };
+              cachedBannersConfig = merged;
+              lastBannersFetchTime = Date.now();
+              localStorage.setItem(STORAGE_KEY_BANNERS, JSON.stringify(merged));
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(
+                  new CustomEvent('my_commerce_banners_updated', {
+                    detail: merged,
+                  })
+                );
+              }
+              return merged;
+            }
+          } catch (parseErr) {
+            console.warn('Error parseando configuración remota de banners:', parseErr);
+          }
+        }
+      } catch (e) {
+        console.warn('Error consultando configuración de banners en Supabase:', e);
+      }
+    }
+    const local = getStoreBannersConfig();
+    cachedBannersConfig = local;
+    lastBannersFetchTime = Date.now();
+    return local;
+  })().finally(() => {
+    activeFetchBannersPromise = null;
+  });
+
+  return activeFetchBannersPromise;
 };
 
 /**
