@@ -304,7 +304,7 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
                 </div>
 
                 {/* Info */}
-                <div className="p-2.5 sm:p-3.5 flex-1 flex flex-col justify-between space-y-1.5 sm:space-y-2">
+                <div className="px-2 py-2 sm:px-2.5 sm:py-3 flex-1 flex flex-col justify-between space-y-1 sm:space-y-1.5">
                   <h3 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
                     {product.title}
                   </h3>

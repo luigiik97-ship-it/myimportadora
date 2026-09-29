@@ -1,25 +1,47 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { X, ChevronLeft, ChevronRight, Play } from 'lucide-react';
+
+export interface LightboxMediaItem {
+  type: 'image' | 'video';
+  url: string;
+  thumbnailUrl?: string;
+  title?: string;
+}
 
 export interface ProductImageLightboxProps {
   isOpen: boolean;
   onClose: () => void;
-  images: string[];
+  images?: string[];
+  mediaItems?: LightboxMediaItem[];
   initialIndex?: number;
   title?: string;
   subtitle?: string;
   onIndexChange?: (newIndex: number) => void;
+  onOpenVideo?: () => void;
 }
 
 export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
   isOpen,
   onClose,
-  images,
+  images = [],
+  mediaItems,
   initialIndex = 0,
   title,
   subtitle,
   onIndexChange,
+  onOpenVideo,
 }) => {
+  // Normalize items to support both images and videos seamlessly
+  const items = useMemo<LightboxMediaItem[]>(() => {
+    if (mediaItems && mediaItems.length > 0) {
+      return mediaItems;
+    }
+    return images.map((img) => ({
+      type: 'image' as const,
+      url: img,
+    }));
+  }, [mediaItems, images]);
+
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isZoomed, setIsZoomed] = useState(false);
   const [panPosition, setPanPosition] = useState({ x: 0, y: 0 });
@@ -47,7 +69,7 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
   useEffect(() => {
     if (isOpen) {
       openTimeRef.current = Date.now();
-      const validIndex = Math.max(0, Math.min(initialIndex, Math.max(0, images.length - 1)));
+      const validIndex = Math.max(0, Math.min(initialIndex, Math.max(0, items.length - 1)));
       setCurrentIndex(validIndex);
       setIsZoomed(false);
       setPanPosition({ x: 0, y: 0 });
@@ -55,7 +77,7 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
       setIsDragging(false);
       isDraggingRef.current = false;
     }
-  }, [isOpen, initialIndex, images.length]);
+  }, [isOpen, initialIndex, items.length]);
 
   // Lock body scroll when lightbox is open
   useEffect(() => {
@@ -74,13 +96,13 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
     return Date.now() - lastTouchTimeRef.current < 1000 || Date.now() - openTimeRef.current < 400;
   };
 
-  // Handle image index change and notify parent
+  // Handle item index change and notify parent
   const handleIndexChange = useCallback(
     (newIndex: number) => {
-      if (images.length <= 1) return;
+      if (items.length <= 1) return;
       let targetIndex = newIndex;
-      if (targetIndex < 0) targetIndex = images.length - 1;
-      if (targetIndex >= images.length) targetIndex = 0;
+      if (targetIndex < 0) targetIndex = items.length - 1;
+      if (targetIndex >= items.length) targetIndex = 0;
 
       setCurrentIndex(targetIndex);
       setIsZoomed(false);
@@ -88,14 +110,14 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
       setSlideOffset(0);
       onIndexChange?.(targetIndex);
     },
-    [images.length, onIndexChange]
+    [items.length, onIndexChange]
   );
 
-  const prevImage = useCallback(() => {
+  const prevItem = useCallback(() => {
     handleIndexChange(currentIndex - 1);
   }, [currentIndex, handleIndexChange]);
 
-  const nextImage = useCallback(() => {
+  const nextItem = useCallback(() => {
     handleIndexChange(currentIndex + 1);
   }, [currentIndex, handleIndexChange]);
 
@@ -107,28 +129,32 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
       if (e.key === 'Escape') {
         onClose();
       } else if (!isZoomed && e.key === 'ArrowLeft') {
-        prevImage();
+        prevItem();
       } else if (!isZoomed && e.key === 'ArrowRight') {
-        nextImage();
+        nextItem();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isZoomed, onClose, prevImage, nextImage]);
+  }, [isOpen, isZoomed, onClose, prevItem, nextItem]);
+
+  // Current item
+  const currentItem = items[currentIndex] || items[0];
+  const isCurrentVideo = currentItem?.type === 'video';
 
   // --------------------------------------------------------------------------
   // Gestures (Mouse & Touch) unified engine
   // --------------------------------------------------------------------------
-  const startGesture = (clientX: number, clientY: number, onImage: boolean) => {
+  const startGesture = (clientX: number, clientY: number, onMedia: boolean) => {
     isDraggingRef.current = true;
     setIsDragging(true);
-    isImageTargetRef.current = onImage;
+    isImageTargetRef.current = onMedia;
     dragStartRef.current = { x: clientX, y: clientY, time: Date.now() };
     dragDistanceRef.current = 0;
     currentDeltaXRef.current = 0;
 
-    if (isZoomedRef.current) {
+    if (isZoomedRef.current && !isCurrentVideo) {
       startPanRef.current = { ...panPosition };
     }
   };
@@ -142,7 +168,7 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
     dragDistanceRef.current = Math.max(dragDistanceRef.current, dist);
     currentDeltaXRef.current = deltaX;
 
-    if (isZoomedRef.current) {
+    if (isZoomedRef.current && !isCurrentVideo) {
       // ZOOM 2.0x: Move (pan) the image. NEVER changes images!
       const maxPanX = Math.max(window.innerWidth * 0.55, 200);
       const maxPanY = Math.max(window.innerHeight * 0.55, 200);
@@ -152,7 +178,7 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
 
       setPanPosition({ x: newX, y: newY });
     } else {
-      // FULLSCREEN (1.0x): Drag horizontally to slide between images
+      // FULLSCREEN (1.0x): Drag horizontally to slide between items
       setSlideOffset(deltaX);
     }
   };
@@ -164,17 +190,14 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
 
     const movedDist = dragDistanceRef.current;
     const finalDeltaX = currentDeltaXRef.current;
-    const clickedOnImage = isImageTargetRef.current;
+    const clickedOnMedia = isImageTargetRef.current;
     const elapsed = Date.now() - dragStartRef.current.time;
 
     // Distinguish between a clean tap and a drag/swipe:
-    // On mobile touchscreens, normal finger taps produce minor displacement (up to 14px) and complete quickly.
     const isTap = movedDist <= 12 || (movedDist <= 18 && elapsed < 280);
 
-    if (isZoomedRef.current) {
+    if (isZoomedRef.current && !isCurrentVideo) {
       // IN ZOOM 2.0x:
-      // If user dragged/panned (not a tap): KEEP ZOOM 2.0X! DO NOT EXIT, DO NOT CHANGE IMAGES!
-      // If user clicked/tapped without dragging: EXIT ZOOM 2.0x and return to Pantalla completa!
       if (isTap) {
         if (Date.now() - lastZoomToggleTimeRef.current < 250) return;
         lastZoomToggleTimeRef.current = Date.now();
@@ -183,27 +206,31 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
       }
     } else {
       // IN FULLSCREEN (1.0x):
-      // If user dragged/swiped:
       if (!isTap && movedDist > 12) {
-        if (images.length > 1) {
+        if (items.length > 1) {
           if (finalDeltaX < -40) {
-            // Dragged left -> Next image
-            nextImage();
+            // Dragged left -> Next item
+            nextItem();
           } else if (finalDeltaX > 40) {
-            // Dragged right -> Previous image
-            prevImage();
+            // Dragged right -> Previous item
+            prevItem();
           }
         }
         setSlideOffset(0);
       } else {
         // User clicked/tapped without dragging:
         setSlideOffset(0);
-        if (clickedOnImage) {
-          // Tap/click on image -> ENTER ZOOM 2.0X!
-          if (Date.now() - lastZoomToggleTimeRef.current < 250) return;
-          lastZoomToggleTimeRef.current = Date.now();
-          setIsZoomed(true);
-          setPanPosition({ x: 0, y: 0 });
+        if (clickedOnMedia) {
+          if (isCurrentVideo) {
+            // Clicked on video thumbnail -> Open video in full screen!
+            onOpenVideo?.();
+          } else {
+            // Tap/click on image -> ENTER ZOOM 2.0X!
+            if (Date.now() - lastZoomToggleTimeRef.current < 250) return;
+            lastZoomToggleTimeRef.current = Date.now();
+            setIsZoomed(true);
+            setPanPosition({ x: 0, y: 0 });
+          }
         } else {
           // Click on background -> Close lightbox
           onClose();
@@ -233,17 +260,16 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
       window.removeEventListener('mousemove', handleWindowMouseMove);
       window.removeEventListener('mouseup', handleWindowMouseUp);
     };
-  }, [isDragging, images.length, nextImage, prevImage, onClose]);
+  }, [isDragging, items.length, nextItem, prevItem, onClose, isCurrentVideo]);
 
   // Touch Handlers
-  const handleTouchStart = (e: React.TouchEvent, onImage: boolean) => {
+  const handleTouchStart = (e: React.TouchEvent, onMedia: boolean) => {
     lastTouchTimeRef.current = Date.now();
-    // Guard against touch events immediately right as the modal mounts
     if (Date.now() - openTimeRef.current < 350) return;
 
     if (e.touches.length === 1) {
       const touch = e.touches[0];
-      startGesture(touch.clientX, touch.clientY, onImage);
+      startGesture(touch.clientX, touch.clientY, onMedia);
     }
   };
 
@@ -252,7 +278,6 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
     if (Date.now() - openTimeRef.current < 350) return;
 
     if (e.touches.length === 1 && isDraggingRef.current) {
-      // Prevent browser bounce / scroll while interacting
       if (e.cancelable) e.preventDefault();
       const touch = e.touches[0];
       moveGesture(touch.clientX, touch.clientY);
@@ -272,16 +297,14 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
 
   if (!isOpen) return null;
 
-  const currentImageUrl = images[currentIndex] || images[0] || '';
-  const hasMultipleImages = images.length > 1;
+  const hasMultipleItems = items.length > 1;
 
   return (
     <div
       id="product-image-lightbox"
-      className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-xs flex items-center justify-center select-none overflow-hidden animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center select-none overflow-hidden animate-in fade-in duration-200"
       onMouseDown={(e) => {
         if (isSyntheticOrRecentTouch()) return;
-        // Click on outer backdrop
         if (e.button === 0 && e.target === e.currentTarget) {
           startGesture(e.clientX, e.clientY, false);
         }
@@ -294,25 +317,11 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Top Bar: Title / Variant info on left, Close button on right */}
+      {/* Top Bar: Close button on right */}
       <div
-        className="absolute top-0 left-0 right-0 z-50 p-3 sm:p-5 flex items-center justify-between pointer-events-none bg-gradient-to-b from-black/60 via-black/20 to-transparent"
+        className="absolute top-0 left-0 right-0 z-50 p-3 sm:p-5 flex items-center justify-end pointer-events-none bg-gradient-to-b from-black/60 via-black/20 to-transparent"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Product Title & Subtitle */}
-        <div className="text-white max-w-[65%] sm:max-w-[75%] truncate pointer-events-auto">
-          {title && (
-            <h2 className="text-sm sm:text-base font-bold text-white drop-shadow-md truncate">
-              {title}
-            </h2>
-          )}
-          {subtitle && (
-            <span className="inline-block text-xs text-blue-200 font-medium truncate drop-shadow-xs">
-              {subtitle}
-            </span>
-          )}
-        </div>
-
         {/* Clear Close Button: High contrast, clearly readable */}
         <button
           type="button"
@@ -326,7 +335,7 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
         </button>
       </div>
 
-      {/* Main Image Stage */}
+      {/* Main Stage */}
       <div
         className="relative w-full h-full flex items-center justify-center p-2 sm:p-6 overflow-hidden"
         onMouseDown={(e) => {
@@ -343,94 +352,145 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {currentImageUrl ? (
-          <div
-            className="relative flex items-center justify-center max-w-[94vw] max-h-[85vh] touch-none"
-            style={{
-              cursor: isDragging ? 'grabbing' : 'grab',
-            }}
-            onMouseDown={(e) => {
-              if (isSyntheticOrRecentTouch()) return;
-              if (e.button === 0) {
-                e.stopPropagation();
-                startGesture(e.clientX, e.clientY, true);
-              }
-            }}
-            onTouchStart={(e) => {
-              e.stopPropagation();
-              handleTouchStart(e, true);
-            }}
-          >
-            <img
-              src={currentImageUrl}
-              alt={title || 'Detalle del producto'}
-              draggable={false}
-              className={`max-w-[92vw] sm:max-w-[88vw] max-h-[80vh] sm:max-h-[84vh] object-contain rounded-lg drop-shadow-2xl select-none ${
-                isDragging ? 'transition-none' : 'transition-transform duration-250 ease-out'
-              }`}
+        {currentItem ? (
+          isCurrentVideo ? (
+            /* Video item: displays thumbnail without playing; clicking triggers full-screen video */
+            <div
+              className="relative flex items-center justify-center max-w-[94vw] max-h-[85vh] touch-none"
               style={{
-                transform: isZoomed
-                  ? `translate3d(${panPosition.x}px, ${panPosition.y}px, 0px) scale(2.0)`
-                  : `translate3d(${slideOffset}px, 0px, 0px) scale(1)`,
-                touchAction: 'none',
+                cursor: isDragging ? 'grabbing' : 'pointer',
               }}
-            />
-          </div>
+              onMouseDown={(e) => {
+                if (isSyntheticOrRecentTouch()) return;
+                if (e.button === 0) {
+                  e.stopPropagation();
+                  startGesture(e.clientX, e.clientY, true);
+                }
+              }}
+              onTouchStart={(e) => {
+                e.stopPropagation();
+                handleTouchStart(e, true);
+              }}
+            >
+              <div
+                className="relative aspect-[9/16] h-[72vh] max-h-[640px] max-w-full rounded-2xl overflow-hidden bg-black shadow-2xl border border-white/20 select-none group flex items-center justify-center"
+                style={{
+                  transform: `translate3d(${slideOffset}px, 0px, 0px)`,
+                  transition: isDragging ? 'none' : 'transform 250ms ease-out',
+                }}
+              >
+                <video
+                  src={`${currentItem.url}#t=0.001`}
+                  preload="metadata"
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover select-none pointer-events-none"
+                />
+                {/* Play Button Overlay */}
+                <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 transition-colors flex flex-col items-center justify-center gap-3">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/95 group-hover:bg-white text-gray-950 flex items-center justify-center shadow-2xl transition-transform group-hover:scale-110 active:scale-95">
+                    <Play className="w-8 h-8 sm:w-9 sm:h-9 ml-1 fill-gray-950 text-gray-950" />
+                  </div>
+                  <span className="text-white text-xs sm:text-sm font-semibold tracking-wide bg-black/75 px-4 py-1.5 rounded-full border border-white/20 backdrop-blur-xs shadow-md">
+                    Ver video en pantalla completa
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Image item: displays image with zoom / pan support */
+            <div
+              className="relative flex items-center justify-center max-w-[94vw] max-h-[85vh] touch-none"
+              style={{
+                cursor: isDragging ? 'grabbing' : 'grab',
+              }}
+              onMouseDown={(e) => {
+                if (isSyntheticOrRecentTouch()) return;
+                if (e.button === 0) {
+                  e.stopPropagation();
+                  startGesture(e.clientX, e.clientY, true);
+                }
+              }}
+              onTouchStart={(e) => {
+                e.stopPropagation();
+                handleTouchStart(e, true);
+              }}
+            >
+              <img
+                src={currentItem.url}
+                alt={title || 'Detalle del producto'}
+                draggable={false}
+                className={`max-w-[92vw] sm:max-w-[88vw] max-h-[80vh] sm:max-h-[84vh] object-contain rounded-lg drop-shadow-2xl select-none ${
+                  isDragging ? 'transition-none' : 'transition-transform duration-250 ease-out'
+                }`}
+                style={{
+                  transform: isZoomed
+                    ? `translate3d(${panPosition.x}px, ${panPosition.y}px, 0px) scale(2.0)`
+                    : `translate3d(${slideOffset}px, 0px, 0px) scale(1)`,
+                  touchAction: 'none',
+                }}
+              />
+            </div>
+          )
         ) : (
-          <div className="text-white/70 text-sm">No hay imagen disponible</div>
+          <div className="text-white/70 text-sm">No hay elemento disponible</div>
         )}
 
-        {/* Previous Image Arrow (ONLY shown when NOT zoomed and has multiple images) */}
-        {!isZoomed && hasMultipleImages && (
+        {/* Previous Item Arrow (ONLY shown when NOT zoomed, has multiple items, and on desktop) */}
+        {!isZoomed && hasMultipleItems && (
           <button
             type="button"
             id="lightbox-prev-btn"
             onClick={(e) => {
               e.stopPropagation();
-              prevImage();
+              prevItem();
             }}
-            className="absolute left-2 sm:left-6 top-1/2 -translate-y-1/2 z-40 w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-black/50 hover:bg-black/80 text-white flex items-center justify-center border border-white/25 shadow-xl transition-all hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-xs"
-            title="Imagen anterior (Flecha izquierda)"
+            className="hidden sm:flex absolute left-2 sm:left-6 top-1/2 -translate-y-1/2 z-40 w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-black/60 hover:bg-black/85 text-white items-center justify-center border border-white/25 shadow-xl transition-all hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-xs"
+            title="Elemento anterior (Flecha izquierda)"
           >
             <ChevronLeft className="w-6 h-6 sm:w-7 sm:h-7" />
           </button>
         )}
 
-        {/* Next Image Arrow (ONLY shown when NOT zoomed and has multiple images) */}
-        {!isZoomed && hasMultipleImages && (
+        {/* Next Item Arrow (ONLY shown when NOT zoomed, has multiple items, and on desktop) */}
+        {!isZoomed && hasMultipleItems && (
           <button
             type="button"
             id="lightbox-next-btn"
             onClick={(e) => {
               e.stopPropagation();
-              nextImage();
+              nextItem();
             }}
-            className="absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 z-40 w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-black/50 hover:bg-black/80 text-white flex items-center justify-center border border-white/25 shadow-xl transition-all hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-xs"
-            title="Siguiente imagen (Flecha derecha)"
+            className="hidden sm:flex absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 z-40 w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-black/60 hover:bg-black/85 text-white items-center justify-center border border-white/25 shadow-xl transition-all hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-xs"
+            title="Siguiente elemento (Flecha derecha)"
           >
             <ChevronRight className="w-6 h-6 sm:w-7 sm:h-7" />
           </button>
         )}
       </div>
 
-      {/* Bottom Floating Bar: Thumbnail Dots (ONLY shown when NOT zoomed and multiple images exist) */}
-      {!isZoomed && hasMultipleImages && (
+      {/* Bottom Floating Bar: Dots (ONLY shown when NOT zoomed and multiple items exist) */}
+      {!isZoomed && hasMultipleItems && (
         <div
           className="absolute bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="pointer-events-auto flex items-center gap-1.5 bg-black/50 backdrop-blur-xs px-3 py-1.5 rounded-full border border-white/10">
-            {images.map((_, idx) => (
+          <div className="pointer-events-auto flex items-center gap-1.5 bg-black/60 backdrop-blur-xs px-3.5 py-1.5 rounded-full border border-white/15">
+            {items.map((mItem, idx) => (
               <button
                 key={idx}
                 type="button"
                 onClick={() => handleIndexChange(idx)}
                 className={`h-2 rounded-full transition-all cursor-pointer ${
                   currentIndex === idx
-                    ? 'w-5 bg-white'
+                    ? mItem.type === 'video'
+                      ? 'w-6 bg-red-500'
+                      : 'w-5 bg-white'
+                    : mItem.type === 'video'
+                    ? 'w-2.5 bg-red-400/70 hover:bg-red-300'
                     : 'w-2 bg-white/40 hover:bg-white/70'
                 }`}
-                title={`Ver imagen ${idx + 1}`}
+                title={mItem.type === 'video' ? 'Ver video' : `Ver imagen ${idx + 1}`}
               />
             ))}
           </div>

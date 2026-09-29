@@ -43,7 +43,7 @@ export const ProductCardPrice: React.FC<ProductCardPriceProps> = ({
     : product.retailPrice;
 
   return (
-    <div className={`pt-0.5 sm:pt-1 ${className}`}>
+    <div className={`pt-0 sm:pt-0.5 ${className}`}>
       {/* Wholesale Price Highlight */}
       <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap min-w-0">
         <span

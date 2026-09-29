@@ -32,39 +32,66 @@ export const IntermediateBannerSlot: React.FC<IntermediateBannerSlotProps> = ({
     ];
   }, [banners, defaultImage, fallbackLink, slotId]);
 
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(1);
+  const [isTransitioning, setIsTransitioning] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
   const touchStartX = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
 
   const isCarousel = validBanners.length > 1;
 
-  // Rotación automática si tiene más de 1 imagen
+  // Extended banners for infinite seamless looping
+  const extendedBanners = React.useMemo(() => {
+    if (validBanners.length <= 1) return validBanners;
+    return [
+      validBanners[validBanners.length - 1],
+      ...validBanners,
+      validBanners[0],
+    ];
+  }, [validBanners]);
+
+  // Si cambia la cantidad de banners, resetear el índice adecuadamente
+  useEffect(() => {
+    if (validBanners.length <= 1) {
+      setCurrentIndex(0);
+    } else {
+      setCurrentIndex(1);
+      setIsTransitioning(false);
+    }
+  }, [validBanners.length]);
+
+  // Rotación automática continua en loop si tiene más de 1 imagen
   useEffect(() => {
     if (!isCarousel || isHovered) return;
 
     const timer = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % validBanners.length);
+      setIsTransitioning(true);
+      setCurrentIndex((prev) => prev + 1);
     }, autoRotateInterval);
 
     return () => clearInterval(timer);
-  }, [isCarousel, isHovered, validBanners.length, autoRotateInterval]);
-
-  // Si cambia la cantidad de banners y el índice queda fuera de rango
-  useEffect(() => {
-    if (currentIndex >= validBanners.length) {
-      setCurrentIndex(0);
-    }
-  }, [validBanners.length, currentIndex]);
+  }, [isCarousel, isHovered, autoRotateInterval]);
 
   const handlePrev = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setCurrentIndex((prev) => (prev - 1 + validBanners.length) % validBanners.length);
+    setIsTransitioning(true);
+    setCurrentIndex((prev) => prev - 1);
   };
 
   const handleNext = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setCurrentIndex((prev) => (prev + 1) % validBanners.length);
+    setIsTransitioning(true);
+    setCurrentIndex((prev) => prev + 1);
+  };
+
+  const handleTransitionEnd = () => {
+    if (currentIndex >= validBanners.length + 1) {
+      setIsTransitioning(false);
+      setCurrentIndex(1);
+    } else if (currentIndex <= 0) {
+      setIsTransitioning(false);
+      setCurrentIndex(validBanners.length);
+    }
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -79,17 +106,21 @@ export const IntermediateBannerSlot: React.FC<IntermediateBannerSlotProps> = ({
     if (touchStartX.current === null || touchEndX.current === null) return;
     const diff = touchStartX.current - touchEndX.current;
     if (diff > 45) {
-      // Swipe izquierda -> siguiente
-      setCurrentIndex((prev) => (prev + 1) % validBanners.length);
+      // Swipe izquierda -> siguiente banner en la misma dirección
+      setIsTransitioning(true);
+      setCurrentIndex((prev) => prev + 1);
     } else if (diff < -45) {
-      // Swipe derecha -> anterior
-      setCurrentIndex((prev) => (prev - 1 + validBanners.length) % validBanners.length);
+      // Swipe derecha -> banner anterior
+      setIsTransitioning(true);
+      setCurrentIndex((prev) => prev - 1);
     }
     touchStartX.current = null;
     touchEndX.current = null;
   };
 
-  const currentBanner = validBanners[currentIndex] || validBanners[0];
+  const currentBanner = isCarousel
+    ? validBanners[(currentIndex - 1 + validBanners.length) % validBanners.length] || validBanners[0]
+    : validBanners[0];
   const targetLink = currentBanner?.linkUrl || fallbackLink;
 
   const handleClick = () => {
@@ -104,19 +135,19 @@ export const IntermediateBannerSlot: React.FC<IntermediateBannerSlotProps> = ({
       <div
         id={slotId}
         onClick={handleClick}
-        className="relative rounded-xl overflow-hidden shadow-xs sm:shadow-sm h-44 sm:h-48 md:h-56 bg-neutral-100 group cursor-pointer"
+        className="relative rounded-xl overflow-hidden shadow-xs sm:shadow-sm h-44 sm:h-48 md:h-56 bg-neutral-100 cursor-pointer"
         title={targetLink ? `Ir a ${targetLink}` : undefined}
       >
         <img
           src={validBanners[0].imageUrl || defaultImage}
           alt="Banner promocional"
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          className="w-full h-full object-cover"
         />
       </div>
     );
   }
 
-  // 2. Si son 2 o más imágenes -> MODO CARRUSEL DINÁMICO
+  // 2. Si son 2 o más imágenes -> MODO CARRUSEL DINÁMICO EN LOOP INFINITO
   return (
     <div
       id={slotId}
@@ -129,17 +160,18 @@ export const IntermediateBannerSlot: React.FC<IntermediateBannerSlotProps> = ({
       className="relative rounded-xl overflow-hidden shadow-xs sm:shadow-sm h-44 sm:h-48 md:h-56 bg-neutral-100 group cursor-pointer select-none"
       title={targetLink ? `Ir a ${targetLink}` : undefined}
     >
-      {/* Slider Track */}
+      {/* Slider Track con transición fluida continua */}
       <div
-        className="flex w-full h-full transition-transform duration-500 ease-out"
+        className={`flex w-full h-full ${isTransitioning ? 'transition-transform duration-500 ease-out' : ''}`}
         style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+        onTransitionEnd={handleTransitionEnd}
       >
-        {validBanners.map((banner, idx) => (
-          <div key={banner.id || `${slotId}-slide-${idx}`} className="w-full min-w-full h-full shrink-0 relative">
+        {extendedBanners.map((banner, idx) => (
+          <div key={`${slotId}-slide-${idx}-${banner.id || idx}`} className="w-full min-w-full h-full shrink-0 relative">
             <img
               src={banner.imageUrl || defaultImage}
               alt={banner.title || `Banner ${idx + 1}`}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              className="w-full h-full object-cover"
             />
           </div>
         ))}
