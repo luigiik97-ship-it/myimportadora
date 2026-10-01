@@ -159,7 +159,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Main Royal Blue Navigation */}
       <div className="bg-[#0058bb] text-white">
-        <div className="max-w-[1240px] mx-auto px-2 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-2.5 sm:gap-4 md:gap-8">
+        <div className="max-w-[1240px] mx-auto px-2 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3 md:gap-6">
           {isMobileSearchOpen ? (
             /* Active Search Bar for Mobile */
             <div className="md:hidden flex items-center gap-2 w-full animate-in fade-in duration-200">
@@ -200,37 +200,40 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           ) : (
             <>
-              {/* Logo "MY" */}
-              <button
-                type="button"
-                id="brand-logo-btn"
-                onClick={onGoHome}
-                aria-label="Ir a la página principal"
-                title="Ir a la página principal"
-                className="flex items-center gap-1.5 focus:outline-none group cursor-pointer select-none shrink-0"
-              >
-                <span className="font-black text-3xl md:text-4xl tracking-tighter text-white drop-shadow-sm font-['Montserrat']">
-                  MY
-                </span>
-              </button>
+              {/* Left Group: Logo + Compra Rápida */}
+              <div className="flex items-center gap-2 sm:gap-2.5 md:gap-3 shrink-0">
+                {/* Logo "MY" */}
+                <button
+                  type="button"
+                  id="brand-logo-btn"
+                  onClick={onGoHome}
+                  aria-label="Ir a la página principal"
+                  title="Ir a la página principal"
+                  className="flex items-center gap-1.5 focus:outline-none group cursor-pointer select-none shrink-0"
+                >
+                  <span className="font-black text-3xl md:text-4xl tracking-tighter text-white drop-shadow-sm font-['Montserrat']">
+                    MY
+                  </span>
+                </button>
 
-              {/* ⚡ Compra Rápida Button (Visible on all pages) */}
-              <button
-                type="button"
-                id="header-quick-buy-btn"
-                onClick={onOpenQuickBuy}
-                className={`flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 md:py-2 rounded-full font-black text-xs md:text-sm transition-all cursor-pointer select-none shrink-0 shadow-sm border border-yellow-300/40 min-h-[38px] ${
-                  isQuickBuyActive
-                    ? 'bg-yellow-400 text-gray-950 ring-2 ring-white shadow-md'
-                    : 'bg-yellow-400 hover:bg-yellow-300 text-gray-950 hover:shadow-md active:scale-95'
-                }`}
-                title="Ir a Compra Rápida por Mayor"
-              >
-                <Zap className="w-3.5 h-3.5 md:w-4 md:h-4 fill-current text-gray-950 shrink-0" />
-                <span className="font-extrabold tracking-tight whitespace-nowrap">
-                  <span className="hidden">⚡ </span>Compra Rápida
-                </span>
-              </button>
+                {/* ⚡ Compra Rápida Button (Visible on all pages) */}
+                <button
+                  type="button"
+                  id="header-quick-buy-btn"
+                  onClick={onOpenQuickBuy}
+                  className={`flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 md:py-2 rounded-full font-black text-xs md:text-sm transition-all cursor-pointer select-none shrink-0 shadow-sm border border-yellow-300/40 min-h-[38px] ${
+                    isQuickBuyActive
+                      ? 'bg-yellow-400 text-gray-950 ring-2 ring-white shadow-md'
+                      : 'bg-yellow-400 hover:bg-yellow-300 text-gray-950 hover:shadow-md active:scale-95'
+                  }`}
+                  title="Ir a Compra Rápida por Mayor"
+                >
+                  <Zap className="w-3.5 h-3.5 md:w-4 md:h-4 fill-current text-gray-950 shrink-0" />
+                  <span className="font-extrabold tracking-tight whitespace-nowrap">
+                    <span className="hidden">⚡ </span>Compra Rápida
+                  </span>
+                </button>
+              </div>
 
               {/* Desktop Search Bar (Hidden on Mobile) */}
               <div className="hidden md:block flex-1 max-w-2xl relative">
@@ -257,7 +260,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
 
               {/* Right Actions: Search Icon (Mobile Only) + Auth / Account + Cart */}
-              <div className="flex items-center gap-1 sm:gap-3">
+              <div className="flex items-center gap-2 sm:gap-2.5 md:gap-3 shrink-0">
                 {/* Mobile Search Icon Button */}
                 <button
                   type="button"

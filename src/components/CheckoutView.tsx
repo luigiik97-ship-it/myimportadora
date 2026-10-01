@@ -306,15 +306,19 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     setErrorMessage(null);
 
     // Form validation
-    if (!customerWhatsapp.trim()) {
+    const effectiveWhatsapp = customerWhatsapp.trim() || currentUser?.phone || '';
+    const effectiveEmail = customerEmail.trim() || currentUser?.email || '';
+    const effectiveName = customerName.trim() || currentUser?.fullName || '';
+
+    if (!effectiveWhatsapp) {
       setErrorMessage('Por favor ingresa tu número de WhatsApp para coordinar la entrega.');
       return;
     }
-    if (!customerEmail.trim() || !customerEmail.includes('@')) {
+    if (!effectiveEmail || !effectiveEmail.includes('@')) {
       setErrorMessage('Por favor ingresa un correo Gmail válido donde recibirás el comprobante.');
       return;
     }
-    if (!customerName.trim()) {
+    if (!effectiveName) {
       setErrorMessage('Por favor ingresa tu nombre y apellido.');
       return;
     }
@@ -508,59 +512,61 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             </div>
           )}
 
-          {/* 1. Tus Datos - Native flat layout on mobile */}
-          <div className="bg-transparent md:bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-200 p-1 md:p-4 shadow-none md:shadow-xs space-y-2.5 pb-4 border-b border-gray-100 md:border-b-0">
-            <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 font-['Montserrat']">
-              Tus Datos
-            </h2>
+          {/* 1. Tus Datos - Only shown for guest users (hidden when user is logged in or created account) */}
+          {!currentUser && (
+            <div className="bg-transparent md:bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-200 p-1 md:p-4 shadow-none md:shadow-xs space-y-2.5 pb-4 border-b border-gray-100 md:border-b-0">
+              <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 font-['Montserrat']">
+                Tus Datos
+              </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-              <div>
-                <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-1">
-                  Número de WhatsApp *
-                </label>
-                <input
-                  id="checkout-whatsapp"
-                  type="tel"
-                  required
-                  value={customerWhatsapp}
-                  onChange={(e) => setCustomerWhatsapp(e.target.value)}
-                  placeholder="Ej: 1123456789"
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all min-h-[42px] bg-white"
-                />
-              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-1">
+                    Número de WhatsApp *
+                  </label>
+                  <input
+                    id="checkout-whatsapp"
+                    type="tel"
+                    required
+                    value={customerWhatsapp}
+                    onChange={(e) => setCustomerWhatsapp(e.target.value)}
+                    placeholder="Ej: 1123456789"
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all min-h-[42px] bg-white"
+                  />
+                </div>
 
-              <div>
-                <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-1">
-                  Correo Gmail (Se enviará el recibo) *
-                </label>
-                <input
-                  id="checkout-email"
-                  type="email"
-                  required
-                  value={customerEmail}
-                  onChange={(e) => setCustomerEmail(e.target.value)}
-                  placeholder="correo@gmail.com"
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all min-h-[42px] bg-white"
-                />
-              </div>
+                <div>
+                  <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-1">
+                    Correo Gmail (Se enviará el recibo) *
+                  </label>
+                  <input
+                    id="checkout-email"
+                    type="email"
+                    required
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                    placeholder="correo@gmail.com"
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all min-h-[42px] bg-white"
+                  />
+                </div>
 
-              <div className="md:col-span-2">
-                <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-1">
-                  Nombre y Apellido Completo *
-                </label>
-                <input
-                  id="checkout-name"
-                  type="text"
-                  required
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Ej: Alejandro Yugar"
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all min-h-[42px] bg-white"
-                />
+                <div className="md:col-span-2">
+                  <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-1">
+                    Nombre y Apellido Completo *
+                  </label>
+                  <input
+                    id="checkout-name"
+                    type="text"
+                    required
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="Ej: Alejandro Yugar"
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all min-h-[42px] bg-white"
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* 2. Opciones de Entrega */}
           <div
@@ -578,7 +584,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             <div className="space-y-2">
               {/* Option: Retiro en local */}
               <label
-                className={`flex items-start justify-between bg-white p-2.5 sm:p-3 rounded-xl border-2 transition-all cursor-pointer ${
+                className={`w-full flex items-start justify-between bg-white p-2 sm:p-2.5 rounded-xl border-2 transition-all cursor-pointer ${
                   deliveryOption === 'pickup'
                     ? 'border-[#0058bb] bg-blue-50/20 shadow-xs'
                     : deliveryOptionError && !deliveryOption
@@ -586,7 +592,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                <div className="flex items-start gap-2.5">
+                <div className="flex items-start gap-1.5 sm:gap-2">
                   <input
                     type="radio"
                     name="delivery"
@@ -606,12 +612,12 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     </p>
                   </div>
                 </div>
-                <span className="text-xs sm:text-sm font-bold text-[#00a650] shrink-0 pl-2">Gratis</span>
+                <span className="text-xs sm:text-sm font-bold text-[#00a650] shrink-0 pl-1.5">Gratis</span>
               </label>
 
               {/* Option: Envío a domicilio */}
               <div
-                className={`bg-white p-2.5 sm:p-3 rounded-xl border-2 transition-all ${
+                className={`w-full bg-white p-2 sm:p-2.5 rounded-xl border-2 transition-all ${
                   deliveryOption === 'delivery'
                     ? 'border-[#0058bb] bg-blue-50/20 shadow-xs'
                     : deliveryOptionError && !deliveryOption
@@ -623,7 +629,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   onClick={() => handleSelectDeliveryOption('delivery')}
                   className="flex items-start justify-between cursor-pointer"
                 >
-                  <div className="flex items-start gap-2.5">
+                  <div className="flex items-start gap-1.5 sm:gap-2">
                     <input
                       type="radio"
                       name="delivery"
@@ -638,7 +644,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       </p>
                     </div>
                   </div>
-                  <span className="text-xs sm:text-sm font-bold text-gray-900 shrink-0 pl-2 text-right leading-tight">
+                  <span className="text-xs sm:text-sm font-bold text-gray-900 shrink-0 pl-1.5 text-right leading-tight">
                     {selectedShippingOption ? (
                       `$ ${selectedShippingOption.price.toLocaleString('es-AR')}`
                     ) : (
@@ -730,7 +736,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                           Opciones de envío disponibles para tu zona:
                         </label>
                         {shippingZoneInfo && (
-                          <span className="text-xs font-semibold text-[#0058bb] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                          <span className="hidden text-xs font-semibold text-[#0058bb] bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
                             {shippingZoneInfo.zoneLabel}
                           </span>
                         )}
@@ -799,7 +805,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           </div>
 
           {/* 3. Medio de Pago */}
-          <div className="space-y-2 px-1 sm:px-0">
+          <div className="space-y-2">
             <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 font-['Montserrat'] flex items-center gap-2">
               <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 text-[#0058bb]" />
               Medio de Pago
@@ -808,19 +814,19 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             <div className="space-y-2">
               {/* Transferencia */}
               <label
-                className={`flex items-start justify-between bg-white p-3 rounded-xl border-2 transition-all cursor-pointer min-h-[48px] ${
+                className={`w-full flex items-start justify-between bg-white p-2 sm:p-2.5 rounded-xl border-2 transition-all cursor-pointer min-h-[46px] ${
                   paymentMethod === 'transfer'
                     ? 'border-[#0058bb] bg-blue-50/20 shadow-xs'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                <div className="flex items-start gap-2.5">
+                <div className="flex items-start gap-1.5 sm:gap-2">
                   <input
                     type="radio"
                     name="payment"
                     checked={paymentMethod === 'transfer'}
                     onChange={() => handleSelectPaymentMethod('transfer')}
-                    className="mt-1 text-[#0058bb] focus:ring-[#0058bb]"
+                    className="mt-0.5 text-[#0058bb] focus:ring-[#0058bb]"
                   />
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -831,7 +837,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     </p>
                   </div>
                 </div>
-                <div className="text-right shrink-0 pl-2">
+                <div className="text-right shrink-0 pl-1.5">
                   <span className="text-sm sm:text-base font-bold text-gray-900 font-['Montserrat'] block">
                     $ {transferTotal.toLocaleString('es-AR')}
                   </span>
@@ -841,19 +847,19 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
               {/* Efectivo (Solo disponible para retiro en local) */}
               {deliveryOption === 'pickup' && (
                 <label
-                  className={`flex items-start justify-between bg-white p-3 rounded-xl border-2 transition-all cursor-pointer min-h-[48px] ${
+                  className={`w-full flex items-start justify-between bg-white p-2 sm:p-2.5 rounded-xl border-2 transition-all cursor-pointer min-h-[46px] ${
                     paymentMethod === 'cash'
                       ? 'border-[#0058bb] bg-blue-50/20 shadow-xs'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  <div className="flex items-start gap-2.5">
+                  <div className="flex items-start gap-1.5 sm:gap-2">
                     <input
                       type="radio"
                       name="payment"
                       checked={paymentMethod === 'cash'}
                       onChange={() => handleSelectPaymentMethod('cash')}
-                      className="mt-1 text-[#0058bb] focus:ring-[#0058bb]"
+                      className="mt-0.5 text-[#0058bb] focus:ring-[#0058bb]"
                     />
                     <div>
                       <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
@@ -867,7 +873,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       </p>
                     </div>
                   </div>
-                  <div className="text-right shrink-0 pl-2">
+                  <div className="text-right shrink-0 pl-1.5">
                     <span className="text-sm sm:text-base font-bold text-[#00a650] font-['Montserrat'] block">
                       $ {cashTotal.toLocaleString('es-AR')}
                     </span>
@@ -931,7 +937,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
 
           <div className="space-y-2.5 text-xs sm:text-sm">
             <div className="flex justify-between text-gray-600">
-              <span>Productos ({totalQuantity} u.)</span>
+              <span>Productos ({totalQuantity} unids)</span>
               <span className="font-normal text-gray-900">${productsSubtotal.toLocaleString('es-AR')}</span>
             </div>
 

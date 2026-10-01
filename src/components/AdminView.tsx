@@ -55,6 +55,8 @@ import { ShippingConfigManager } from './admin/ShippingConfigManager';
 import { QuickBuyLinkManager, OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
 import { LaunchesManager } from './admin/LaunchesManager';
 import { BestSellersManager } from './admin/BestSellersManager';
+import { StoreSettingsManager } from './admin/StoreSettingsManager';
+import { getStoreSettings, fetchStoreSettingsFromSupabase, StoreSettings } from '../services/storeSettings';
 import { isQuickBuyOrder } from '../services/quickBuyLink';
 import {
   Lock,
@@ -96,6 +98,7 @@ import {
   ArrowUpRight,
   Video,
   Rocket,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 export const resolveOrderItemPrices = (
@@ -169,8 +172,27 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'best_sellers' | 'banners' | 'videos' | 'orders' | 'bulk_price_update' | 'integrations' | 'analytics' | 'quick_buy_link' | 'shipping' | 'launches'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'best_sellers' | 'banners' | 'videos' | 'orders' | 'bulk_price_update' | 'integrations' | 'analytics' | 'quick_buy_link' | 'shipping' | 'launches' | 'store_settings'>('products');
   const [updatingBestSellerId, setUpdatingBestSellerId] = useState<string | null>(null);
+
+  // Visibilidad configurable de botones de tienda (Comprar ahora)
+  const [storeSettings, setStoreSettings] = useState<StoreSettings>(() => getStoreSettings());
+
+  useEffect(() => {
+    fetchStoreSettingsFromSupabase()
+      .then((s) => setStoreSettings(s))
+      .catch(() => {});
+
+    const handleSettingsUpdate = (e: CustomEvent<StoreSettings>) => {
+      if (e.detail) {
+        setStoreSettings(e.detail);
+      }
+    };
+    window.addEventListener('my_commerce_store_settings_updated' as any, handleSettingsUpdate);
+    return () => {
+      window.removeEventListener('my_commerce_store_settings_updated' as any, handleSettingsUpdate);
+    };
+  }, []);
 
   // Visibilidad de la sección Próximos Lanzamientos
   const [isLaunchesVisible, setIsLaunchesVisible] = useState<boolean>(() => isLaunchesSectionVisible());
@@ -1616,6 +1638,27 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
         </button>
 
         <button
+          onClick={() => setActiveTab('store_settings')}
+          className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 cursor-pointer transition-colors border-b-2 whitespace-nowrap ${
+            activeTab === 'store_settings'
+              ? 'border-[#0058bb] text-[#0058bb]'
+              : 'border-transparent text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <SlidersHorizontal className="w-4 h-4 text-[#0058bb]" />
+          <span>Botones y Tienda</span>
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+              storeSettings.showBuyNowButton
+                ? 'bg-emerald-100 text-emerald-800'
+                : 'bg-amber-100 text-amber-800'
+            }`}
+          >
+            {storeSettings.showBuyNowButton ? 'Comprar Ahora Activo' : 'Comprar Ahora Oculto'}
+          </span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('integrations')}
           className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 cursor-pointer transition-colors border-b-2 whitespace-nowrap ${
             activeTab === 'integrations'
@@ -2361,6 +2404,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
       {/* TAB 8: GESTIÓN DE PRÓXIMOS LANZAMIENTOS */}
       {activeTab === 'launches' && (
         <LaunchesManager />
+      )}
+
+      {/* TAB 9: CONFIGURACIÓN DE BOTONES Y FUNCIONES DE TIENDA */}
+      {activeTab === 'store_settings' && (
+        <StoreSettingsManager />
       )}
 
       {/* ---------------- EDIT / CREATE PRODUCT MODAL ---------------- */}

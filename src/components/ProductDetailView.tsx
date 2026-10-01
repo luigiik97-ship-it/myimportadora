@@ -19,6 +19,7 @@ import { VideoViewerModal } from './common/VideoViewerModal';
 import { ProductCardBadge } from './common/ProductCardBadge';
 import { StoreVideo } from '../types';
 import { usePurchaseMode } from '../context/PurchaseModeContext';
+import { getStoreSettings, StoreSettings } from '../services/storeSettings';
 import {
   Truck,
   ShieldCheck,
@@ -252,6 +253,23 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   // Showcase video player state (reproduce una sola vez sin sonido y luego para)
   const showcaseVideoRef = useRef<HTMLVideoElement | null>(null);
   const [isShowcaseVideoPlaying, setIsShowcaseVideoPlaying] = useState<boolean>(true);
+
+  // Visibilidad configurable del botón "Comprar ahora" desde la administración
+  const [showBuyNowButton, setShowBuyNowButton] = useState<boolean>(() => {
+    return getStoreSettings().showBuyNowButton;
+  });
+
+  useEffect(() => {
+    const handleSettingsUpdate = (e: CustomEvent<StoreSettings>) => {
+      if (e.detail && typeof e.detail.showBuyNowButton === 'boolean') {
+        setShowBuyNowButton(e.detail.showBuyNowButton);
+      }
+    };
+    window.addEventListener('my_commerce_store_settings_updated' as any, handleSettingsUpdate);
+    return () => {
+      window.removeEventListener('my_commerce_store_settings_updated' as any, handleSettingsUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     if (galleryMedia[activeMediaIndex]?.type === 'video') {
@@ -809,7 +827,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                               type="button"
                               disabled={isOptOutOfStock}
                               onClick={() => handleSelectOption(vt, option)}
-                              className={`px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-sm sm:text-base font-medium transition-all flex items-center gap-1.5 ${
+                              className={`px-2 py-1.5 sm:px-2.5 sm:py-2 rounded-xl text-sm sm:text-base font-medium transition-all flex items-center gap-1 sm:gap-1.5 ${
                                 isOptOutOfStock
                                   ? 'border border-dashed border-gray-300 bg-gray-100/80 text-gray-400 opacity-60 cursor-not-allowed select-none'
                                   : isSelected
@@ -844,14 +862,14 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             ) : null}
 
             {/* Discount Promo Banner */}
-            <div id="cash-discount-banner" className="order-6 lg:order-5 bg-white border border-[#16a34a] rounded-xl p-2 sm:p-2.5 flex items-center justify-between gap-2 sm:gap-3">
+            <div id="cash-discount-banner" className="order-7 lg:order-5 bg-white border border-[#16a34a] rounded-xl p-2 sm:p-2.5 flex items-center justify-between gap-2 sm:gap-3">
               <div className="flex items-center min-w-0">
                 <div className="text-xs sm:text-sm min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="font-bold text-[14.5px] text-[#16a34a]">Descuento pagando en efectivo</span>
                   </div>
                   <p className="text-gray-600 text-xs sm:text-sm mt-0.5 leading-tight">
-                    Aplicable cuando pase a retirar su compra en el local
+                    seleccionado &quot;retiro en el local&quot;
                   </p>
                 </div>
               </div>
@@ -861,7 +879,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 type="button"
                 id="detail-cash-mode-toggle-btn"
                 onClick={() => setPurchaseMode(isCashMode ? 'transfer' : 'cash')}
-                className={`shrink-0 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer select-none flex items-center gap-1.5 ${
+                className={`shrink-0 px-2 sm:px-2.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer select-none flex items-center gap-1 sm:gap-1.5 ${
                   isCashMode
                     ? 'bg-[#16a34a] text-white border border-[#16a34a] shadow-xs'
                     : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300'
@@ -870,20 +888,20 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 title="Activar o desactivar precio en efectivo"
               >
                 <Banknote className={`w-4 h-4 shrink-0 ${isCashMode ? 'text-white' : 'text-gray-500'}`} />
-                <span>efectivo</span>
+                <span>Efectivo</span>
               </button>
             </div>
 
             {/* Shipping & Delivery Highlights */}
-            <div className="order-7 lg:order-6 space-y-1.5 pt-1 text-sm sm:text-base text-gray-700">
+            <div className="order-6 lg:order-6 space-y-1.5 pt-1 text-sm sm:text-base text-gray-700">
               <div className="flex items-start gap-2.5">
-                <Truck className="w-4 h-4 sm:w-5 sm:h-5 text-[#00a650] shrink-0 mt-0.5" />
+                <Truck className="w-4 h-4 sm:w-5 sm:h-5 text-[#16a34a] shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold text-gray-900 block text-sm sm:text-base">Envío a domicilio</span>
                   <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                    <span className="bg-black/90 text-xs sm:text-sm font-bold px-2 py-0.5 rounded text-white">Uber moto</span>
                     <span className="bg-[#a3e635] text-xs sm:text-sm font-bold px-2 py-0.5 rounded text-gray-900">Envíos Flex</span>
                     <span className="bg-[#facc15] text-xs sm:text-sm font-bold px-2 py-0.5 rounded text-gray-900">Correo Argentino</span>
-                    <span className="bg-black text-xs sm:text-sm font-bold px-2 py-0.5 rounded text-white">Uber moto</span>
                   </div>
                 </div>
               </div>
@@ -991,18 +1009,20 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
               {/* Action Buttons */}
               <div className="space-y-2 sm:space-y-2.5 pt-1">
-                <button
-                  id="buy-now-btn"
-                  disabled={isCurrentSelectionOutOfStock}
-                  onClick={handleBuy}
-                  className={`w-full font-bold py-3.5 sm:py-3 px-5 sm:px-6 rounded-xl text-base sm:text-base transition-colors shadow-xs min-h-[48px] sm:min-h-[48px] flex items-center justify-center ${
-                    isCurrentSelectionOutOfStock
-                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
-                      : 'bg-[#0058bb] hover:bg-[#004bb0] text-white cursor-pointer active:scale-[0.99]'
-                  }`}
-                >
-                  {isCurrentSelectionOutOfStock ? 'Sin stock disponible' : 'Comprar ahora'}
-                </button>
+                {showBuyNowButton && (
+                  <button
+                    id="buy-now-btn"
+                    disabled={isCurrentSelectionOutOfStock}
+                    onClick={handleBuy}
+                    className={`w-full font-bold py-3.5 sm:py-3 px-5 sm:px-6 rounded-xl text-base sm:text-base transition-colors shadow-xs min-h-[48px] sm:min-h-[48px] flex items-center justify-center ${
+                      isCurrentSelectionOutOfStock
+                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+                        : 'bg-[#0058bb] hover:bg-[#004bb0] text-white cursor-pointer active:scale-[0.99]'
+                    }`}
+                  >
+                    {isCurrentSelectionOutOfStock ? 'Sin stock disponible' : 'Comprar ahora'}
+                  </button>
+                )}
 
                 <button
                   id="add-to-cart-btn"
@@ -1011,6 +1031,8 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   className={`w-full font-bold py-3.5 sm:py-3 px-5 sm:px-6 rounded-xl text-base sm:text-base transition-colors flex items-center justify-center gap-2 min-h-[48px] sm:min-h-[48px] ${
                     isCurrentSelectionOutOfStock
                       ? 'bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed'
+                      : !showBuyNowButton
+                      ? 'bg-[#0058bb] hover:bg-[#004bb0] text-white shadow-xs cursor-pointer active:scale-[0.99]'
                       : 'bg-white hover:bg-blue-50/50 text-[#0058bb] border-2 border-[#0058bb] cursor-pointer active:scale-[0.99]'
                   }`}
                 >
@@ -1018,7 +1040,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     'Sin stock'
                   ) : showAddedFeedback ? (
                     <>
-                      <Check className="w-5 h-5 text-emerald-600" />
+                      <Check className={`w-5 h-5 ${!showBuyNowButton ? 'text-white' : 'text-emerald-600'}`} />
                       ¡Agregado al Carrito!
                     </>
                   ) : (

@@ -385,9 +385,11 @@ export const CartView: React.FC<CartViewProps> = ({
             <div className="flex items-baseline justify-between">
               <div>
                 <span className="text-base font-bold text-gray-900 block leading-tight">Total</span>
-                <span className={`text-[11px] font-semibold block mt-0.5 ${isCashMode ? 'text-[#16a34a]' : 'text-[#0058bb]'}`}>
-                  {isCashMode ? 'Efectivo (exclusivo retiro en local)' : 'Transferencia bancaria'}
-                </span>
+                {isCashMode && (
+                  <span className="text-[11px] font-semibold block mt-0.5 text-[#16a34a]">
+                    Efectivo (exclusivo retiro en local)
+                  </span>
+                )}
               </div>
               <div className="text-right">
                 <span id="cart-total-amount" className="text-xl sm:text-[22px] font-bold font-['Montserrat'] text-gray-900">

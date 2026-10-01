@@ -714,7 +714,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       </section>
 
       {/* Selector de modalidad de compra (debajo de categorías y antes de productos) */}
-      <StorePurchaseModeSelector />
+      <StorePurchaseModeSelector className="-mt-1 sm:-mt-1.5" />
 
       {/* 3. Más vendidos: únicamente productos marcados */}
       {(bestSellers.length > 0 || isLoadingData) && (

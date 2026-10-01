@@ -19,6 +19,7 @@ import { fetchProductTags } from './services/productTags';
 import { fetchStoreBannersFromSupabase } from './services/storeBanners';
 import { fetchStoreVideosFromSupabase } from './services/storeVideos';
 import { fetchShippingConfigFromSupabase } from './services/shippingConfig';
+import { fetchStoreSettingsFromSupabase } from './services/storeSettings';
 import {
   ProductDetailRouteWrapper,
   CategoryRouteWrapper,
@@ -415,6 +416,7 @@ export default function App() {
         fetchStoreBannersFromSupabase().catch(() => {});
         fetchStoreVideosFromSupabase().catch(() => {});
         fetchShippingConfigFromSupabase().catch(() => {});
+        fetchStoreSettingsFromSupabase().catch(() => {});
         fetchProductTags(true).catch(() => {});
         fetchLaunchesVisibilityFromSupabase().then((vis) => setIsLaunchesVisible(vis)).catch(() => {});
       },
@@ -427,13 +429,14 @@ export default function App() {
     };
   }, []);
 
-  // Cargar configuraciones compartidas desde Supabase (Compra Rápida, Plantillas, Banners, Videos, Envíos y Próximos Lanzamientos)
+  // Cargar configuraciones compartidas desde Supabase (Compra Rápida, Plantillas, Banners, Videos, Envíos, Ajustes de Tienda y Próximos Lanzamientos)
   useEffect(() => {
     fetchQuickBuyLinkConfigFromSupabase().catch(() => {});
     fetchEmailTemplatesFromSupabase().catch(() => {});
     fetchStoreBannersFromSupabase().catch(() => {});
     fetchStoreVideosFromSupabase().catch(() => {});
     fetchShippingConfigFromSupabase().catch(() => {});
+    fetchStoreSettingsFromSupabase().catch(() => {});
     fetchLaunchesVisibilityFromSupabase().then((vis) => setIsLaunchesVisible(vis)).catch(() => {});
   }, []);
 
