@@ -133,9 +133,16 @@ export default function App() {
   const isCheckout = location.pathname === '/checkout' || location.pathname.startsWith('/checkout/');
   const isConfirmation = location.pathname === '/confirmacion' || location.pathname.startsWith('/confirmacion/');
   const isFooterHiddenOnMobile = isCart || isCheckout || isConfirmation;
-  const isAdmin = location.pathname === '/admin';
+  const isAdmin = location.pathname === '/k97' || location.pathname.startsWith('/k97');
   const isProductDetail = location.pathname.startsWith('/producto');
   const showTopBar = isHome || isCategory;
+
+  // Redirigir la antigua ruta /admin a la portada por privacidad y seguridad
+  useEffect(() => {
+    if (location.pathname === '/admin' || location.pathname.startsWith('/admin/')) {
+      navigate('/', { replace: true });
+    }
+  }, [location.pathname, navigate]);
 
   // Dismiss cart notification immediately whenever navigating away from product_detail
   useEffect(() => {
@@ -1131,6 +1138,10 @@ export default function App() {
           <Route path="/contacto" element={<Navigate to="/informacion/contacto" replace />} />
           <Route path="/nosotros" element={<Navigate to="/informacion/sobre-nosotros" replace />} />
           <Route path="/trabaja-con-nosotros" element={<Navigate to="/informacion/trabaja-con-nosotros" replace />} />
+
+          {/* Rutas administrativas */}
+          <Route path="/admin" element={<Navigate to="/" replace />} />
+          <Route path="/k97" element={<AdminView onExitAdmin={handleExitAdmin} />} />
 
           {/* Catch-all route to home */}
           <Route path="*" element={<Navigate to="/" replace />} />

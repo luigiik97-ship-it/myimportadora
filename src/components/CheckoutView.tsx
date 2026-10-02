@@ -830,10 +830,10 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   />
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-bold text-gray-900">Transferencia Bancaria</span>
+                      <span className="text-sm font-bold text-gray-900">Transferencia</span>
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5 leading-snug">
-                      Le enviaremos el Alias / CVU para realizar el pago.
+                      Realiza el pago por Alias / CVU.
                     </p>
                   </div>
                 </div>
@@ -865,7 +865,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                         <span className="text-sm font-bold text-gray-900">Efectivo</span>
                         <span className="bg-[#a3e635] text-gray-900 text-xs font-bold px-2 py-0.5 rounded">
-                          Precio en efectivo
+                          Total en efectivo
                         </span>
                       </div>
                       <p className="text-xs text-gray-500 mt-0.5">
@@ -882,9 +882,6 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                         $ {transferTotal.toLocaleString('es-AR')}
                       </span>
                     )}
-                    <span className="text-xs font-bold text-[#00a650] block leading-tight">
-                      Precio total
-                    </span>
                   </div>
                 </label>
               )}

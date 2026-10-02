@@ -317,16 +317,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
   const [isDeletingOrder, setIsDeletingOrder] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD || 'admin';
+  const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD || 'yugar';
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput === adminPassword || passwordInput === 'admin') {
+    if (passwordInput === adminPassword || passwordInput === 'yugar') {
       setIsAuthenticated(true);
       sessionStorage.setItem('my_admin_auth', 'true');
       setAuthError(null);
     } else {
-      setAuthError('Contraseña de administrador incorrecta. (Por defecto: admin)');
+      setAuthError('Contraseña de administrador incorrecta.');
     }
   };
 
@@ -1325,7 +1325,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                 required
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
-                placeholder="Ingresa la clave (ej: admin)"
+                placeholder="Ingresa la clave de administrador"
                 className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb]"
               />
             </div>

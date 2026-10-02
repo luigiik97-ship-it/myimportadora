@@ -114,7 +114,7 @@ export const formatPathTitle = (path: string): string => {
   if (path.startsWith('/confirmacion')) return 'Confirmación de Pedido';
   if (path.startsWith('/compra-rapida') || path.startsWith('/quick-buy')) return 'Compra Rápida Mayorista';
   if (path.startsWith('/informacion')) return 'Información & Ayuda';
-  if (path.startsWith('/admin')) return 'Panel de Administración';
+  if (path.startsWith('/k97') || path.startsWith('/admin')) return 'Panel de Administración';
   return path;
 };
 
@@ -128,7 +128,7 @@ export const recordSiteVisit = async (path: string, customTitle?: string): Promi
   if (typeof window === 'undefined') return null;
 
   // Do not track admin page visits as public consumer visits
-  if (path.startsWith('/admin')) {
+  if (path.startsWith('/k97') || path.startsWith('/admin')) {
     return null;
   }
 
