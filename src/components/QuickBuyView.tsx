@@ -51,7 +51,7 @@ import {
 import { getNextCorrelativeOrderNumber, saveOrder, generateUniqueOrderId } from '../services/supabase';
 import { getLocalAuthUser, getLocalProfiles } from '../services/auth';
 import { OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
-import { PostPurchaseModal } from './common/PostPurchaseModal';
+import { useNavigate } from 'react-router-dom';
 import { getOptimizedImageUrl } from '../utils/imageOptimizer';
 
 export interface QuickBuyItem {
@@ -100,6 +100,7 @@ interface QuickBuyViewProps {
   currentUser?: UserProfile | null;
   onSaveOrder?: (orderPayload: any) => Promise<Order>;
   onClearCart?: () => void;
+  onOrderCompleted?: (order: Order) => void;
 }
 
 export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
@@ -121,13 +122,14 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
   currentUser,
   onSaveOrder,
   onClearCart,
+  onOrderCompleted,
 }) => {
+  const navigate = useNavigate();
   const [isCustomLinkMode, setIsCustomLinkMode] = useState<boolean>(() => {
     return isQuickBuyCustomLinkActive(typeof window !== 'undefined' ? window.location.search : '');
   });
   const [isSubmittingWhatsAppOrder, setIsSubmittingWhatsAppOrder] = useState(false);
   const [orderSaveError, setOrderSaveError] = useState<string | null>(null);
-  const [whatsAppSuccessModal, setWhatsAppSuccessModal] = useState<any | null>(null);
 
   // Mantener actualizado el modo de enlace personalizado si cambia la URL o la configuración
   useEffect(() => {
@@ -682,20 +684,36 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         onClearCart();
       }
 
-      // 11. Mostrar ventanita post-compra con los 3 botones solicitados
-      setWhatsAppSuccessModal({
+      // 11. Redirigir a la pantalla final estable "Gracias por tu compra" (/confirmacion)
+      const completeOrderData: Order = {
         ...savedOrder,
+        id: savedOrder.id || `order-${Date.now()}`,
         orderNumber: confirmedOrderNumber,
         items: (savedOrder.items && savedOrder.items.length > 0) ? savedOrder.items : processedItems,
         total: finalOrderTotal,
+        subtotal: orderPayload.subtotal,
         paymentMethod,
-        deliveryOption,
+        deliveryOption: deliveryOption || 'pickup',
         shippingMethodName: selectedShippingOption?.name,
         shippingCost,
         customerName: customerName,
         customerWhatsapp: customerWhatsapp,
+        customerEmail: savedOrder.customerEmail || currentUser?.email || '',
+        deliveryAddress: orderPayload.deliveryAddress,
         totalUnits,
-      });
+        status: savedOrder.status || 'pending_payment',
+        createdAt: savedOrder.createdAt || new Date().toISOString(),
+      };
+
+      if (onOrderCompleted) {
+        onOrderCompleted(completeOrderData);
+      } else {
+        try {
+          sessionStorage.setItem('my_commerce_last_order', JSON.stringify(completeOrderData));
+        } catch (e) {}
+        navigate('/confirmacion');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     } catch (err) {
       console.error('Error procesando pedido de compra rápida WhatsApp:', err);
       setOrderSaveError('No se pudo registrar el pedido. Por favor verifica tu conexión e intenta nuevamente.');
@@ -1606,16 +1624,6 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
             </div>
           </div>
         </div>
-      )}
-
-      {/* Modal de Pedido Registrado por WhatsApp con los 3 botones solicitados */}
-      {whatsAppSuccessModal && (
-        <PostPurchaseModal
-          isOpen={!!whatsAppSuccessModal}
-          onClose={() => setWhatsAppSuccessModal(null)}
-          order={whatsAppSuccessModal}
-          onContinueShopping={() => setWhatsAppSuccessModal(null)}
-        />
       )}
     </div>
   );

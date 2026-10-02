@@ -17,6 +17,7 @@ import { getOptimizedImageUrl } from '../utils/imageOptimizer';
 import { ProductImageLightbox } from './common/ProductImageLightbox';
 import { VideoViewerModal } from './common/VideoViewerModal';
 import { ProductCardBadge } from './common/ProductCardBadge';
+import { ShareModal } from './common/ShareModal';
 import { StoreVideo } from '../types';
 import { usePurchaseMode } from '../context/PurchaseModeContext';
 import { getStoreSettings, StoreSettings } from '../services/storeSettings';
@@ -39,6 +40,7 @@ import {
   Play,
   Maximize2,
   Video as VideoIcon,
+  Share2,
 } from 'lucide-react';
 
 interface ProductDetailViewProps {
@@ -138,6 +140,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   const [activeMediaIndex, setActiveMediaIndex] = useState<number>(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState<boolean>(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
 
   // Active gallery of images based on current variant selection (falls back to product.images)
   const activeImages: string[] = useMemo(() => {
@@ -187,6 +190,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     const list: StoreVideo[] = [
       {
         id: `prod-vid-${product.id}`,
+        productId: product.id,
         videoUrl: product.videoUrl.trim(),
         title: product.title,
         createdAt: product.createdAt || new Date().toISOString(),
@@ -198,6 +202,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
       if (p.id !== product.id && p.videoUrl && p.videoUrl.trim()) {
         list.push({
           id: `prod-vid-${p.id}`,
+          productId: p.id,
           videoUrl: p.videoUrl.trim(),
           title: p.title,
           createdAt: p.createdAt || new Date().toISOString(),
@@ -584,6 +589,20 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               onTouchEnd={handleTouchEnd}
             >
               <ProductCardBadge product={product} className="!top-2.5 !left-2.5 sm:!top-4 sm:!left-4 text-xs sm:text-sm px-2.5 sm:px-3 py-1" />
+              {/* Botón Compartir en la esquina superior derecha, superpuesto */}
+              <button
+                type="button"
+                id="btn-share-product-detail"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsShareModalOpen(true);
+                }}
+                className="absolute top-2.5 right-2.5 sm:top-4 sm:right-4 z-20 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/90 hover:bg-white active:scale-95 text-gray-700 hover:text-gray-950 flex items-center justify-center shadow-sm border border-gray-200/90 backdrop-blur-xs transition-all cursor-pointer"
+                aria-label="Compartir producto"
+                title="Compartir producto"
+              >
+                <Share2 className="w-4 h-4 md:w-5 md:h-5 text-gray-700 hover:text-gray-950" />
+              </button>
               {galleryMedia[activeMediaIndex]?.type === 'video' ? (
                 <div className="relative aspect-[9/16] h-full max-h-[390px] sm:max-h-[440px] md:max-h-[460px] max-w-full bg-black rounded-none sm:rounded-xl overflow-hidden shadow-md flex items-center justify-center">
                   <video
@@ -1255,6 +1274,13 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
           const target = allProducts.find((p) => p.id === targetId);
           if (target) onSelectRelated(target);
         }}
+      />
+
+      {/* Share Modal para el detalle de producto */}
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        product={product}
       />
     </div>
   );

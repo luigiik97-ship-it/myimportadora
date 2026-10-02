@@ -37,6 +37,17 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   onDeliveryOptionChange,
   onPaymentMethodChange,
 }) => {
+  // Redirigir a inicio si el carrito está vacío (ej. después de comprar) impidiendo volver al checkout
+  useEffect(() => {
+    if (!cartItems || cartItems.length === 0) {
+      window.location.replace('/');
+    }
+  }, [cartItems]);
+
+  if (!cartItems || cartItems.length === 0) {
+    return null;
+  }
+
   // Auth Modal State
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 

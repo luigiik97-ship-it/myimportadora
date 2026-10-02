@@ -5,7 +5,6 @@ import {
   VolumeX,
   Play,
   Share2,
-  Check,
   ChevronUp,
   ChevronDown,
   ArrowRight,
@@ -14,6 +13,7 @@ import { StoreVideo, Product } from '../../types';
 import { ProductCardPrice } from './ProductCardPrice';
 import { ImageWithSkeleton } from './ImageWithSkeleton';
 import { isProductCompletelyOutOfStock } from '../../utils/variantHelpers';
+import { ShareModal } from './ShareModal';
 
 interface VideoViewerModalProps {
   isOpen: boolean;
@@ -38,7 +38,7 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
   const [isPlaying, setIsPlaying] = useState(true);
   // Default unmuted as requested: "comienza automáticamente con sonido y en loop"
   const [isMuted, setIsMuted] = useState(false);
-  const [showShareToast, setShowShareToast] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const modalContainerRef = useRef<HTMLDivElement | null>(null);
@@ -110,43 +110,6 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
     setIsMuted(nextMuted);
   }, []);
 
-  // Share handler
-  const handleShare = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!currentVideo) return;
-
-    const assignedProduct = currentVideo.productId
-      ? products.find((p) => p.id === currentVideo.productId)
-      : undefined;
-
-    const shareTitle = assignedProduct?.title || currentVideo.title || 'Video en Michy';
-    const shareUrl = assignedProduct
-      ? `${window.location.origin}?product=${assignedProduct.id}`
-      : window.location.href;
-
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: shareTitle,
-          text: `Mira este video en Michy: ${shareTitle}`,
-          url: shareUrl,
-        });
-        return;
-      } catch (err) {
-        if ((err as Error).name === 'AbortError') return;
-      }
-    }
-
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      setShowShareToast(true);
-      setTimeout(() => setShowShareToast(false), 2500);
-    } catch {
-      setShowShareToast(true);
-      setTimeout(() => setShowShareToast(false), 2500);
-    }
-  };
-
   const goToNext = useCallback(() => {
     if (videos.length === 0) return;
     setCurrentIndex((prev) => (prev < videos.length - 1 ? prev + 1 : 0));
@@ -205,28 +168,26 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
 
   if (!isOpen || !currentVideo) return null;
 
-  // Check if video is assigned to a publication in the admin panel and allowed to be shown
-  const hasAssignedProduct = Boolean(
-    showAssociatedProduct &&
-    currentVideo.productId &&
+  // Check if video has an associated product
+  const associatedProduct = (currentVideo.productId &&
     currentVideo.productId.trim() !== '' &&
-    currentVideo.productId !== 'none'
-  );
+    currentVideo.productId !== 'none')
+      ? products.find((p) => p.id === currentVideo.productId) || (currentVideo.productPrice !== undefined ? {
+          id: currentVideo.productId!,
+          title: currentVideo.productTitle || currentVideo.title || 'Producto',
+          category: '',
+          wholesalePrice: currentVideo.productPrice,
+          retailPrice: currentVideo.productPrice,
+          minWholesaleQty: 1,
+          stock: 99,
+          images: currentVideo.productImage ? [currentVideo.productImage] : [],
+          description: '',
+          createdAt: currentVideo.createdAt,
+        } as Product : undefined)
+      : undefined;
 
-  const linkedProduct = hasAssignedProduct
-    ? products.find((p) => p.id === currentVideo.productId) || (currentVideo.productPrice !== undefined ? {
-        id: currentVideo.productId!,
-        title: currentVideo.productTitle || currentVideo.title || 'Producto',
-        category: '',
-        wholesalePrice: currentVideo.productPrice,
-        retailPrice: currentVideo.productPrice,
-        minWholesaleQty: 1,
-        stock: 99,
-        images: currentVideo.productImage ? [currentVideo.productImage] : [],
-        description: '',
-        createdAt: currentVideo.createdAt,
-      } as Product : undefined)
-    : undefined;
+  const hasAssignedProduct = Boolean(showAssociatedProduct && associatedProduct);
+  const linkedProduct = associatedProduct;
 
   return (
     <div
@@ -298,29 +259,24 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
               {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5 text-emerald-400" />}
             </button>
 
-            {/* Share Button */}
-            <button
-              type="button"
-              id="btn-share-video-viewer"
-              onClick={handleShare}
-              className="w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 active:scale-95 text-white flex items-center justify-center transition-transform backdrop-blur-md cursor-pointer border border-white/15"
-              aria-label="Compartir video"
-              title="Compartir video"
-            >
-              <Share2 className="w-5 h-5 text-white" />
-            </button>
+            {/* Share Button: Solo se muestra si el video tiene producto asociado */}
+            {associatedProduct && (
+              <button
+                type="button"
+                id="btn-share-video-viewer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsShareModalOpen(true);
+                }}
+                className="w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 active:scale-95 text-white flex items-center justify-center transition-transform backdrop-blur-md cursor-pointer border border-white/15"
+                aria-label="Compartir producto"
+                title="Compartir producto"
+              >
+                <Share2 className="w-5 h-5 text-white" />
+              </button>
+            )}
           </div>
         </div>
-
-        {/* Share Toast Notification */}
-        {showShareToast && (
-          <div className="absolute top-16 inset-x-4 z-30 flex justify-center pointer-events-none transition-all">
-            <div className="bg-black/85 text-white text-xs font-semibold px-4 py-2 rounded-full border border-white/20 shadow-xl backdrop-blur-md flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-400" />
-              <span>¡Enlace copiado al portapapeles!</span>
-            </div>
-          </div>
-        )}
 
         {/* Play/Pause Center Indicator (visible when paused) */}
         {!isPlaying && (
@@ -417,6 +373,15 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* Share Modal para el producto asociado al Reel/Video */}
+      {associatedProduct && (
+        <ShareModal
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+          product={associatedProduct}
+        />
+      )}
     </div>
   );
 };

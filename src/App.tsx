@@ -751,7 +751,7 @@ export default function App() {
       sessionStorage.setItem('my_commerce_last_order', JSON.stringify(order));
     } catch (e) {}
     setCart([]); // Clear cart
-    navigate('/confirmacion');
+    navigate('/confirmacion', { replace: true });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -1086,6 +1086,7 @@ export default function App() {
                 currentUser={currentUser}
                 onSaveOrder={handleSaveOrderToSupabaseAndEmail}
                 onClearCart={() => setCart([])}
+                onOrderCompleted={handleOrderCompleted}
               />
             }
           />

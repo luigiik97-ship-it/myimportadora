@@ -1,14 +1,38 @@
 import React, { useState } from 'react';
 import { Order } from '../types';
-import { CheckCircle2, Copy, Check, MessageSquare, ShoppingBag, Truck, Store, CreditCard, Mail, Image as ImageIcon, Download, Share2 } from 'lucide-react';
-import { getDirectWhatsAppChatUrl, triggerWhatsAppOpen } from '../services/quickBuyLink';
+import {
+  CheckCircle2,
+  Copy,
+  Check,
+  Truck,
+  Store,
+  CreditCard,
+  Mail,
+  Download,
+  Share2,
+  Loader2,
+  AlertCircle,
+  FileText
+} from 'lucide-react';
+import { getDirectWhatsAppChatUrl, triggerWhatsAppOpen, normalizeVariantText } from '../services/quickBuyLink';
 import { OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
-import { PostPurchaseModal } from './common/PostPurchaseModal';
 import { getOptimizedImageUrl } from '../utils/imageOptimizer';
+import { generateReceiptPdfBlob, ReceiptData } from '../utils/receiptCanvas';
 
 interface OrderConfirmationViewProps {
   order: Order;
   onContinueShopping: () => void;
+}
+
+function triggerDownloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
@@ -17,7 +41,23 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
 }) => {
   const [copiedAlias, setCopiedAlias] = useState(false);
   const [copiedCvu, setCopiedCvu] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(true);
+  const [isGenerating, setIsGenerating] = useState<'summary' | 'detail' | 'share' | null>(null);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Interceptar el botón "Atrás" del navegador o celular para llevar siempre a inicio ('/')
+  // e impedir volver al checkout anterior
+  React.useEffect(() => {
+    window.history.pushState(null, '', window.location.href);
+
+    const handlePopState = () => {
+      window.location.replace('/');
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
 
   const safeItems = Array.isArray(order?.items) ? order.items : [];
 
@@ -35,6 +75,119 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
 
   const handleContactWhatsApp = () => {
     triggerWhatsAppOpen(getDirectWhatsAppChatUrl());
+  };
+
+  // Construir datos del comprobante para el generador nativo de PDF multipágina
+  const buildReceiptData = (): ReceiptData => {
+    const totalUnits =
+      order.totalUnits ??
+      safeItems.reduce((acc, it) => acc + (it.quantity || 1), 0);
+
+    return {
+      orderNumber: order.orderNumber,
+      total: order.total,
+      subtotal: order.subtotal,
+      totalUnits,
+      itemsCount: safeItems.length,
+      paymentMethod: order.paymentMethod,
+      deliveryOption: order.deliveryOption,
+      shippingMethodName: order.shippingMethodName,
+      shippingCost: order.shippingCost,
+      cashDiscount: order.cashDiscount,
+      customerName: order.customerName,
+      customerWhatsapp: order.customerWhatsapp,
+      deliveryAddress: order.deliveryAddress,
+      createdAt: order.createdAt,
+      items: safeItems.map((it) => ({
+        title: it.title,
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        totalPrice: it.totalPrice,
+        variantText: normalizeVariantText(it.variantText),
+        image: it.image,
+        isWholesale: it.isWholesale,
+      })),
+    };
+  };
+
+  // Descargar comprobante en formato PDF
+  const handleDownloadPdf = async (mode: 'summary' | 'detail' = 'summary') => {
+    try {
+      setIsGenerating(mode);
+      setToast(null);
+
+      const receiptData = buildReceiptData();
+      const pdfBlob = await generateReceiptPdfBlob(receiptData, { mode });
+      const fileName = `Pedido-${order.orderNumber}-${mode === 'detail' ? 'Detalle' : 'Resumen'}.pdf`;
+      triggerDownloadBlob(pdfBlob, fileName);
+
+      setToast({
+        type: 'success',
+        text: `¡${mode === 'detail' ? 'Detalle' : 'Resumen'} en PDF descargado con éxito!`,
+      });
+      setTimeout(() => setToast(null), 4500);
+    } catch (err) {
+      console.error('Error generando PDF de comprobante:', err);
+      setToast({
+        type: 'error',
+        text: 'No se pudo generar el archivo PDF. Por favor, reintenta.',
+      });
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setIsGenerating(null);
+    }
+  };
+
+  // Compartir resumen en PDF (mediante Web Share en celulares o descarga + WhatsApp en PC)
+  const handleSharePdf = async () => {
+    try {
+      setIsGenerating('share');
+      setToast(null);
+
+      const receiptData = buildReceiptData();
+      const pdfBlob = await generateReceiptPdfBlob(receiptData, { mode: 'summary' });
+      const fileName = `Pedido-${order.orderNumber}-Resumen.pdf`;
+      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+      // Web Share API con soporte nativo de archivos (móviles Android / iOS)
+      if (
+        typeof navigator !== 'undefined' &&
+        navigator.canShare &&
+        navigator.canShare({ files: [file] })
+      ) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: `Resumen Pedido #${order.orderNumber}`,
+            text: `Hola, te comparto el comprobante/resumen en PDF de mi Pedido #${order.orderNumber}.`,
+          });
+          return;
+        } catch (err: any) {
+          if (err?.name === 'AbortError') return;
+          console.warn('Error en navigator.share:', err);
+        }
+      }
+
+      // En computadoras o navegadores sin Web Share: descarga y abre WhatsApp
+      triggerDownloadBlob(pdfBlob, fileName);
+      setToast({
+        type: 'success',
+        text: '¡PDF descargado! Abriendo WhatsApp para que lo envíes.',
+      });
+      setTimeout(() => setToast(null), 5000);
+      setTimeout(() => {
+        triggerWhatsAppOpen(getDirectWhatsAppChatUrl());
+      }, 400);
+    } catch (err) {
+      console.error('Error al compartir resumen PDF:', err);
+      setToast({
+        type: 'error',
+        text: 'No se pudo preparar el PDF para compartir. Por favor, reintenta.',
+      });
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setIsGenerating(null);
+    }
   };
 
   return (
@@ -222,9 +375,9 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
             </div>
           </div>
 
-          {/* Action buttons con los 3 botones solicitados */}
-          <div className="space-y-2.5 pt-2">
-            {/* BOTÓN 1: Contactar por WhatsApp (sin mensajes pre-escritos) */}
+          {/* Action buttons */}
+          <div className="space-y-2 pt-2">
+            {/* BOTÓN 1: Contactar por WhatsApp */}
             <button
               id="whatsapp-direct-btn"
               type="button"
@@ -235,24 +388,61 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
               <span>Contactar por WhatsApp</span>
             </button>
 
-            {/* BOTÓN 2 y 3: Abrir ventanita con opciones en PDF para Descargar y Compartir */}
+            {/* BOTÓN 2: Descargar Resumen en PDF */}
             <button
-              id="open-receipt-modal-btn"
+              id="download-summary-pdf-btn"
               type="button"
-              onClick={() => setIsModalOpen(true)}
-              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-4 rounded-xl text-sm uppercase tracking-wide transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer min-h-[46px]"
+              disabled={isGenerating !== null}
+              onClick={() => handleDownloadPdf('summary')}
+              className="w-full bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold py-3 px-4 rounded-xl text-xs sm:text-sm uppercase tracking-wide transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer min-h-[44px] disabled:opacity-60"
             >
-              <Share2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>Descargar / Enviar Resumen en PDF</span>
+              {isGenerating === 'summary' ? (
+                <Loader2 className="w-4 h-4 text-white animate-spin shrink-0" />
+              ) : (
+                <Download className="w-4 h-4 text-white shrink-0" />
+              )}
+              <span>{isGenerating === 'summary' ? 'Generando PDF...' : 'Descargar Resumen (PDF)'}</span>
             </button>
 
+            {/* BOTÓN 3: Compartir Resumen en PDF */}
+            <button
+              id="share-summary-pdf-btn"
+              type="button"
+              disabled={isGenerating !== null}
+              onClick={handleSharePdf}
+              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 px-4 rounded-xl text-xs sm:text-sm uppercase tracking-wide transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer min-h-[44px] disabled:opacity-60"
+            >
+              {isGenerating === 'share' ? (
+                <Loader2 className="w-4 h-4 text-white animate-spin shrink-0" />
+              ) : (
+                <Share2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              )}
+              <span>{isGenerating === 'share' ? 'Preparando PDF...' : 'Compartir Resumen (PDF)'}</span>
+            </button>
+
+            {/* BOTÓN 4: Seguir comprando */}
             <button
               id="continue-shopping-btn"
               type="button"
               onClick={onContinueShopping}
-              className="w-full bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold py-3 px-4 rounded-xl text-sm uppercase tracking-wide transition-colors shadow-sm cursor-pointer min-h-[44px]"
+              className="w-full bg-white hover:bg-gray-100 text-gray-800 border border-gray-300 font-bold py-2.5 px-4 rounded-xl text-xs sm:text-sm uppercase tracking-wide transition-colors shadow-xs cursor-pointer min-h-[40px] text-center"
             >
               Seguir comprando
+            </button>
+
+            {/* Opción secundaria: Detalle completo de productos */}
+            <button
+              type="button"
+              disabled={isGenerating !== null}
+              onClick={() => handleDownloadPdf('detail')}
+              className="w-full text-center text-xs text-gray-500 hover:text-[#0058bb] hover:underline pt-1.5 cursor-pointer flex items-center justify-center gap-1.5 transition-colors disabled:opacity-60"
+            >
+              {isGenerating === 'detail' ? (
+                <Loader2 className="w-3.5 h-3.5 text-gray-500 animate-spin shrink-0" />
+              ) : (
+                <FileText className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+              )}
+              <span>{isGenerating === 'detail' ? 'Generando detalle completo...' : 'Descargar detalle completo con todos los productos (PDF)'}</span>
             </button>
           </div>
         </div>
@@ -309,13 +499,23 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
         </div>
       </div>
 
-      {/* Ventanita Post-Compra interactiva */}
-      <PostPurchaseModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        order={order}
-        onContinueShopping={onContinueShopping}
-      />
+      {/* Floating feedback notification for PDF actions */}
+      {toast && (
+        <div
+          className={`fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl shadow-lg border text-xs sm:text-sm font-semibold flex items-center gap-2 animate-fadeIn max-w-[90vw] sm:max-w-md ${
+            toast.type === 'success'
+              ? 'bg-emerald-600 text-white border-emerald-700'
+              : 'bg-red-600 text-white border-red-700'
+          }`}
+        >
+          {toast.type === 'success' ? (
+            <Check className="w-4 h-4 shrink-0 text-white" />
+          ) : (
+            <AlertCircle className="w-4 h-4 shrink-0 text-white" />
+          )}
+          <span>{toast.text}</span>
+        </div>
+      )}
     </div>
   );
 };

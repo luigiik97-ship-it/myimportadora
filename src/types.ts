@@ -144,6 +144,7 @@ export interface Order {
   createdAt: string;
   emailSentToCustomer?: boolean;
   emailSentToAdmin?: boolean;
+  totalUnits?: number;
   source?: 'quick_buy' | 'web' | string;
 }
 

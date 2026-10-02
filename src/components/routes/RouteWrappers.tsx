@@ -205,13 +205,24 @@ export function ConfirmationRouteWrapper({
   lastOrder: Order | null;
   onContinueShopping: () => void;
 }) {
-  if (!lastOrder) {
+  let orderToDisplay = lastOrder;
+
+  if (!orderToDisplay && typeof window !== 'undefined') {
+    try {
+      const stored = sessionStorage.getItem('my_commerce_last_order');
+      if (stored) {
+        orderToDisplay = JSON.parse(stored);
+      }
+    } catch (e) {}
+  }
+
+  if (!orderToDisplay) {
     return <Navigate to="/" replace />;
   }
 
   return (
     <OrderConfirmationView
-      order={lastOrder}
+      order={orderToDisplay}
       onContinueShopping={onContinueShopping}
     />
   );

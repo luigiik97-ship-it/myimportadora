@@ -1408,51 +1408,60 @@ let inMemoryLatestOrderSeq = 1000;
 
 export const getNextCorrelativeOrderNumber = async (): Promise<string> => {
   let maxSeq = Math.max(1000, inMemoryLatestOrderSeq);
+  const existingNumbers = new Set<number>();
 
   // 1. Revisar secuencia guardada en localStorage
   try {
     const savedSeq = localStorage.getItem('my_commerce_correlative_order_seq');
     if (savedSeq) {
       const parsed = parseInt(savedSeq, 10);
-      if (!isNaN(parsed) && parsed >= maxSeq) {
-        maxSeq = parsed;
+      if (!isNaN(parsed) && parsed >= 1000) {
+        existingNumbers.add(parsed);
+        if (parsed > maxSeq) {
+          maxSeq = parsed;
+        }
       }
     }
   } catch (e) {}
 
-  // 2. Escanear pedidos locales existentes (ultimos 15)
+  // 2. Escanear pedidos locales existentes
   try {
     const localOrders = getLocalOrders();
-    const recentLocal = localOrders.slice(0, 15);
-    recentLocal.forEach((o) => {
+    localOrders.forEach((o) => {
       if (o.orderNumber) {
         const digits = o.orderNumber.replace(/\D/g, '');
         if (digits) {
           const val = parseInt(digits, 10);
-          if (!isNaN(val) && val >= maxSeq && val < 10000000) {
-            maxSeq = val;
+          if (!isNaN(val) && val >= 1000 && val < 10000000) {
+            existingNumbers.add(val);
+            if (val > maxSeq) {
+              maxSeq = val;
+            }
           }
         }
       }
     });
   } catch (e) {}
 
-  // 3. Escanear pedidos en Supabase para obtener la secuencia correlativa más alta en la nube (rápido limit: 5)
+  // 3. Escanear pedidos en Supabase para obtener la secuencia correlativa más alta en la nube (limit: 50)
   if (isSupabaseConfigured() && supabaseInstance) {
     try {
       const { data } = await supabaseInstance
         .from('orders')
         .select('order_number')
         .order('created_at', { ascending: false })
-        .limit(5);
+        .limit(50);
       if (data && Array.isArray(data)) {
         data.forEach((row: any) => {
           if (row.order_number) {
             const digits = String(row.order_number).replace(/\D/g, '');
             if (digits) {
               const val = parseInt(digits, 10);
-              if (!isNaN(val) && val >= maxSeq && val < 10000000) {
-                maxSeq = val;
+              if (!isNaN(val) && val >= 1000 && val < 10000000) {
+                existingNumbers.add(val);
+                if (val > maxSeq) {
+                  maxSeq = val;
+                }
               }
             }
           }
@@ -1461,7 +1470,20 @@ export const getNextCorrelativeOrderNumber = async (): Promise<string> => {
     } catch (e) {}
   }
 
-  const nextSeq = maxSeq + 1;
+  // Piso inicial garantizado de 4 cifras (1000)
+  if (maxSeq < 1000) {
+    maxSeq = 1000;
+  }
+
+  // Generar incremento no consecutivo pseudo-aleatorio (+2 a +7)
+  const jump = Math.floor(Math.random() * 6) + 2;
+  let nextSeq = maxSeq + jump;
+
+  // Garantizar unicidad estricta contra duplicados
+  while (existingNumbers.has(nextSeq)) {
+    nextSeq += Math.floor(Math.random() * 5) + 2;
+  }
+
   inMemoryLatestOrderSeq = nextSeq;
   try {
     localStorage.setItem('my_commerce_correlative_order_seq', nextSeq.toString());
