@@ -1,5 +1,6 @@
 import { ProductTag } from '../types';
 import { getSupabase, isSupabaseConfigured } from './supabase';
+import { requireAdminAuth } from './adminAuth';
 
 export const SYSTEM_PRODUCT_TAGS_ROW_ID = '__system_product_tags_v1__';
 export const STORAGE_KEY_PRODUCT_TAGS = 'my_commerce_product_tags_v1';
@@ -141,6 +142,7 @@ export const fetchProductTags = async (force = false): Promise<ProductTag[]> => 
 };
 
 export const saveProductTags = async (tags: ProductTag[]): Promise<ProductTag[]> => {
+  requireAdminAuth('guardar etiquetas de producto');
   cachedTags = [...tags];
   try {
     localStorage.setItem(STORAGE_KEY_PRODUCT_TAGS, JSON.stringify(tags));
@@ -184,6 +186,7 @@ export const createProductTag = async (
   color: string,
   textColor = '#ffffff'
 ): Promise<ProductTag> => {
+  requireAdminAuth('crear etiqueta de producto');
   const current = getLocalProductTags();
   const slug = label
     .trim()
@@ -222,6 +225,7 @@ export const createProductTag = async (
 };
 
 export const deleteProductTag = async (id: string): Promise<void> => {
+  requireAdminAuth('eliminar etiqueta de producto');
   const current = getLocalProductTags();
   const filtered = current.filter((t) => t.id !== id);
   await saveProductTags(filtered);

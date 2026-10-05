@@ -24,13 +24,20 @@ import {
   getLocalStoreVideos,
   fetchStoreVideosFromSupabase,
 } from '../services/storeVideos';
+import {
+  buildStandaloneVariantCards,
+  getStandaloneVariantsConfig,
+  StandaloneVariantsConfig,
+  StandaloneVariantCard,
+  fetchStandaloneVariantsFromSupabase,
+} from '../services/standaloneVariants';
 import { StoreVideo } from '../types';
 
 interface HomeViewProps {
   products: Product[];
   categories?: Category[];
   isLoadingData?: boolean;
-  onSelectProduct: (product: Product) => void;
+  onSelectProduct: (product: Product, selectedVariants?: Record<string, string>, selectedImage?: string) => void;
   onSelectCategory: (category: string) => void;
   currentCategory: string;
   searchQuery: string;
@@ -76,6 +83,61 @@ export const HomeView: React.FC<HomeViewProps> = ({
       window.removeEventListener('store-videos-updated' as any, handleVideosUpdate as any);
     };
   }, []);
+
+  // Sincronizar variantes independientes configuradas
+  const [standaloneVariantsConfig, setStandaloneVariantsConfig] = useState<StandaloneVariantsConfig>(() =>
+    getStandaloneVariantsConfig()
+  );
+
+  useEffect(() => {
+    fetchStandaloneVariantsFromSupabase().then((cfg) => {
+      setStandaloneVariantsConfig(cfg);
+    });
+
+    const handleStandaloneUpdate = (e: CustomEvent<StandaloneVariantsConfig>) => {
+      if (e.detail) {
+        setStandaloneVariantsConfig(e.detail);
+      }
+    };
+
+    window.addEventListener('my_commerce_standalone_variants_updated' as any, handleStandaloneUpdate);
+    return () => {
+      window.removeEventListener('my_commerce_standalone_variants_updated' as any, handleStandaloneUpdate);
+    };
+  }, []);
+
+  // Mapa de pesos aleatorios independiente para catálogo y variantes (estables por carga/visita, aleatorios en cada actualización/recarga)
+  const catalogRandomMap = useRef<Map<string, number>>(new Map());
+
+  const getCatalogWeight = (id: string) => {
+    if (!catalogRandomMap.current.has(id)) {
+      catalogRandomMap.current.set(id, Math.random());
+    }
+    return catalogRandomMap.current.get(id)!;
+  };
+
+  // Tarjetas independientes de variantes activas para el catálogo (mismo orden aleatorio que publicaciones al recargar)
+  const standaloneVariantCards = useMemo(() => {
+    const cards = buildStandaloneVariantCards(products, standaloneVariantsConfig);
+    const matched = cards.filter((card) => {
+      const matchesCategory =
+        currentCategory === 'Todo' ||
+        card.category.toLowerCase() === currentCategory.toLowerCase() ||
+        (card.originalProduct.subcategory &&
+          card.originalProduct.subcategory.toLowerCase() === currentCategory.toLowerCase());
+
+      const matchesSearch =
+        !searchQuery ||
+        card.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        card.variantOptionName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (card.originalProduct.description &&
+          card.originalProduct.description.toLowerCase().includes(searchQuery.toLowerCase()));
+
+      return matchesCategory && matchesSearch;
+    });
+
+    return [...matched].sort((a, b) => getCatalogWeight(a.id) - getCatalogWeight(b.id));
+  }, [products, standaloneVariantsConfig, currentCategory, searchQuery]);
 
   // Consolidar videos de la tienda y de publicaciones individuales
   const allReelVideos = useMemo<StoreVideo[]>(() => {
@@ -414,16 +476,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
     }
   };
 
-  // Mapa de pesos aleatorios independiente para catálogo (estables por carga/visita, aleatorios en cada actualización/recarga)
-  const catalogRandomMap = useRef<Map<string, number>>(new Map());
-
-  const getCatalogWeight = (id: string) => {
-    if (!catalogRandomMap.current.has(id)) {
-      catalogRandomMap.current.set(id, Math.random());
-    }
-    return catalogRandomMap.current.get(id)!;
-  };
-
   // Función determinista pseudoaleatoria para "Más vendidos", que genera un orden aleatorio
   // que cambia automáticamente cada 24 horas y se mantiene 100% igual durante ese periodo
   // en todos los dispositivos y plataformas (Vercel, móviles, tablets y computadoras).
@@ -470,6 +522,19 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
     return [...matched].sort((a, b) => getCatalogWeight(a.id) - getCatalogWeight(b.id));
   }, [products, currentCategory, searchQuery]);
+
+  // 3. Unifica publicaciones y variantes independientes con la misma lógica de orden aleatorio en Destacados
+  type CatalogGridItem =
+    | { kind: 'product'; id: string; product: Product }
+    | { kind: 'variant'; id: string; card: StandaloneVariantCard };
+
+  const catalogGridItems = useMemo<CatalogGridItem[]>(() => {
+    const list: CatalogGridItem[] = [
+      ...filteredProducts.map((p) => ({ kind: 'product' as const, id: p.id, product: p })),
+      ...standaloneVariantCards.map((c) => ({ kind: 'variant' as const, id: c.id, card: c })),
+    ];
+    return list.sort((a, b) => getCatalogWeight(a.id) - getCatalogWeight(b.id));
+  }, [filteredProducts, standaloneVariantCards]);
 
   // Get visible categories with independent images and dynamic product counts
   const storefrontCategories = useMemo(
@@ -821,11 +886,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </h2>
         </div>
 
-        {isLoadingData && filteredProducts.length === 0 ? (
+        {isLoadingData && catalogGridItems.length === 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-4">
             <ProductGridSkeleton count={10} />
           </div>
-        ) : filteredProducts.length === 0 ? (
+        ) : catalogGridItems.length === 0 ? (
           <div className="text-center py-12 sm:py-16 bg-white rounded-xl border-0 sm:border border-gray-200 p-6 sm:p-8 space-y-3 shadow-xs">
             <p className="text-base text-gray-600 font-medium">
               No encontramos productos que coincidan con tu búsqueda o filtro.
@@ -841,27 +906,83 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-4">
-            {filteredProducts.map((product) => {
-              const isOutOfStock = isProductCompletelyOutOfStock(product);
+            {catalogGridItems.map((item) => {
+              if (item.kind === 'product') {
+                const product = item.product;
+                const isOutOfStock = isProductCompletelyOutOfStock(product);
 
+                return (
+                  <div
+                    key={product.id}
+                    id={`catalog-product-${product.id}`}
+                    onClick={() => onSelectProduct(product)}
+                    className="group bg-white rounded-xl border border-gray-100 sm:border-gray-200/90 overflow-hidden shadow-2xs hover:shadow-lg hover:border-[#0058bb]/50 transition-all cursor-pointer flex flex-col"
+                  >
+                    {/* Thumbnail */}
+                    <div className="relative aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
+                      <ImageWithSkeleton
+                        src={(product.images && product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'}
+                        alt={product.title}
+                        className={`w-full h-full object-cover ${
+                          isOutOfStock ? 'opacity-60 grayscale-[30%]' : 'group-hover:scale-105'
+                        } transition-transform duration-300`}
+                      />
+                      <ProductCardBadge product={product} />
+                      {isOutOfStock && (
+                        <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded shadow-xs z-10">
+                          Sin stock
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Details */}
+                    <div className="px-2 py-2 sm:px-2.5 sm:py-3 flex-1 flex flex-col justify-between space-y-1 sm:space-y-1.5">
+                      <h3 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
+                        {product.title}
+                      </h3>
+                      <ProductCardPrice product={product} />
+                    </div>
+                  </div>
+                );
+              }
+
+              const card = item.card;
               return (
                 <div
-                  key={product.id}
-                  id={`catalog-product-${product.id}`}
-                  onClick={() => onSelectProduct(product)}
-                  className="group bg-white rounded-xl border border-gray-100 sm:border-gray-200/90 overflow-hidden shadow-2xs hover:shadow-lg hover:border-[#0058bb]/50 transition-all cursor-pointer flex flex-col"
+                  key={card.id}
+                  id={`catalog-variant-${card.id}`}
+                  onClick={() =>
+                    onSelectProduct(
+                      card.originalProduct,
+                      {
+                        [card.variantTypeId]: card.variantOptionName,
+                        [card.variantTypeName]: card.variantOptionName,
+                      },
+                      card.image
+                    )
+                  }
+                  className="group bg-white rounded-xl border border-gray-100 sm:border-gray-200/90 overflow-hidden shadow-2xs hover:shadow-lg hover:border-[#0058bb]/50 transition-all cursor-pointer flex flex-col relative"
                 >
                   {/* Thumbnail */}
                   <div className="relative aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
                     <ImageWithSkeleton
-                      src={(product.images && product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'}
-                      alt={product.title}
+                      src={card.image}
+                      alt={`${card.title} - ${card.variantOptionName}`}
                       className={`w-full h-full object-cover ${
-                        isOutOfStock ? 'opacity-60 grayscale-[30%]' : 'group-hover:scale-105'
+                        card.isOutOfStock ? 'opacity-60 grayscale-[30%]' : 'group-hover:scale-105'
                       } transition-transform duration-300`}
                     />
-                    <ProductCardBadge product={product} />
-                    {isOutOfStock && (
+                    <ProductCardBadge product={card.virtualProduct} />
+
+                    {/* Variant indicator pill on card */}
+                    <div className="absolute bottom-2 left-2 z-10 pointer-events-none">
+                      <span className="bg-white/95 backdrop-blur-xs text-gray-800 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs border border-gray-200/80 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#0058bb]" />
+                        {card.variantOptionName}
+                      </span>
+                    </div>
+
+                    {card.isOutOfStock && (
                       <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded shadow-xs z-10">
                         Sin stock
                       </span>
@@ -871,9 +992,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   {/* Details */}
                   <div className="px-2 py-2 sm:px-2.5 sm:py-3 flex-1 flex flex-col justify-between space-y-1 sm:space-y-1.5">
                     <h3 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
-                      {product.title}
+                      {card.title}
                     </h3>
-                    <ProductCardPrice product={product} />
+                    <ProductCardPrice product={card.virtualProduct} />
                   </div>
                 </div>
               );

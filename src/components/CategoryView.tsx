@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Product, Category } from '../types';
 import { getStorefrontCategories, filterProductsByCategory, slugifyCategory } from '../utils/categoryHelpers';
 import { isProductCompletelyOutOfStock } from '../utils/variantHelpers';
@@ -8,13 +8,19 @@ import { getOptimizedImageUrl } from '../utils/imageOptimizer';
 import { ProductGridSkeleton } from './common/ProductCardSkeleton';
 import { ProductCardPrice } from './common/ProductCardPrice';
 import { ProductCardBadge } from './common/ProductCardBadge';
+import {
+  buildStandaloneVariantCards,
+  getStandaloneVariantsConfig,
+  StandaloneVariantsConfig,
+  fetchStandaloneVariantsFromSupabase,
+} from '../services/standaloneVariants';
 
 interface CategoryViewProps {
   categoryName: string;
   products: Product[];
   categories?: Category[];
   isLoadingData?: boolean;
-  onSelectProduct: (product: Product) => void;
+  onSelectProduct: (product: Product, selectedVariants?: Record<string, string>, selectedImage?: string) => void;
   onBack: () => void;
   onSelectCategory: (category: string) => void;
 }
@@ -41,6 +47,48 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
   const categoryProducts = useMemo(() => {
     return filterProductsByCategory(products, categoryName);
   }, [products, categoryName]);
+
+  // Variantes configuradas como tarjetas independientes
+  const [standaloneVariantsConfig, setStandaloneVariantsConfig] = useState<StandaloneVariantsConfig>(() =>
+    getStandaloneVariantsConfig()
+  );
+
+  useEffect(() => {
+    fetchStandaloneVariantsFromSupabase().then((cfg) => {
+      setStandaloneVariantsConfig(cfg);
+    });
+
+    const handleStandaloneUpdate = (e: CustomEvent<StandaloneVariantsConfig>) => {
+      if (e.detail) {
+        setStandaloneVariantsConfig(e.detail);
+      }
+    };
+
+    window.addEventListener('my_commerce_standalone_variants_updated' as any, handleStandaloneUpdate);
+    return () => {
+      window.removeEventListener('my_commerce_standalone_variants_updated' as any, handleStandaloneUpdate);
+    };
+  }, []);
+
+  const standaloneVariantCards = useMemo(() => {
+    const cards = buildStandaloneVariantCards(products, standaloneVariantsConfig);
+    return cards.filter((card) => {
+      const matchesCategory =
+        categoryName === 'Todo' ||
+        card.category.toLowerCase() === categoryName.toLowerCase() ||
+        (card.originalProduct.subcategory &&
+          card.originalProduct.subcategory.toLowerCase() === categoryName.toLowerCase());
+
+      const matchesSearch =
+        !searchQuery ||
+        card.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        card.variantOptionName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (card.originalProduct.description &&
+          card.originalProduct.description.toLowerCase().includes(searchQuery.toLowerCase()));
+
+      return matchesCategory && matchesSearch;
+    });
+  }, [products, standaloneVariantsConfig, categoryName, searchQuery]);
 
   // Find current category object (to get its independent image and description)
   const currentCatObj = useMemo(() => {
@@ -213,11 +261,11 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
       </div>
 
       {/* Products Grid */}
-      {isLoadingData && displayedProducts.length === 0 ? (
+      {isLoadingData && displayedProducts.length === 0 && standaloneVariantCards.length === 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-3.5">
           <ProductGridSkeleton count={10} />
         </div>
-      ) : displayedProducts.length === 0 ? (
+      ) : displayedProducts.length === 0 && standaloneVariantCards.length === 0 ? (
         <div className="text-center py-10 sm:py-14 bg-white rounded-xl border-0 sm:border border-gray-200 p-6 sm:p-8 space-y-3 shadow-xs">
           <ShoppingBag className="w-12 h-12 text-gray-300 mx-auto" />
           <h3 className="text-base font-bold text-gray-800">
@@ -282,6 +330,63 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
                     {product.title}
                   </h3>
                   <ProductCardPrice product={product} />
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Tarjetas independientes de variantes seleccionadas */}
+          {standaloneVariantCards.map((card) => {
+            return (
+              <div
+                key={card.id}
+                id={`category-variant-${card.id}`}
+                onClick={() =>
+                  onSelectProduct(
+                    card.originalProduct,
+                    {
+                      [card.variantTypeId]: card.variantOptionName,
+                      [card.variantTypeName]: card.variantOptionName,
+                    },
+                    card.image
+                  )
+                }
+                className="group bg-white rounded-xl border border-gray-100 sm:border-gray-200/90 overflow-hidden shadow-2xs hover:shadow-lg hover:border-[#0058bb]/50 transition-all cursor-pointer flex flex-col relative"
+              >
+                {/* Thumbnail */}
+                <div className="relative aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
+                  <ImageWithSkeleton
+                    src={card.image}
+                    alt={`${card.title} - ${card.variantOptionName}`}
+                    targetWidth={480}
+                    quality={75}
+                    className={`w-full h-full object-cover ${
+                      card.isOutOfStock ? 'opacity-60 grayscale-[30%]' : 'group-hover:scale-105'
+                    } transition-transform duration-300`}
+                  />
+                  <ProductCardBadge product={card.virtualProduct} />
+
+                  {/* Variant indicator pill on card */}
+                  <div className="absolute bottom-2 left-2 z-10 pointer-events-none">
+                    <span className="bg-white/95 backdrop-blur-xs text-gray-800 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs border border-gray-200/80 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#0058bb]" />
+                      {card.variantOptionName}
+                    </span>
+                  </div>
+
+                  {card.isOutOfStock && (
+                    <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded shadow-xs z-10">
+                      Sin stock
+                    </span>
+                  )}
+                </div>
+
+                {/* Details */}
+                <div className="px-2 py-2 sm:px-2.5 sm:py-3 flex-1 flex flex-col justify-between space-y-1 sm:space-y-1.5">
+                  <h3 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
+                    {card.title}
+                  </h3>
+                  <ProductCardPrice product={card.virtualProduct} />
                 </div>
               </div>
             );

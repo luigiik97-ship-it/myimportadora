@@ -20,6 +20,7 @@ import { fetchStoreBannersFromSupabase } from './services/storeBanners';
 import { fetchStoreVideosFromSupabase } from './services/storeVideos';
 import { fetchShippingConfigFromSupabase } from './services/shippingConfig';
 import { fetchStoreSettingsFromSupabase } from './services/storeSettings';
+import { fetchStandaloneVariantsFromSupabase } from './services/standaloneVariants';
 import {
   ProductDetailRouteWrapper,
   CategoryRouteWrapper,
@@ -36,7 +37,6 @@ import { QuickBuyView } from './components/QuickBuyView';
 import { LaunchesView } from './components/launches/LaunchesView';
 import { AuthModal } from './components/AuthModal';
 import { AccountModal } from './components/AccountModal';
-import { MobileOrientationLock } from './components/common/MobileOrientationLock';
 import { AddedToCartNotification, CartNotificationData } from './components/common/AddedToCartNotification';
 import { PurchaseModeProvider, PURCHASE_MODE_STORAGE_KEY } from './context/PurchaseModeContext';
 
@@ -133,16 +133,9 @@ export default function App() {
   const isCheckout = location.pathname === '/checkout' || location.pathname.startsWith('/checkout/');
   const isConfirmation = location.pathname === '/confirmacion' || location.pathname.startsWith('/confirmacion/');
   const isFooterHiddenOnMobile = isCart || isCheckout || isConfirmation;
-  const isAdmin = location.pathname === '/k97' || location.pathname.startsWith('/k97');
+  const isAdmin = location.pathname === '/k97';
   const isProductDetail = location.pathname.startsWith('/producto');
   const showTopBar = isHome || isCategory;
-
-  // Redirigir la antigua ruta /admin a la portada por privacidad y seguridad
-  useEffect(() => {
-    if (location.pathname === '/admin' || location.pathname.startsWith('/admin/')) {
-      navigate('/', { replace: true });
-    }
-  }, [location.pathname, navigate]);
 
   // Dismiss cart notification immediately whenever navigating away from product_detail
   useEffect(() => {
@@ -388,6 +381,7 @@ export default function App() {
 
   useEffect(() => {
     loadData();
+    fetchStandaloneVariantsFromSupabase().catch(() => {});
 
     const handleCategoriesUpdated = (event?: any) => {
       if (event?.detail && Array.isArray(event.detail)) {
@@ -426,6 +420,7 @@ export default function App() {
         fetchStoreSettingsFromSupabase().catch(() => {});
         fetchProductTags(true).catch(() => {});
         fetchLaunchesVisibilityFromSupabase().then((vis) => setIsLaunchesVisible(vis)).catch(() => {});
+        fetchStandaloneVariantsFromSupabase().catch(() => {});
       },
     });
 
@@ -773,7 +768,13 @@ export default function App() {
       ? 'category'
       : 'home';
     setPreviousView(prev);
-    navigate(`/producto/${product.id}`);
+    const variantParam = initialVariants
+      ? Object.values(initialVariants).find((v) => v && v.trim())
+      : undefined;
+    const targetUrl = variantParam
+      ? `/producto/${product.id}?variante=${encodeURIComponent(variantParam)}`
+      : `/producto/${product.id}`;
+    navigate(targetUrl);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -863,11 +864,11 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Render Admin View if on /admin
+  // Render Admin View if on /k97
   if (isAdmin) {
     return (
       <div className="min-h-screen bg-[#fbf9f8] text-[#1b1c1c] font-sans antialiased">
-        <AdminView onExitAdmin={handleExitAdmin} />
+        <AdminView onExitAdmin={handleExitAdmin} onSelectProduct={handleSelectProduct} />
       </div>
     );
   }
@@ -1140,9 +1141,8 @@ export default function App() {
           <Route path="/nosotros" element={<Navigate to="/informacion/sobre-nosotros" replace />} />
           <Route path="/trabaja-con-nosotros" element={<Navigate to="/informacion/trabaja-con-nosotros" replace />} />
 
-          {/* Rutas administrativas */}
-          <Route path="/admin" element={<Navigate to="/" replace />} />
-          <Route path="/k97" element={<AdminView onExitAdmin={handleExitAdmin} />} />
+          {/* Ruta administrativa exclusiva */}
+          <Route path="/k97" element={<AdminView onExitAdmin={handleExitAdmin} onSelectProduct={handleSelectProduct} />} />
 
           {/* Catch-all route to home */}
           <Route path="*" element={<Navigate to="/" replace />} />
@@ -1156,9 +1156,6 @@ export default function App() {
           className={isFooterHiddenOnMobile ? 'hidden md:block' : ''}
         />
       )}
-
-      {/* Mobile-only Orientation Lock */}
-      <MobileOrientationLock />
 
       {/* Global Auth Modal */}
       <AuthModal

@@ -100,12 +100,25 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
     if (incoming && Object.keys(incoming).length > 0) {
       normTypes.forEach((vt) => {
-        const val =
+        let val =
           incoming[vt.id] ||
           incoming[vt.name] ||
           Object.entries(incoming).find(
             ([k]) => k.toLowerCase() === vt.id.toLowerCase() || k.toLowerCase() === vt.name.toLowerCase()
           )?.[1];
+
+        // Fallback: Si no coincide por clave exacta, buscar si algún valor entrante coincide directamente con una opción de este tipo
+        if (!val) {
+          const directMatch = Object.values(incoming).find((incomingVal) => {
+            const clean = String(incomingVal || '').toLowerCase().trim();
+            return vt.options.some(
+              (o) => o.name.toLowerCase() === clean || o.id.toLowerCase() === clean
+            );
+          });
+          if (directMatch) {
+            val = String(directMatch);
+          }
+        }
 
         if (val) {
           const matchedOpt = vt.options.find(
@@ -444,13 +457,36 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   const isSwipingMobile = useRef<boolean>(false);
   const lastTouchOpenTime = useRef<number>(0);
 
+  const isInteractiveTarget = (target: any): boolean => {
+    if (!target) return false;
+    try {
+      if (typeof target.closest === 'function') {
+        return !!target.closest('#btn-share-product-detail, button, a, [role="button"]');
+      }
+      if (target.parentElement && typeof target.parentElement.closest === 'function') {
+        return !!target.parentElement.closest('#btn-share-product-detail, button, a, [role="button"]');
+      }
+    } catch {}
+    return false;
+  };
+
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (isInteractiveTarget(e.target)) {
+      touchStartX.current = null;
+      touchStartY.current = null;
+      return;
+    }
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
     isSwipingMobile.current = false;
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
+    if (isInteractiveTarget(e.target)) {
+      touchStartX.current = null;
+      touchStartY.current = null;
+      return;
+    }
     if (touchStartX.current === null || touchStartY.current === null) return;
     const deltaX = e.changedTouches[0].clientX - touchStartX.current;
     const deltaY = e.changedTouches[0].clientY - touchStartY.current;
@@ -573,7 +609,11 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             {/* Main Showcase Image: Strictly 1:1 Aspect Ratio, full bleed to screen edges on mobile, proportional without deform */}
             <div
               className="w-full bg-white rounded-none sm:rounded-xl border-b border-gray-100 sm:border md:border-gray-200/80 aspect-square flex items-center justify-center p-0 md:p-0 overflow-hidden relative group select-none touch-pan-y cursor-pointer"
-              onClick={() => {
+              onClick={(e) => {
+                const target = e.target as HTMLElement | null;
+                if (target && isInteractiveTarget(target)) {
+                  return;
+                }
                 if (Date.now() - lastTouchOpenTime.current < 600 || isSwipingMobile.current) {
                   isSwipingMobile.current = false;
                   return;
@@ -593,15 +633,27 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               <button
                 type="button"
                 id="btn-share-product-detail"
+                onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => {
+                  e.stopPropagation();
+                }}
+                onTouchMove={(e) => {
+                  e.stopPropagation();
+                }}
+                onTouchEnd={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  setIsShareModalOpen(true);
+                }}
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsShareModalOpen(true);
                 }}
-                className="absolute top-2.5 right-2.5 sm:top-4 sm:right-4 z-20 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/90 hover:bg-white active:scale-95 text-gray-700 hover:text-gray-950 flex items-center justify-center shadow-sm border border-gray-200/90 backdrop-blur-xs transition-all cursor-pointer"
+                className="absolute top-2.5 right-2.5 sm:top-4 sm:right-4 z-30 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/95 hover:bg-white active:scale-95 text-gray-700 hover:text-gray-950 flex items-center justify-center shadow-sm border border-gray-200/90 backdrop-blur-xs transition-all cursor-pointer touch-manipulation"
                 aria-label="Compartir producto"
                 title="Compartir producto"
               >
-                <Share2 className="w-4 h-4 md:w-5 md:h-5 text-gray-700 hover:text-gray-950" />
+                <Share2 className="w-4 h-4 md:w-5 md:h-5 text-gray-700 hover:text-gray-950 pointer-events-none" />
               </button>
               {galleryMedia[activeMediaIndex]?.type === 'video' ? (
                 <div className="relative aspect-[9/16] h-full max-h-[390px] sm:max-h-[440px] md:max-h-[460px] max-w-full bg-black rounded-none sm:rounded-xl overflow-hidden shadow-md flex items-center justify-center">

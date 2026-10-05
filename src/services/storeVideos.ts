@@ -1,5 +1,6 @@
 import { StoreVideo, Product } from '../types';
 import { getSupabase, isSupabaseConfigured } from './supabase';
+import { requireAdminAuth } from './adminAuth';
 
 /**
  * Servicio de Gestión y Sincronización de Videos Cloudinary MP4
@@ -117,6 +118,7 @@ export const fetchStoreVideosFromSupabase = async (force = false): Promise<Store
  * Persiste la lista de videos en Supabase y localStorage
  */
 export const saveStoreVideos = async (videos: StoreVideo[]): Promise<boolean> => {
+  requireAdminAuth('guardar videos de tienda');
   saveLocalStoreVideos(videos);
 
   const supabase = getSupabase();

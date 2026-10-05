@@ -245,6 +245,20 @@ export const signUpWithEmail = async (
   }
 ): Promise<{ success: boolean; profile?: UserProfile; error?: string; message?: string }> => {
   const cleanEmail = email.trim().toLowerCase();
+
+  // Protección contra suplantación: el correo administrativo no puede ser registrado públicamente
+  const configuredAdminEmail = (
+    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_ADMIN_EMAIL) ||
+    'admin@myimportadora.com'
+  ).toLowerCase();
+
+  if (cleanEmail === configuredAdminEmail || cleanEmail.startsWith('admin@')) {
+    return {
+      success: false,
+      error: 'Este correo electrónico está reservado para la administración del sistema. Utiliza tu correo personal.',
+    };
+  }
+
   const supabase = getSupabase();
 
   if (isSupabaseConfigured() && supabase) {
@@ -371,24 +385,47 @@ export const signOutUser = async (): Promise<void> => {
 };
 
 /**
- * Fetch orders for a specific user (by user id or email)
+ * Fetch orders for a specific user (strictly restricted to their own user id or email)
  */
 export const fetchUserOrders = async (userId: string, email: string): Promise<Order[]> => {
+  const cleanEmail = (email || '').trim().toLowerCase();
+  const cleanUserId = (userId || '').trim();
+
+  // Bloqueo de seguridad: se requiere al menos un identificador propio no vacío
+  if (!cleanEmail && !cleanUserId) {
+    return [];
+  }
+
+  // Comprobar sesión de usuario activo para evitar consultas cruzadas no autorizadas
+  const localAuth = getLocalAuthUser();
+  if (localAuth) {
+    const isOwner =
+      (localAuth.email && localAuth.email.toLowerCase() === cleanEmail) ||
+      (localAuth.id && localAuth.id === cleanUserId);
+    if (!isOwner) {
+      console.warn('[SEGURIDAD] Intento no autorizado de consultar pedidos ajenos.');
+      return [];
+    }
+  }
+
   const supabase = getSupabase();
-  const cleanEmail = email.trim().toLowerCase();
   const orderMap = new Map<string, Order>();
   let supabaseSuccess = false;
 
   if (isSupabaseConfigured() && supabase) {
     try {
-      // Query by user_id or customer_email
+      // Query estrictamente filtrada por user_id o customer_email del dueño
       let query = supabase
         .from('orders')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (cleanEmail) {
+      if (cleanEmail && cleanUserId) {
+        query = query.or(`customer_email.ilike.${cleanEmail},user_id.eq.${cleanUserId}`);
+      } else if (cleanEmail) {
         query = query.ilike('customer_email', cleanEmail);
+      } else {
+        query = query.eq('user_id', cleanUserId);
       }
 
       const { data, error } = await query;
@@ -428,7 +465,7 @@ export const fetchUserOrders = async (userId: string, email: string): Promise<Or
     }
   }
 
-  // Si Supabase tuvo éxito, es la fuente única autoritativa (no revivir pedidos borrados de localStorage)
+  // Fallback seguro en localStorage solo si Supabase no estuvo disponible
   if (!supabaseSuccess) {
     try {
       const raw = localStorage.getItem('my_commerce_orders');
@@ -438,7 +475,7 @@ export const fetchUserOrders = async (userId: string, email: string): Promise<Or
           localOrders
             .filter(
               (o) =>
-                (o.userId && o.userId === userId) ||
+                (cleanUserId && o.userId === cleanUserId) ||
                 (cleanEmail && o.customerEmail && o.customerEmail.toLowerCase() === cleanEmail)
             )
             .forEach((ord) => {

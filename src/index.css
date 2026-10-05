@@ -82,10 +82,4 @@ input[type="number"] {
   appearance: textfield;
 }
 
-/* Bloqueo de orientación horizontal en teléfonos móviles */
-@media screen and (orientation: landscape) and (max-height: 550px) and (max-width: 1000px) and (pointer: coarse) {
-  body.mobile-landscape-locked {
-    overflow: hidden !important;
-  }
-}
 

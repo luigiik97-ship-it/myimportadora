@@ -1,4 +1,5 @@
 import { getSupabase, isSupabaseConfigured } from './supabase';
+import { requireAdminAuth } from './adminAuth';
 
 export interface ShippingOptionConfig {
   id: string;
@@ -183,6 +184,7 @@ export const getShippingConfig = (): ShippingConfig => {
 export const saveShippingConfig = async (
   config: Partial<ShippingConfig>
 ): Promise<ShippingConfig> => {
+  requireAdminAuth('guardar configuración de envíos');
   const current = getShippingConfig();
   const updated: ShippingConfig = {
     ...current,

@@ -1,4 +1,5 @@
 import { getSupabase, isSupabaseConfigured, uploadBannerImage } from './supabase';
+import { requireAdminAuth } from './adminAuth';
 
 /**
  * Servicio de Configuración y Gestión de Banners y Portada de la Tienda
@@ -287,6 +288,7 @@ export const fetchStoreBannersFromSupabase = async (force = false): Promise<Stor
 export const saveStoreBannersConfig = async (
   config: Partial<StoreBannersConfig>
 ): Promise<StoreBannersConfig> => {
+  requireAdminAuth('guardar banners de tienda');
   const current = getStoreBannersConfig();
   const updated: StoreBannersConfig = {
     ...current,

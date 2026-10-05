@@ -1,4 +1,5 @@
 import { getSupabase, isSupabaseConfigured } from './supabase';
+import { requireAdminAuth } from './adminAuth';
 
 /**
  * Servicio de Configuración y Gestión del Enlace Personalizado de Compra Rápida
@@ -122,6 +123,7 @@ export const fetchQuickBuyLinkConfigFromSupabase = async (force = false): Promis
 export const saveQuickBuyLinkConfigAsync = async (
   config: Partial<QuickBuyLinkConfig>
 ): Promise<QuickBuyLinkConfig> => {
+  requireAdminAuth('guardar configuración de enlace rápido');
   try {
     const current = getQuickBuyLinkConfig();
     const updated: QuickBuyLinkConfig = {

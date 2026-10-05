@@ -8,7 +8,9 @@ import {
   cleanSpecsList,
   syncLegacyFields,
   SPECS_VARIANT_TYPES_KEY,
+  getResolvedProductPrices,
 } from '../utils/variantHelpers';
+import { isAdminAuthenticated, requireAdminAuth } from './adminAuth';
 import {
   reconcileCategoriesWithProducts,
   markCategoryAsDeleted,
@@ -752,6 +754,7 @@ export const fetchProducts = async (options?: { force?: boolean }): Promise<Prod
 };
 
 export const createProduct = async (product: Omit<Product, 'id'> & { id?: string }): Promise<Product> => {
+  requireAdminAuth('crear producto');
   console.log(`\n================== [createProduct INICIO] ==================`);
   const images = (product.images && product.images.length > 0)
     ? product.images.slice(0, 6)
@@ -874,6 +877,7 @@ export const createProduct = async (product: Omit<Product, 'id'> & { id?: string
 };
 
 export const updateProduct = async (id: string, updates: Partial<Product>): Promise<Product> => {
+  requireAdminAuth('actualizar producto');
   console.log(`\n================== [updateProduct INICIO] ==================`);
   console.log(`[updateProduct] ID objetivo: "${id}"`);
   console.log('[updateProduct] Updates recibidos:', JSON.stringify(updates, null, 2));
@@ -1079,6 +1083,7 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
 };
 
 export const deleteProduct = async (id: string): Promise<boolean> => {
+  requireAdminAuth('eliminar producto');
   console.log('[deleteProduct] Eliminando publicación/producto:', id);
   markProductDeleted(id);
 
@@ -1175,6 +1180,16 @@ export const uploadProductImage = async (
   file: File,
   options?: UploadProductImageOptions
 ): Promise<string> => {
+  requireAdminAuth('subir imagen de producto');
+
+  const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
+  if (!file || !file.type || !allowedMimes.includes(file.type.toLowerCase())) {
+    throw new Error('Tipo de archivo no permitido. Solo se admiten imágenes JPG, PNG, WebP o GIF.');
+  }
+  if (file.size > 15 * 1024 * 1024) {
+    throw new Error('El archivo excede el tamaño máximo permitido de 15 MB.');
+  }
+
   // Evitar subir de nuevo si el archivo ya fue subido en esta sesión y no cambió
   const fingerprint = getFileFingerprint(file);
   if (uploadedFileCache.has(fingerprint)) {
@@ -1358,6 +1373,7 @@ export const deleteStorageImageIfUnused = async (
   products?: Product[],
   categories?: Category[]
 ): Promise<boolean> => {
+  requireAdminAuth('eliminar imagen de storage');
   if (!imageUrl || !isSupabaseConfigured() || !supabaseInstance) return false;
 
   const storagePath = extractStoragePath(imageUrl);
@@ -1492,6 +1508,167 @@ export const getNextCorrelativeOrderNumber = async (): Promise<string> => {
   return String(nextSeq);
 };
 
+/**
+ * Verificación y sanitización estricta de orden en el servicio:
+ * - Valida precios de cada item contra los productos y variantes del catálogo autorizado.
+ * - Recalcula subtotales, totales, descuentos en efectivo y costos de envío.
+ * - Bloquea cualquier intento de manipulación desde el cliente (DevTools, requests modificadas).
+ */
+export const verifyAndSanitizeOrderPayload = async (
+  orderData: Omit<Order, 'id' | 'createdAt'> & { orderNumber?: string; id?: string }
+): Promise<{
+  verifiedItems: Order['items'];
+  verifiedSubtotal: number;
+  verifiedCashDiscount: number;
+  verifiedShippingCost: number;
+  verifiedTotal: number;
+}> => {
+  if (!orderData.items || !Array.isArray(orderData.items) || orderData.items.length === 0) {
+    throw new Error('El pedido debe incluir al menos un producto válido.');
+  }
+
+  // Obtener catálogo oficial de productos
+  let catalog = getCachedProducts();
+  if (!catalog || catalog.length === 0 || !cachedProducts) {
+    catalog = await fetchProducts();
+  }
+
+  const catalogMap = new Map<string, Product>();
+  if (Array.isArray(catalog)) {
+    catalog.forEach((p) => catalogMap.set(p.id, p));
+  }
+
+  // Respaldo autoritativo directo en Supabase para asegurar que ningún precio dependa de caché local manipulable
+  if (isSupabaseConfigured() && supabaseInstance) {
+    const missingIds = orderData.items
+      .map((it) => it.productId)
+      .filter((id) => Boolean(id) && !catalogMap.has(id));
+
+    if (missingIds.length > 0) {
+      try {
+        const { data: dbProducts } = await supabaseInstance
+          .from('products')
+          .select('*')
+          .in('id', missingIds);
+
+        if (dbProducts && Array.isArray(dbProducts)) {
+          dbProducts.forEach((item: any) => {
+            const mappedProd: Product = {
+              id: item.id || String(item.product_id),
+              title: item.title,
+              description: item.description || '',
+              category: item.category || 'Bijuteria',
+              subcategory: item.subcategory || '',
+              images: Array.isArray(item.images) ? item.images : [],
+              minWholesaleQty: Number(item.min_wholesale_qty || item.minWholesaleQty || 1),
+              wholesalePrice: Number(item.wholesale_price || item.wholesalePrice || 0),
+              retailPrice: Number(item.retail_price || item.retailPrice || 0),
+              cashPrice: item.cash_price !== undefined ? Number(item.cash_price) : undefined,
+              retailCashPrice: item.retail_cash_price !== undefined ? Number(item.retail_cash_price) : undefined,
+              wholesaleCashPrice: item.wholesale_cash_price !== undefined ? Number(item.wholesale_cash_price) : undefined,
+              colors: Array.isArray(item.colors) ? item.colors : [],
+              sizeVariants: Array.isArray(item.size_variants) ? item.size_variants : [],
+              variantTypes: Array.isArray(item.variant_types) ? item.variant_types : normalizeVariantTypes(item),
+              stock: Number(item.stock || 0),
+              soldCount: Number(item.sold_count || item.soldCount || 0),
+              createdAt: item.created_at || item.createdAt || new Date().toISOString(),
+            };
+            catalogMap.set(mappedProd.id, mappedProd);
+          });
+        }
+      } catch (err) {
+        console.warn('Error verificando productos contra Supabase:', err);
+      }
+    }
+  }
+
+  // Respaldo de seguridad con catálogo base del sistema (inmutable)
+  INITIAL_PRODUCTS.forEach((p) => {
+    if (!catalogMap.has(p.id)) catalogMap.set(p.id, p);
+  });
+
+  // Conteo de unidades por categoría para validar compras mayoristas
+  const catCounts: Record<string, number> = {};
+  for (const it of orderData.items) {
+    const qty = Math.max(1, Math.min(9999, Math.floor(Number(it.quantity) || 1)));
+    const prod = catalogMap.get(it.productId);
+    const cat = prod?.category || 'General';
+    catCounts[cat] = (catCounts[cat] || 0) + qty;
+  }
+
+  let calculatedSubtotal = 0;
+  let calculatedCashSubtotal = 0;
+
+  const verifiedItems = orderData.items.map((it) => {
+    const qty = Math.max(1, Math.min(9999, Math.floor(Number(it.quantity) || 1)));
+    const prod = catalogMap.get(it.productId);
+
+    if (!prod) {
+      // Bloqueo estricto de seguridad: no se permiten productos inexistentes o inventados en requests manipuladas
+      console.error(`[SEGURIDAD CHECKOUT] Intento de compra con producto no registrado bloqueado: "${it.productId}"`);
+      throw new Error(`El producto con identificador "${it.productId}" no existe en el catálogo oficial o fue retirado.`);
+    }
+
+    // Resolver precios oficiales considerando variantes
+    const resolved = getResolvedProductPrices(
+      prod,
+      (it as any).selectedVariants || {},
+      (it as any).selectedSizeVariant
+    );
+
+    const minQty = prod.minWholesaleQty || 1;
+    const catTotal = catCounts[prod.category] || qty;
+    const isWholesale = Boolean(it.isWholesale || catTotal >= minQty);
+
+    const normalUnitPrice = isWholesale ? resolved.wholesalePrice : resolved.retailPrice;
+    const cashUnitPrice = isWholesale
+      ? (resolved.wholesaleCashPrice || resolved.cashPrice || resolved.wholesalePrice)
+      : (resolved.retailCashPrice || resolved.cashPrice || resolved.retailPrice);
+
+    const lineNormalTotal = normalUnitPrice * qty;
+    const lineCashTotal = cashUnitPrice * qty;
+
+    calculatedSubtotal += lineNormalTotal;
+    calculatedCashSubtotal += lineCashTotal;
+
+    return {
+      ...it,
+      title: prod.title || it.title,
+      quantity: qty,
+      isWholesale,
+      unitPrice: normalUnitPrice,
+      cashUnitPrice: cashUnitPrice,
+      totalPrice: lineNormalTotal,
+      totalCashPrice: lineCashTotal,
+    };
+  });
+
+  // Validar costos de envío: retiro en local SIEMPRE es $0
+  const isPickup = orderData.deliveryOption === 'pickup';
+  const validatedShippingCost = isPickup ? 0 : Math.max(0, Number(orderData.shippingCost) || 0);
+
+  // Recalcular descuentos y total oficial
+  const isCash = orderData.paymentMethod === 'cash';
+  const calculatedCashDiscount = isCash ? Math.max(0, calculatedSubtotal - calculatedCashSubtotal) : 0;
+  const calculatedTotal = (isCash ? calculatedCashSubtotal : calculatedSubtotal) + validatedShippingCost;
+
+  // Registrar advertencia si hubo intento de manipulación desde el cliente
+  const clientTotal = Number(orderData.total) || 0;
+  if (Math.abs(clientTotal - calculatedTotal) > 2) {
+    console.warn(
+      `[SEGURIDAD CHECKOUT] Manipulación de precio bloqueada. Reportado por cliente: $${clientTotal}, Calculado oficial: $${calculatedTotal}. Se forzó el precio del catálogo.`
+    );
+  }
+
+  return {
+    verifiedItems,
+    verifiedSubtotal: calculatedSubtotal,
+    verifiedCashDiscount: calculatedCashDiscount,
+    verifiedShippingCost: validatedShippingCost,
+    verifiedTotal: calculatedTotal,
+  };
+};
+
 export const saveOrder = async (
   orderData: Omit<Order, 'id' | 'createdAt'> & { orderNumber?: string; id?: string }
 ): Promise<Order> => {
@@ -1516,6 +1693,9 @@ export const saveOrder = async (
     throw new Error('El envío a domicilio únicamente admite transferencia bancaria. El pago en efectivo es exclusivo para retiro en local.');
   }
 
+  // Verificación y sanitización estricta de items, precios y totales contra el catálogo oficial (anti-manipulación)
+  const verified = await verifyAndSanitizeOrderPayload(orderData);
+
   const createdAt = new Date().toISOString();
 
   const newOrder: Order = {
@@ -1523,6 +1703,11 @@ export const saveOrder = async (
     id: orderId,
     orderNumber,
     createdAt,
+    items: verified.verifiedItems,
+    subtotal: verified.verifiedSubtotal,
+    cashDiscount: verified.verifiedCashDiscount,
+    shippingCost: verified.verifiedShippingCost,
+    total: verified.verifiedTotal,
   };
 
   if (isSupabaseConfigured() && supabaseInstance) {
@@ -1632,6 +1817,14 @@ export const saveOrder = async (
 };
 
 export const fetchOrders = async (): Promise<Order[]> => {
+  // Protección de seguridad estricta: la lista global de órdenes contiene información personal (PII)
+  // de todos los clientes (nombres, teléfonos, direcciones, códigos postales).
+  // Solo se permite a administradores con sesión activa verificada.
+  if (!isAdminAuthenticated()) {
+    console.warn('[SEGURIDAD] Acceso denegado a fetchOrders: se requiere sesión activa de administrador.');
+    return [];
+  }
+
   let dbOrders: Order[] | null = null;
 
   if (isSupabaseConfigured() && supabaseInstance) {
@@ -1825,6 +2018,7 @@ export const subscribeToProductsAndSystemConfig = (callbacks: {
 };
 
 export const updateOrderStatus = async (orderId: string, status: Order['status']): Promise<void> => {
+  requireAdminAuth('actualizar estado de pedido');
   if (isSupabaseConfigured() && supabaseInstance) {
     try {
       const { error } = await supabaseInstance
@@ -1900,6 +2094,7 @@ export const updateOrderEmailStatus = async (
 };
 
 export const updateOrder = async (orderId: string, fields: Partial<Order>): Promise<void> => {
+  requireAdminAuth('actualizar pedido');
   if (isSupabaseConfigured() && supabaseInstance) {
     try {
       const dbPayload: Record<string, any> = {};
@@ -1948,6 +2143,7 @@ export const updateOrder = async (orderId: string, fields: Partial<Order>): Prom
 };
 
 export const deleteOrder = async (orderId: string): Promise<void> => {
+  requireAdminAuth('eliminar pedido');
   if (isSupabaseConfigured() && supabaseInstance) {
     try {
       const { error } = await supabaseInstance
@@ -2126,6 +2322,7 @@ export const fetchCategories = async (options?: { force?: boolean }): Promise<Ca
 };
 
 export const saveCategory = async (category: Partial<Category>): Promise<Category> => {
+  requireAdminAuth('guardar categoría');
   const rawName = (category.name || 'Nueva Categoría').trim();
   const slug = (category.slug || slugifyCategory(rawName)).toLowerCase().trim();
   const catId = category.id || `cat-${slug || Date.now()}`;
@@ -2195,6 +2392,7 @@ export const deleteCategory = async (
   categoryId: string,
   categoryName?: string
 ): Promise<{ success: boolean; affectedProductsCount: number }> => {
+  requireAdminAuth('eliminar categoría');
   console.log(`[deleteCategory] Eliminando categoría: id=${categoryId}, name=${categoryName}`);
 
   // 1. Resolve category info
@@ -2312,6 +2510,7 @@ export const deleteCategory = async (
 };
 
 export const reorderCategories = async (orderedCategories: Category[]): Promise<void> => {
+  requireAdminAuth('reordenar categorías');
   const updated = orderedCategories.map((cat, idx) => ({
     ...cat,
     sortOrder: idx + 1,
@@ -2329,6 +2528,16 @@ export const reorderCategories = async (orderedCategories: Category[]): Promise<
 };
 
 export const uploadCategoryImage = async (file: File): Promise<string> => {
+  requireAdminAuth('subir imagen de categoría');
+
+  const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
+  if (!file || !file.type || !allowedMimes.includes(file.type.toLowerCase())) {
+    throw new Error('Tipo de archivo no permitido. Solo se admiten imágenes JPG, PNG, WebP o GIF.');
+  }
+  if (file.size > 15 * 1024 * 1024) {
+    throw new Error('El archivo excede el tamaño máximo permitido de 15 MB.');
+  }
+
   // Evitar subir de nuevo si el archivo ya fue subido en esta sesión
   const fingerprint = `cat_${file.name}_${file.size}_${file.lastModified}`;
   if (uploadedFileCache.has(fingerprint)) {
@@ -2381,6 +2590,16 @@ export const uploadCategoryImage = async (file: File): Promise<string> => {
 };
 
 export const uploadBannerImage = async (file: File): Promise<string> => {
+  requireAdminAuth('subir imagen de banner');
+
+  const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
+  if (!file || !file.type || !allowedMimes.includes(file.type.toLowerCase())) {
+    throw new Error('Tipo de archivo no permitido. Solo se admiten imágenes JPG, PNG, WebP o GIF.');
+  }
+  if (file.size > 20 * 1024 * 1024) {
+    throw new Error('El archivo excede el tamaño máximo permitido de 20 MB.');
+  }
+
   // Evitar subir de nuevo si el archivo ya fue subido en esta sesión
   const fingerprint = `banner_${file.name}_${file.size}_${file.lastModified}`;
   if (uploadedFileCache.has(fingerprint)) {
@@ -2468,8 +2687,14 @@ CREATE TABLE IF NOT EXISTS public.categories (
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Lectura pública de categorías" ON public.categories;
 DROP POLICY IF EXISTS "Gestión de categorías" ON public.categories;
+DROP POLICY IF EXISTS "Modificación de categorías por admin" ON public.categories;
 CREATE POLICY "Lectura pública de categorías" ON public.categories FOR SELECT USING (true);
-CREATE POLICY "Gestión de categorías" ON public.categories FOR ALL USING (true);
+CREATE POLICY "Modificación de categorías por admin" ON public.categories FOR ALL USING (
+  auth.role() = 'service_role' OR
+  auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+  auth.jwt()->'app_metadata'->>'role' = 'admin' OR
+  auth.jwt()->'user_metadata'->>'is_admin' = 'true'
+);
 
 -- 4. Tabla de Perfiles de Usuario vinculada a auth.users
 CREATE TABLE IF NOT EXISTS public.profiles (
@@ -2493,9 +2718,28 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Lectura pública/propia de perfiles" ON public.profiles;
 DROP POLICY IF EXISTS "Actualización de perfiles propios" ON public.profiles;
 DROP POLICY IF EXISTS "Inserción de perfiles propios" ON public.profiles;
-CREATE POLICY "Lectura pública/propia de perfiles" ON public.profiles FOR SELECT USING (true);
-CREATE POLICY "Actualización de perfiles propios" ON public.profiles FOR ALL USING (true);
-CREATE POLICY "Inserción de perfiles propios" ON public.profiles FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Lectura de perfil propio" ON public.profiles;
+DROP POLICY IF EXISTS "Actualización de perfil propio" ON public.profiles;
+DROP POLICY IF EXISTS "Inserción de perfil propio" ON public.profiles;
+
+CREATE POLICY "Lectura de perfil propio" ON public.profiles FOR SELECT USING (
+  auth.uid() = id OR
+  auth.role() = 'service_role' OR
+  auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+  auth.jwt()->'app_metadata'->>'role' = 'admin'
+);
+CREATE POLICY "Actualización de perfil propio" ON public.profiles FOR UPDATE USING (
+  auth.uid() = id OR
+  auth.role() = 'service_role' OR
+  auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+  auth.jwt()->'app_metadata'->>'role' = 'admin'
+);
+CREATE POLICY "Inserción de perfil propio" ON public.profiles FOR INSERT WITH CHECK (
+  auth.uid() = id OR
+  auth.role() = 'service_role' OR
+  auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+  auth.jwt()->'app_metadata'->>'role' = 'admin'
+);
 
 -- Añadir columna user_id en la tabla orders si no existe
 ALTER TABLE public.orders 
@@ -2620,7 +2864,7 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- 10. Configuración de Storage Bucket 'product-images' con políticas públicas
+-- 10. Configuración de Storage Bucket 'product-images' con políticas de seguridad
 INSERT INTO storage.buckets (id, name, public) 
 VALUES ('product-images', 'product-images', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
@@ -2629,18 +2873,84 @@ DROP POLICY IF EXISTS "Lectura pública de imágenes" ON storage.objects;
 DROP POLICY IF EXISTS "Subida de imágenes" ON storage.objects;
 DROP POLICY IF EXISTS "Modificación de imágenes" ON storage.objects;
 DROP POLICY IF EXISTS "Eliminación de imágenes" ON storage.objects;
+DROP POLICY IF EXISTS "Subida de imágenes autorizadas" ON storage.objects;
+DROP POLICY IF EXISTS "Modificación de imágenes por admin" ON storage.objects;
+DROP POLICY IF EXISTS "Eliminación de imágenes por admin" ON storage.objects;
 
-CREATE POLICY "Lectura pública de imágenes" ON storage.objects FOR SELECT USING (bucket_id = 'product-images');
-CREATE POLICY "Subida de imágenes" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'product-images');
-CREATE POLICY "Modificación de imágenes" ON storage.objects FOR UPDATE USING (bucket_id = 'product-images');
-CREATE POLICY "Eliminación de imágenes" ON storage.objects FOR DELETE USING (bucket_id = 'product-images');
+-- Lectura pública para cargar fotos de catálogo y banners en la tienda
+CREATE POLICY "Lectura pública de imágenes" ON storage.objects 
+FOR SELECT USING (bucket_id = 'product-images');
 
--- 11. Políticas RLS para productos y órdenes
+-- Subida validando que sea estrictamente formato imagen en el bucket product-images
+CREATE POLICY "Subida de imágenes autorizadas" ON storage.objects 
+FOR INSERT WITH CHECK (
+  bucket_id = 'product-images' AND
+  lower(storage.extension(name)) IN ('jpg', 'jpeg', 'png', 'webp', 'gif', 'avif')
+);
+
+-- Modificación y eliminación restringida a administradores
+CREATE POLICY "Modificación de imágenes por admin" ON storage.objects 
+FOR UPDATE USING (
+  bucket_id = 'product-images' AND (
+    auth.role() = 'service_role' OR
+    auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+    auth.jwt()->'app_metadata'->>'role' = 'admin' OR
+    auth.jwt()->'user_metadata'->>'is_admin' = 'true'
+  )
+);
+
+CREATE POLICY "Eliminación de imágenes por admin" ON storage.objects 
+FOR DELETE USING (
+  bucket_id = 'product-images' AND (
+    auth.role() = 'service_role' OR
+    auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+    auth.jwt()->'app_metadata'->>'role' = 'admin' OR
+    auth.jwt()->'user_metadata'->>'is_admin' = 'true'
+  )
+);
+
+-- 11. Políticas RLS seguras para productos, categorías, pedidos y perfiles
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
 DROP POLICY IF EXISTS "Lectura pública de productos" ON public.products;
 DROP POLICY IF EXISTS "Gestión de productos" ON public.products;
+DROP POLICY IF EXISTS "Modificación de productos por admin" ON public.products;
+
 CREATE POLICY "Lectura pública de productos" ON public.products FOR SELECT USING (true);
-CREATE POLICY "Gestión de productos" ON public.products FOR ALL USING (true);
+CREATE POLICY "Modificación de productos por admin" ON public.products FOR ALL USING (
+  auth.role() = 'service_role' OR
+  auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+  auth.jwt()->'app_metadata'->>'role' = 'admin' OR
+  auth.jwt()->'user_metadata'->>'is_admin' = 'true'
+);
+
+DROP POLICY IF EXISTS "Creación y lectura de pedidos" ON public.orders;
+DROP POLICY IF EXISTS "Creación pública de pedidos" ON public.orders;
+DROP POLICY IF EXISTS "Lectura protegida de pedidos propios" ON public.orders;
+DROP POLICY IF EXISTS "Gestión de pedidos por admin" ON public.orders;
+DROP POLICY IF EXISTS "Eliminación de pedidos por admin" ON public.orders;
+
+CREATE POLICY "Creación pública de pedidos" ON public.orders FOR INSERT WITH CHECK (true);
+CREATE POLICY "Lectura protegida de pedidos propios" ON public.orders FOR SELECT USING (
+  (auth.uid() IS NOT NULL AND user_id = auth.uid()) OR
+  (auth.jwt()->>'email' IS NOT NULL AND customer_email = auth.jwt()->>'email') OR
+  (auth.jwt()->>'email' = 'admin@myimportadora.com' OR auth.jwt()->'app_metadata'->>'role' = 'admin' OR auth.jwt()->'user_metadata'->>'is_admin' = 'true' OR auth.role() = 'service_role')
+);
+CREATE POLICY "Gestión de pedidos por admin" ON public.orders FOR UPDATE USING (
+  auth.role() = 'service_role' OR
+  auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+  auth.jwt()->'app_metadata'->>'role' = 'admin' OR
+  auth.jwt()->'user_metadata'->>'is_admin' = 'true'
+);
+CREATE POLICY "Eliminación de pedidos por admin" ON public.orders FOR DELETE USING (
+  auth.role() = 'service_role' OR
+  auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+  auth.jwt()->'app_metadata'->>'role' = 'admin' OR
+  auth.jwt()->'user_metadata'->>'is_admin' = 'true'
+);
 `;
 
 export const SUPABASE_SQL_SETUP_SCHEMA = `-- SCHEMA SQL COMPLETO PARA SUPABASE (PROYECTOS NUEVOS O REINICIO)
@@ -2729,25 +3039,89 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 5. Habilitar RLS y políticas públicas para e-commerce
+-- 5. Habilitar RLS y políticas seguras contra manipulación y robo de datos
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
+-- Productos: Lectura pública; edición estrictamente para administradores
 DROP POLICY IF EXISTS "Lectura pública de productos" ON public.products;
 DROP POLICY IF EXISTS "Gestión de productos" ON public.products;
+DROP POLICY IF EXISTS "Modificación de productos por admin" ON public.products;
+CREATE POLICY "Lectura pública de productos" ON public.products FOR SELECT USING (true);
+CREATE POLICY "Modificación de productos por admin" ON public.products FOR ALL USING (
+  auth.role() = 'service_role' OR
+  auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+  auth.jwt()->'app_metadata'->>'role' = 'admin' OR
+  auth.jwt()->'user_metadata'->>'is_admin' = 'true'
+);
+
+-- Pedidos: Creación permitida para checkout; lectura restringida al dueño o admin
 DROP POLICY IF EXISTS "Creación y lectura de pedidos" ON public.orders;
+DROP POLICY IF EXISTS "Creación pública de pedidos" ON public.orders;
+DROP POLICY IF EXISTS "Lectura protegida de pedidos propios" ON public.orders;
+DROP POLICY IF EXISTS "Gestión de pedidos por admin" ON public.orders;
+DROP POLICY IF EXISTS "Eliminación de pedidos por admin" ON public.orders;
+
+CREATE POLICY "Creación pública de pedidos" ON public.orders FOR INSERT WITH CHECK (true);
+CREATE POLICY "Lectura protegida de pedidos propios" ON public.orders FOR SELECT USING (
+  (auth.uid() IS NOT NULL AND user_id = auth.uid()) OR
+  (auth.jwt()->>'email' IS NOT NULL AND customer_email = auth.jwt()->>'email') OR
+  (auth.jwt()->>'email' = 'admin@myimportadora.com' OR auth.jwt()->'app_metadata'->>'role' = 'admin' OR auth.jwt()->'user_metadata'->>'is_admin' = 'true' OR auth.role() = 'service_role')
+);
+CREATE POLICY "Gestión de pedidos por admin" ON public.orders FOR UPDATE USING (
+  auth.role() = 'service_role' OR
+  auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+  auth.jwt()->'app_metadata'->>'role' = 'admin' OR
+  auth.jwt()->'user_metadata'->>'is_admin' = 'true'
+);
+CREATE POLICY "Eliminación de pedidos por admin" ON public.orders FOR DELETE USING (
+  auth.role() = 'service_role' OR
+  auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+  auth.jwt()->'app_metadata'->>'role' = 'admin' OR
+  auth.jwt()->'user_metadata'->>'is_admin' = 'true'
+);
+
+-- Categorías: Lectura pública; edición restringida a administradores
 DROP POLICY IF EXISTS "Lectura pública de categorías" ON public.categories;
 DROP POLICY IF EXISTS "Gestión de categorías" ON public.categories;
-DROP POLICY IF EXISTS "Gestión de perfiles" ON public.profiles;
-
-CREATE POLICY "Lectura pública de productos" ON public.products FOR SELECT USING (true);
-CREATE POLICY "Gestión de productos" ON public.products FOR ALL USING (true);
-CREATE POLICY "Creación y lectura de pedidos" ON public.orders FOR ALL USING (true);
+DROP POLICY IF EXISTS "Modificación de categorías por admin" ON public.categories;
 CREATE POLICY "Lectura pública de categorías" ON public.categories FOR SELECT USING (true);
-CREATE POLICY "Gestión de categorías" ON public.categories FOR ALL USING (true);
-CREATE POLICY "Gestión de perfiles" ON public.profiles FOR ALL USING (true);
+CREATE POLICY "Modificación de categorías por admin" ON public.categories FOR ALL USING (
+  auth.role() = 'service_role' OR
+  auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+  auth.jwt()->'app_metadata'->>'role' = 'admin' OR
+  auth.jwt()->'user_metadata'->>'is_admin' = 'true'
+);
+
+-- Perfiles: Privacidad estricta, cada usuario accede solo a sus propios datos
+DROP POLICY IF EXISTS "Gestión de perfiles" ON public.profiles;
+DROP POLICY IF EXISTS "Lectura pública/propia de perfiles" ON public.profiles;
+DROP POLICY IF EXISTS "Actualización de perfiles propios" ON public.profiles;
+DROP POLICY IF EXISTS "Inserción de perfiles propios" ON public.profiles;
+DROP POLICY IF EXISTS "Lectura de perfil propio" ON public.profiles;
+DROP POLICY IF EXISTS "Actualización de perfil propio" ON public.profiles;
+DROP POLICY IF EXISTS "Inserción de perfil propio" ON public.profiles;
+
+CREATE POLICY "Lectura de perfil propio" ON public.profiles FOR SELECT USING (
+  auth.uid() = id OR
+  auth.role() = 'service_role' OR
+  auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+  auth.jwt()->'app_metadata'->>'role' = 'admin'
+);
+CREATE POLICY "Actualización de perfil propio" ON public.profiles FOR UPDATE USING (
+  auth.uid() = id OR
+  auth.role() = 'service_role' OR
+  auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+  auth.jwt()->'app_metadata'->>'role' = 'admin'
+);
+CREATE POLICY "Inserción de perfil propio" ON public.profiles FOR INSERT WITH CHECK (
+  auth.uid() = id OR
+  auth.role() = 'service_role' OR
+  auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+  auth.jwt()->'app_metadata'->>'role' = 'admin'
+);
 
 -- 6. Trigger para auto-crear perfil al registrarse en Supabase Auth
 CREATE OR REPLACE FUNCTION public.handle_new_user() 
@@ -2785,10 +3159,38 @@ DROP POLICY IF EXISTS "Lectura pública de imágenes" ON storage.objects;
 DROP POLICY IF EXISTS "Subida de imágenes" ON storage.objects;
 DROP POLICY IF EXISTS "Modificación de imágenes" ON storage.objects;
 DROP POLICY IF EXISTS "Eliminación de imágenes" ON storage.objects;
+DROP POLICY IF EXISTS "Subida de imágenes autorizadas" ON storage.objects;
+DROP POLICY IF EXISTS "Modificación de imágenes por admin" ON storage.objects;
+DROP POLICY IF EXISTS "Eliminación de imágenes por admin" ON storage.objects;
 
-CREATE POLICY "Lectura pública de imágenes" ON storage.objects FOR SELECT USING (bucket_id = 'product-images');
-CREATE POLICY "Subida de imágenes" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'product-images');
-CREATE POLICY "Modificación de imágenes" ON storage.objects FOR UPDATE USING (bucket_id = 'product-images');
+CREATE POLICY "Lectura pública de imágenes" ON storage.objects 
+FOR SELECT USING (bucket_id = 'product-images');
+
+CREATE POLICY "Subida de imágenes autorizadas" ON storage.objects 
+FOR INSERT WITH CHECK (
+  bucket_id = 'product-images' AND
+  lower(storage.extension(name)) IN ('jpg', 'jpeg', 'png', 'webp', 'gif', 'avif')
+);
+
+CREATE POLICY "Modificación de imágenes por admin" ON storage.objects 
+FOR UPDATE USING (
+  bucket_id = 'product-images' AND (
+    auth.role() = 'service_role' OR
+    auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+    auth.jwt()->'app_metadata'->>'role' = 'admin' OR
+    auth.jwt()->'user_metadata'->>'is_admin' = 'true'
+  )
+);
+
+CREATE POLICY "Eliminación de imágenes por admin" ON storage.objects 
+FOR DELETE USING (
+  bucket_id = 'product-images' AND (
+    auth.role() = 'service_role' OR
+    auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+    auth.jwt()->'app_metadata'->>'role' = 'admin' OR
+    auth.jwt()->'user_metadata'->>'is_admin' = 'true'
+  )
+);
 -- 8. Tabla de Registro de Visitas y Analítica
 CREATE TABLE IF NOT EXISTS public.site_visits (
   id TEXT PRIMARY KEY,

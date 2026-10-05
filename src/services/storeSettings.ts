@@ -1,4 +1,5 @@
 import { getSupabase, isSupabaseConfigured } from './supabase';
+import { requireAdminAuth } from './adminAuth';
 
 export interface StoreSettings {
   showBuyNowButton: boolean;
@@ -37,6 +38,7 @@ export const getStoreSettings = (): StoreSettings => {
  * garantizando persistencia en Vercel para todos los clientes y visitantes.
  */
 export const saveStoreSettings = async (settings: Partial<StoreSettings>): Promise<StoreSettings> => {
+  requireAdminAuth('guardar configuración de tienda');
   const current = getStoreSettings();
   const updated: StoreSettings = {
     ...current,

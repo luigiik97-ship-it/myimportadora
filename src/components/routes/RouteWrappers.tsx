@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { useParams, useNavigate, Navigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Navigate } from 'react-router-dom';
 import { ArrowLeft, ShoppingBag } from 'lucide-react';
 import { Product, Category, SizeVariant, Order } from '../../types';
 import { slugifyCategory, isObsoleteDefaultCategory } from '../../utils/categoryHelpers';
@@ -46,11 +46,23 @@ export function ProductDetailRouteWrapper({
   onSelectRelated: (product: Product, variants?: Record<string, string>, img?: string) => void;
 }) {
   const { productId } = useParams<{ productId: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const product = useMemo(() => {
     return products.find((p) => String(p.id) === String(productId));
   }, [products, productId]);
+
+  const resolvedInitialVariants = useMemo(() => {
+    if (selectedProductVariants && Object.keys(selectedProductVariants).length > 0) {
+      return selectedProductVariants;
+    }
+    const variantFromUrl = searchParams.get('variante') || searchParams.get('variantOption') || searchParams.get('opt');
+    if (variantFromUrl && product) {
+      return { variantOption: variantFromUrl };
+    }
+    return undefined;
+  }, [selectedProductVariants, searchParams, product]);
 
   if (isLoadingData && products.length === 0) {
     return (
@@ -109,7 +121,7 @@ export function ProductDetailRouteWrapper({
     <ProductDetailView
       product={product}
       allProducts={products}
-      initialSelectedVariants={selectedProductVariants}
+      initialSelectedVariants={resolvedInitialVariants}
       initialSelectedImage={selectedProductImage}
       backLabel={
         previousView === 'quick_buy'

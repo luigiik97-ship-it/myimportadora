@@ -16,6 +16,7 @@ import {
   getResolvedProductPrices,
 } from '../utils/variantHelpers';
 import { VariantManager } from './admin/VariantManager';
+import { StandaloneVariantsManager } from './admin/StandaloneVariantsManager';
 import { BulkPriceUpdate } from './admin/BulkPriceUpdate';
 import { CategoryManager } from './admin/CategoryManager';
 import { ClassicStar } from './common/ClassicStar';
@@ -58,6 +59,7 @@ import { BestSellersManager } from './admin/BestSellersManager';
 import { StoreSettingsManager } from './admin/StoreSettingsManager';
 import { getStoreSettings, fetchStoreSettingsFromSupabase, StoreSettings } from '../services/storeSettings';
 import { isQuickBuyOrder } from '../services/quickBuyLink';
+import { isAdminAuthenticated, authenticateAdmin, clearAdminSession } from '../services/adminAuth';
 import {
   Lock,
   Package,
@@ -86,6 +88,7 @@ import {
   AlertCircle,
   Star,
   Percent,
+  EyeOff,
   ArrowLeft as ArrowLeftIcon,
   ArrowRight as ArrowRightIcon,
   Sparkles,
@@ -161,18 +164,30 @@ export const resolveOrderItemPrices = (
 
 interface AdminViewProps {
   onExitAdmin: () => void;
+  onSelectProduct?: (product: Product, selectedVariants?: Record<string, string>, image?: string) => void;
 }
 
-export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
+export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProduct }) => {
   // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return sessionStorage.getItem('my_admin_auth') === 'true';
+    return isAdminAuthenticated();
   });
   const [passwordInput, setPasswordInput] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [failedAttempts, setFailedAttempts] = useState<number>(0);
+  const [lockoutRemaining, setLockoutRemaining] = useState<number>(0);
+
+  useEffect(() => {
+    if (lockoutRemaining <= 0) return;
+    const interval = setInterval(() => {
+      setLockoutRemaining((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lockoutRemaining]);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'best_sellers' | 'banners' | 'videos' | 'orders' | 'bulk_price_update' | 'integrations' | 'analytics' | 'quick_buy_link' | 'shipping' | 'launches' | 'store_settings'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'standalone_variants' | 'categories' | 'best_sellers' | 'banners' | 'videos' | 'orders' | 'bulk_price_update' | 'integrations' | 'analytics' | 'quick_buy_link' | 'shipping' | 'launches' | 'store_settings'>('products');
   const [updatingBestSellerId, setUpdatingBestSellerId] = useState<string | null>(null);
 
   // Visibilidad configurable de botones de tienda (Comprar ahora)
@@ -317,22 +332,36 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
   const [isDeletingOrder, setIsDeletingOrder] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD || 'yugar';
-
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput === adminPassword || passwordInput === 'yugar') {
-      setIsAuthenticated(true);
-      sessionStorage.setItem('my_admin_auth', 'true');
-      setAuthError(null);
-    } else {
-      setAuthError('Contraseña de administrador incorrecta.');
+    if (lockoutRemaining > 0) return;
+
+    try {
+      const result = await authenticateAdmin(passwordInput);
+      if (result.success) {
+        setIsAuthenticated(true);
+        setAuthError(null);
+        setPasswordInput('');
+        setFailedAttempts(0);
+      } else {
+        const nextAttempts = failedAttempts + 1;
+        setFailedAttempts(nextAttempts);
+        if (nextAttempts >= 5) {
+          setLockoutRemaining(30);
+          setAuthError('Demasiados intentos fallidos por seguridad. Bloqueado temporalmente por 30 segundos.');
+        } else {
+          setAuthError(`${result.error || 'Contraseña de administrador incorrecta.'} (Intento ${nextAttempts} de 5)`);
+        }
+      }
+    } catch (err: any) {
+      console.error('Error durante autenticación admin en handleLogin:', err);
+      setAuthError('Error al verificar credenciales.');
     }
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
-    sessionStorage.removeItem('my_admin_auth');
+    clearAdminSession();
   };
 
   // Load data on mount / auth
@@ -728,11 +757,28 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
       editingProduct.wholesaleCashPrice
     );
     console.log(`[VARIANT DEBUG - EDIT] Variantes actualizadas en el estado local del producto:`, newVariantTypes);
+
+    // Asignar automáticamente la imagen de la primera variante como portada principal
+    const firstVariantImage =
+      newVariantTypes?.[0]?.options?.[0]?.images?.[0] ||
+      newVariantTypes?.[0]?.options?.find((opt) => opt.images && opt.images.length > 0)?.images?.[0];
+
+    const currentImages = [...(editingProduct.images || [])];
+    if (firstVariantImage) {
+      if (currentImages.length > 0) {
+        currentImages[0] = firstVariantImage;
+      } else {
+        currentImages.push(firstVariantImage);
+      }
+    }
+
     setEditingProduct({
       ...editingProduct,
       variantTypes: newVariantTypes,
       colors,
       sizeVariants,
+      images: currentImages,
+      image: firstVariantImage || currentImages[0] || (editingProduct as any).image,
     });
   };
 
@@ -764,8 +810,25 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
       targetRetailCashPrice,
       targetWholesaleCashPrice
     );
+
+    // Obtener la imagen de la primera variante para fijarla como portada automática
+    const firstVariantImage =
+      currentVariantTypes?.[0]?.options?.[0]?.images?.[0] ||
+      currentVariantTypes?.[0]?.options?.find((opt) => opt.images && opt.images.length > 0)?.images?.[0];
+
+    let finalImages = [...(editingProduct.images || [])];
+    if (firstVariantImage) {
+      if (finalImages.length > 0) {
+        finalImages[0] = firstVariantImage;
+      } else {
+        finalImages = [firstVariantImage];
+      }
+    }
+
     const productPayload: Partial<Product> = {
       ...editingProduct,
+      images: finalImages,
+      image: firstVariantImage || finalImages[0] || (editingProduct as any).image,
       cashPrice: targetCashPrice ?? targetRetailCashPrice,
       retailCashPrice: targetRetailCashPrice,
       wholesaleCashPrice: targetWholesaleCashPrice,
@@ -1319,23 +1382,45 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
               <label className="text-xs font-semibold text-gray-700 block mb-1">
                 Contraseña de Administrador
               </label>
-              <input
-                id="admin-password-input"
-                type="password"
-                required
-                value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
-                placeholder="Ingresa la clave de administrador"
-                className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb]"
-              />
+              <div className="relative">
+                <input
+                  id="admin-password-input"
+                  type={showAdminPassword ? 'text' : 'password'}
+                  required
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
+                  disabled={lockoutRemaining > 0}
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder={lockoutRemaining > 0 ? 'Bloqueado por intentos fallidos...' : 'Ingresa la clave de administrador'}
+                  className="w-full border border-gray-300 rounded-lg pl-3.5 pr-10 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAdminPassword(!showAdminPassword)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+                  title={showAdminPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                  aria-label={showAdminPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                >
+                  {showAdminPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
             </div>
 
             <button
               id="admin-login-btn"
               type="submit"
-              className="w-full bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold py-2.5 px-4 rounded-lg text-sm transition-colors cursor-pointer"
+              disabled={lockoutRemaining > 0}
+              className={`w-full bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold py-2.5 px-4 rounded-lg text-sm transition-colors cursor-pointer ${
+                lockoutRemaining > 0 ? 'opacity-60 cursor-not-allowed hover:bg-[#0058bb]' : ''
+              }`}
             >
-              Acceder al Panel
+              {lockoutRemaining > 0 ? `Espera ${lockoutRemaining}s para reintentar` : 'Acceder al Panel'}
             </button>
           </form>
 
@@ -1506,6 +1591,21 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
         >
           <Package className="w-4 h-4" />
           Gestión de Publicaciones ({products.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('standalone_variants')}
+          className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 cursor-pointer transition-colors border-b-2 whitespace-nowrap ${
+            activeTab === 'standalone_variants'
+              ? 'border-[#0058bb] text-[#0058bb]'
+              : 'border-transparent text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <Layers className="w-4 h-4 text-[#0058bb]" />
+          <span>Tarjetas de Variantes</span>
+          <span className="text-[10px] bg-blue-100 text-[#0058bb] font-extrabold px-1.5 py-0.5 rounded-full">
+            Nueva
+          </span>
         </button>
 
         <button
@@ -1863,6 +1963,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* TAB: VARIANTES COMO TARJETAS INDEPENDIENTES */}
+      {activeTab === 'standalone_variants' && (
+        <StandaloneVariantsManager
+          products={products}
+          onOpenProductDetail={onSelectProduct}
+        />
       )}
 
       {/* TAB: MÁS VENDIDOS */}
@@ -2792,28 +2900,69 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
                   {Array.from({ length: MAX_PRODUCT_IMAGES }).map((_, slotIndex) => {
                     const currentImages = editingProduct.images || [];
-                    const imgUrl = currentImages[slotIndex];
                     const isCover = slotIndex === 0;
+
+                    // Portada automática obtenida de la primera variante
+                    const firstVariantImg =
+                      editingProduct.variantTypes?.[0]?.options?.[0]?.images?.[0] ||
+                      editingProduct.variantTypes?.[0]?.options?.find((opt) => opt.images && opt.images.length > 0)?.images?.[0];
+                    const firstVariantName =
+                      editingProduct.variantTypes?.[0]?.options?.[0]?.name ||
+                      editingProduct.variantTypes?.[0]?.options?.find((opt) => opt.images && opt.images.length > 0)?.name ||
+                      '1ª Variante';
+
+                    const imgUrl = isCover ? (firstVariantImg || currentImages[0]) : currentImages[slotIndex];
+
+                    if (isCover) {
+                      // Slot 0: Portada automática de la primera variante (sin opción de subida independiente)
+                      return (
+                        <div
+                          key="cover-slot-auto"
+                          className="group relative rounded-lg border-2 border-[#0058bb] ring-2 ring-[#0058bb]/20 bg-white flex flex-col overflow-hidden shadow-2xs transition-all"
+                        >
+                          <div className="absolute top-1.5 left-1.5 z-10">
+                            <span className="bg-[#0058bb] text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-md flex items-center gap-1 shadow-xs">
+                              <Star className="w-2.5 h-2.5 fill-amber-300 text-amber-300" />
+                              Portada (1ª Var.)
+                            </span>
+                          </div>
+
+                          <div className="h-24 w-full bg-white flex items-center justify-center p-1 overflow-hidden">
+                            {imgUrl ? (
+                              <img
+                                src={imgUrl}
+                                alt="Portada automática de la 1ª variante"
+                                className="max-h-full max-w-full object-contain"
+                              />
+                            ) : (
+                              <div className="text-center p-2 text-[10px] text-gray-400 flex flex-col items-center justify-center h-full">
+                                <ImageIcon className="w-5 h-5 mb-1 text-gray-300" />
+                                <span className="font-semibold text-gray-500">Sin foto en 1ª variante</span>
+                                <span className="text-[9px] text-gray-400">Sube foto arriba</span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="bg-blue-50/90 border-t border-blue-100 p-1 text-center">
+                            <span className="text-[9px] font-bold text-[#0058bb] truncate block" title={`Tomada de la variante: ${firstVariantName}`}>
+                              Auto: {firstVariantName}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
 
                     if (imgUrl) {
                       return (
                         <div
                           key={slotIndex}
-                          className={`group relative rounded-lg border-2 bg-white flex flex-col overflow-hidden shadow-2xs transition-all ${
-                            isCover ? 'border-[#0058bb] ring-2 ring-[#0058bb]/20' : 'border-gray-200 hover:border-gray-300'
-                          }`}
+                          className="group relative rounded-lg border-2 border-gray-200 hover:border-gray-300 bg-white flex flex-col overflow-hidden shadow-2xs transition-all"
                         >
                           {/* Slot Tag */}
                           <div className="absolute top-1.5 left-1.5 z-10">
-                            {isCover ? (
-                              <span className="bg-[#0058bb] text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shadow-xs">
-                                <Star className="w-2.5 h-2.5 fill-amber-300 text-amber-300" /> Portada
-                              </span>
-                            ) : (
-                              <span className="bg-gray-900/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow-xs">
-                                #{slotIndex + 1}
-                              </span>
-                            )}
+                            <span className="bg-gray-900/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow-xs">
+                              Foto #{slotIndex + 1}
+                            </span>
                           </div>
 
                           {/* Image preview */}
@@ -2828,17 +2977,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                           {/* Action Toolbar */}
                           <div className="bg-gray-100 border-t border-gray-200 p-1 flex items-center justify-between gap-0.5 text-gray-600">
                             <div className="flex items-center gap-0.5">
-                              {!isCover && (
-                                <button
-                                  type="button"
-                                  title="Establecer como foto de portada"
-                                  onClick={() => handleSetCoverImage(slotIndex)}
-                                  className="p-1 hover:bg-amber-100 hover:text-amber-700 rounded transition-colors cursor-pointer"
-                                >
-                                  <Star className="w-3 h-3" />
-                                </button>
-                              )}
-                              {slotIndex > 0 && (
+                              {slotIndex > 1 && (
                                 <button
                                   type="button"
                                   title="Mover a la izquierda"
@@ -2859,9 +2998,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                                 </button>
                               )}
 
-                              {/* Reemplazar imagen directamente */}
+                              {/* Reemplazar imagen secundaria directamente */}
                               <label
-                                title="Reemplazar esta foto"
+                                title="Reemplazar esta foto secundaria"
                                 className="p-1 hover:bg-gray-200 hover:text-gray-900 rounded transition-colors cursor-pointer"
                               >
                                 <Upload className="w-3 h-3 text-[#0058bb]" />
@@ -2877,7 +3016,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
 
                             <button
                               type="button"
-                              title="Eliminar imagen"
+                              title="Eliminar imagen secundaria"
                               onClick={() => handleRemoveImage(slotIndex)}
                               className="p-1 text-red-500 hover:bg-red-100 hover:text-red-700 rounded transition-colors cursor-pointer"
                             >
@@ -2888,7 +3027,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                       );
                     }
 
-                    // Empty slot
+                    // Empty secondary slot
                     return (
                       <label
                         key={slotIndex}
@@ -2900,7 +3039,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                           <Plus className="w-4 h-4" />
                         </div>
                         <span className="text-[10px] font-bold text-gray-500 group-hover:text-[#0058bb]">
-                          {slotIndex === 0 ? 'Foto #1 (Portada)' : `Foto #${slotIndex + 1}`}
+                          Foto Secundaria #{slotIndex + 1}
                         </span>
                         <span className="text-[9px] text-gray-400">Clic para subir</span>
                         <input
@@ -3031,7 +3170,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin }) => {
                 </div>
 
                 <p className="text-[11px] text-gray-500 italic">
-                  💡 La primera foto (#1) será la portada principal que se ve en la tienda. Puedes reordenar o cambiar la portada usando las flechas y la estrella.
+                  💡 La foto de portada se toma automáticamente de la primera variante del producto para mantener consistencia visual. Las fotos adicionales aquí cargadas corresponden a fotos secundarias de la galería.
                 </p>
               </div>
 
