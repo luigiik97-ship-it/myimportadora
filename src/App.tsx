@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Routes,
   Route,
@@ -104,6 +104,9 @@ export default function App() {
     return null;
   });
   const [cartNotification, setCartNotification] = useState<CartNotificationData | null>(null);
+  const handleCloseCartNotification = useCallback(() => {
+    setCartNotification(null);
+  }, []);
   const [lastShoppingView, setLastShoppingView] = useState<'home' | 'category' | 'quick_buy'>('home');
   const [isLaunchesVisible, setIsLaunchesVisible] = useState<boolean>(() => isLaunchesSectionVisible());
 
@@ -430,6 +433,18 @@ export default function App() {
       unsubscribeRealtime();
     };
   }, []);
+
+  // Evitar que la navegación interna arrastre datos viejos (Inicio <-> Categoría <-> Producto)
+  // Al cambiar de ruta, verifica de forma automática en segundo plano si hay datos más nuevos,
+  // actualiza de forma reactiva y no recarga toda la página innecesariamente.
+  const isNavMountRef = useRef(true);
+  useEffect(() => {
+    if (isNavMountRef.current) {
+      isNavMountRef.current = false;
+      return;
+    }
+    loadData(false);
+  }, [location.pathname]);
 
   // Cargar configuraciones compartidas desde Supabase (Compra Rápida, Plantillas, Banners, Videos, Envíos, Ajustes de Tienda y Próximos Lanzamientos)
   useEffect(() => {
@@ -1192,7 +1207,7 @@ export default function App() {
       {isProductDetail && (
         <AddedToCartNotification
           data={cartNotification}
-          onClose={() => setCartNotification(null)}
+          onClose={handleCloseCartNotification}
           onGoToCart={handleGoToCart}
         />
       )}

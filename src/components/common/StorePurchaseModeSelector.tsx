@@ -52,7 +52,7 @@ export const StorePurchaseModeSelector: React.FC<StorePurchaseModeSelectorProps>
               isCashMode ? 'text-white' : 'text-gray-800'
             }`}
           />
-          <span className="text-xs sm:text-[14px] font-bold tracking-tight leading-none">efectivo</span>
+          <span className="text-xs sm:text-[14px] font-bold tracking-tight leading-none">Efectivo</span>
         </button>
       </div>
 

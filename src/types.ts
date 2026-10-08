@@ -123,7 +123,8 @@ export interface Order {
   customerEmail: string;
   customerWhatsapp: string;
   deliveryOption: 'pickup' | 'delivery';
-  shippingMethodName?: string; // e.g. "Uber Moto (llega hoy)", "Envío Flex (llega mañana)", "Correo Argentino (llega 1 a 4 días)"
+  shippingMethodName?: string; // e.g. "Uber Moto (llega hoy)", "Envío Flex (llega mañana)", "Correo Argentino (llega 1 a 4 días)", "Sucursal de Correo Argentino"
+  correoBranch?: string; // Nombre y dirección de la sucursal de Correo Argentino elegida
   deliveryAddress?: {
     street: string;
     number: string;
@@ -132,6 +133,7 @@ export interface Order {
     postalCode: string;
     province: string;
     receiverName?: string;
+    correoBranch?: string; // Nombre y dirección de la sucursal de Correo Argentino elegida
   };
   paymentMethod: 'transfer' | 'cash';
   items: OrderItem[];

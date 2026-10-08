@@ -118,9 +118,17 @@ export const VideoManager: React.FC<VideoManagerProps> = ({
 
     setIsSaving(true);
     const ok = await saveStoreVideos(updatedList);
+    if (selectedProd) {
+      try {
+        await updateProduct(selectedProd.id, { videoUrl: trimmedUrl });
+        if (onProductUpdated) await onProductUpdated();
+      } catch (prodErr) {
+        console.warn('Advertencia al sincronizar video con el producto:', prodErr);
+      }
+    }
     setIsSaving(false);
     if (ok) {
-      showToast('Video agregado al carrusel exitosamente');
+      showToast('Video agregado y vinculado exitosamente');
     } else {
       setErrorMessage('Se guardó localmente, pero ocurrió un aviso de red con Supabase.');
     }
@@ -151,9 +159,17 @@ export const VideoManager: React.FC<VideoManagerProps> = ({
 
     setIsSaving(true);
     const ok = await saveStoreVideos(updatedList);
+    if (selectedProd) {
+      try {
+        await updateProduct(selectedProd.id, { videoUrl: editingVideo.videoUrl.trim() });
+        if (onProductUpdated) await onProductUpdated();
+      } catch (prodErr) {
+        console.warn('Advertencia al sincronizar video con el producto:', prodErr);
+      }
+    }
     setIsSaving(false);
     if (ok) {
-      showToast('Video actualizado correctamente');
+      showToast('Video actualizado y vinculado correctamente');
     }
   };
 

@@ -238,6 +238,16 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
                   <span>{order.shippingMethodName || 'Envío a domicilio'}</span>
                   <span>${order.shippingCost.toLocaleString('es-AR')}</span>
                 </div>
+                {(order.deliveryAddress?.correoBranch || order.correoBranch) && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-900 space-y-0.5">
+                    <span className="font-bold block text-amber-950 uppercase tracking-wide text-[11px]">
+                      Sucursal de Correo Argentino para retiro:
+                    </span>
+                    <span className="font-semibold text-gray-900 block text-xs sm:text-sm">
+                      {order.deliveryAddress?.correoBranch || order.correoBranch}
+                    </span>
+                  </div>
+                )}
                 <p className="font-semibold text-gray-800 text-sm">
                   {order.deliveryAddress.street} {order.deliveryAddress.number}
                   {order.deliveryAddress.floor ? `, ${order.deliveryAddress.floor}` : ''}

@@ -104,7 +104,88 @@ let cachedCategories: Category[] | null = null;
 let categoriesCacheTimestamp = 0;
 let inFlightCategoriesPromise: Promise<Category[]> | null = null;
 
-const CACHE_TTL_MS = 1000 * 60 * 3; // 3 minutes in-memory freshness
+// Ventana de frescura inmediata (30 segundos): respuesta instantánea sin peticiones
+export const CACHE_FRESHNESS_TTL_MS = 1000 * 30;
+export const LOCAL_PRODUCTS_META_KEY = 'my_commerce_products_meta_v2';
+export const LOCAL_CATEGORIES_META_KEY = 'my_commerce_categories_meta_v2';
+
+export const getProductsCacheTimestamp = (): number => {
+  if (productsCacheTimestamp > 0) return productsCacheTimestamp;
+  try {
+    const raw = localStorage.getItem(LOCAL_PRODUCTS_META_KEY);
+    if (raw) {
+      const meta = JSON.parse(raw);
+      if (meta && typeof meta.timestamp === 'number') {
+        productsCacheTimestamp = meta.timestamp;
+        return meta.timestamp;
+      }
+    }
+  } catch (e) {}
+  return 0;
+};
+
+export const getCategoriesCacheTimestamp = (): number => {
+  if (categoriesCacheTimestamp > 0) return categoriesCacheTimestamp;
+  try {
+    const raw = localStorage.getItem(LOCAL_CATEGORIES_META_KEY);
+    if (raw) {
+      const meta = JSON.parse(raw);
+      if (meta && typeof meta.timestamp === 'number') {
+        categoriesCacheTimestamp = meta.timestamp;
+        return meta.timestamp;
+      }
+    }
+  } catch (e) {}
+  return 0;
+};
+
+export const isProductsCacheStale = (): boolean => {
+  const ts = getProductsCacheTimestamp();
+  return Date.now() - ts > CACHE_FRESHNESS_TTL_MS;
+};
+
+export const isCategoriesCacheStale = (): boolean => {
+  const ts = getCategoriesCacheTimestamp();
+  return Date.now() - ts > CACHE_FRESHNESS_TTL_MS;
+};
+
+export const hasProductsDataChanged = (prev: Product[], next: Product[]): boolean => {
+  if (!prev || !next) return true;
+  if (prev.length !== next.length) return true;
+  for (let i = 0; i < prev.length; i++) {
+    const a = prev[i];
+    const b = next[i];
+    if (!a || !b) return true;
+    if (a.id !== b.id) return true;
+    if (a.title !== b.title) return true;
+    if (a.retailPrice !== b.retailPrice) return true;
+    if (a.wholesalePrice !== b.wholesalePrice) return true;
+    if (a.cashPrice !== b.cashPrice) return true;
+    if (a.retailCashPrice !== b.retailCashPrice) return true;
+    if (a.wholesaleCashPrice !== b.wholesaleCashPrice) return true;
+    if (a.stock !== b.stock) return true;
+    if (a.category !== b.category) return true;
+    if (a.subcategory !== b.subcategory) return true;
+    if (Boolean(a.isBestSeller) !== Boolean(b.isBestSeller)) return true;
+    if ((a.images?.[0] || '') !== (b.images?.[0] || '')) return true;
+    if ((a.images?.length || 0) !== (b.images?.length || 0)) return true;
+  }
+  return false;
+};
+
+export const hasCategoriesDataChanged = (prev: Category[], next: Category[]): boolean => {
+  if (!prev || !next) return true;
+  if (prev.length !== next.length) return true;
+  for (let i = 0; i < prev.length; i++) {
+    const a = prev[i];
+    const b = next[i];
+    if (!a || !b) return true;
+    if (a.id !== b.id || a.name !== b.name || a.image !== b.image || a.sortOrder !== b.sortOrder || a.isVisible !== b.isVisible) {
+      return true;
+    }
+  }
+  return false;
+};
 
 export const getCachedProducts = (): Product[] => {
   if (cachedProducts && cachedProducts.length > 0) {
@@ -123,11 +204,17 @@ export const getCachedCategories = (): Category[] => {
 export const invalidateProductsCache = () => {
   cachedProducts = null;
   productsCacheTimestamp = 0;
+  try {
+    localStorage.removeItem(LOCAL_PRODUCTS_META_KEY);
+  } catch (e) {}
 };
 
 export const invalidateCategoriesCache = () => {
   cachedCategories = null;
   categoriesCacheTimestamp = 0;
+  try {
+    localStorage.removeItem(LOCAL_CATEGORIES_META_KEY);
+  } catch (e) {}
 };
 
 export const getRawLocalCategories = (): Category[] => {
@@ -173,11 +260,9 @@ export const getLocalCategories = (): Category[] => {
   } catch (e) {
     console.error('Error reading local categories', e);
   }
-  const initialReconciled = reconcileCategoriesWithProducts(INITIAL_CATEGORIES, cachedProducts || undefined);
-  const sortedInitial = initialReconciled.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
-  safeLocalStorageSet(LOCAL_CATEGORIES_KEY, JSON.stringify(sortedInitial));
-  cachedCategories = sortedInitial;
-  return sortedInitial;
+  // Vacío por defecto: Supabase es la fuente autoritativa única
+  cachedCategories = [];
+  return [];
 };
 
 export const saveLocalCategories = (categories: Category[]) => {
@@ -186,6 +271,12 @@ export const saveLocalCategories = (categories: Category[]) => {
   cachedCategories = sorted;
   categoriesCacheTimestamp = Date.now();
   safeLocalStorageSet(LOCAL_CATEGORIES_KEY, JSON.stringify(sorted));
+  try {
+    localStorage.setItem(LOCAL_CATEGORIES_META_KEY, JSON.stringify({
+      timestamp: categoriesCacheTimestamp,
+      count: sorted.length,
+    }));
+  } catch (e) {}
 };
 
 export const LOCAL_DELETED_PRODUCTS_KEY = 'my_commerce_deleted_products';
@@ -242,16 +333,20 @@ export const getLocalProducts = (): Product[] => {
   } catch (e) {
     console.error('Error reading local products', e);
   }
-  const initialFiltered = INITIAL_PRODUCTS.filter((p) => !deletedIds.has(p.id) && !p.id.startsWith('__system_') && p.category !== '__system__');
-  safeLocalStorageSet(LOCAL_PRODUCTS_KEY, JSON.stringify(initialFiltered));
-  cachedProducts = initialFiltered;
-  return initialFiltered;
+  cachedProducts = [];
+  return [];
 };
 
 export const saveLocalProducts = (products: Product[]) => {
   cachedProducts = products;
   productsCacheTimestamp = Date.now();
   safeLocalStorageSet(LOCAL_PRODUCTS_KEY, JSON.stringify(products));
+  try {
+    localStorage.setItem(LOCAL_PRODUCTS_META_KEY, JSON.stringify({
+      timestamp: productsCacheTimestamp,
+      count: products.length,
+    }));
+  } catch (e) {}
 };
 
 const getLocalOrders = (): Order[] => {
@@ -492,9 +587,10 @@ async function executeAdaptiveProductWrite(
 
 export const fetchProducts = async (options?: { force?: boolean }): Promise<Product[]> => {
   const now = Date.now();
+  const lastSavedTime = getProductsCacheTimestamp();
 
-  // 1. Fast path: return in-memory cached products if fresh and not explicitly forced
-  if (!options?.force && cachedProducts && cachedProducts.length > 0 && (now - productsCacheTimestamp < CACHE_TTL_MS)) {
+  // 1. Caché válida se usa ya: si está dentro de la ventana de frescura y no se fuerza recarga
+  if (!options?.force && cachedProducts && cachedProducts.length > 0 && (now - lastSavedTime < CACHE_FRESHNESS_TTL_MS)) {
     return cachedProducts;
   }
 
@@ -634,7 +730,7 @@ export const fetchProducts = async (options?: { force?: boolean }): Promise<Prod
                 }
               }
 
-              let resolvedReviewsCount: number = 128;
+              let resolvedReviewsCount: number = 0;
               if (item.reviews_count !== undefined && item.reviews_count !== null && !isNaN(Number(item.reviews_count))) {
                 resolvedReviewsCount = Number(item.reviews_count);
               } else if (item.reviewsCount !== undefined && item.reviewsCount !== null && !isNaN(Number(item.reviewsCount))) {
@@ -648,8 +744,8 @@ export const fetchProducts = async (options?: { force?: boolean }): Promise<Prod
                 }
               }
 
-              let resolvedReviews: any[] | undefined = undefined;
-              if (Array.isArray(item.reviews) && item.reviews.length > 0) {
+              let resolvedReviews: any[] = [];
+              if (Array.isArray(item.reviews)) {
                 resolvedReviews = item.reviews;
               } else if (typeof item.reviews === 'string' && item.reviews.trim().startsWith('[')) {
                 try {
@@ -664,6 +760,10 @@ export const fetchProducts = async (options?: { force?: boolean }): Promise<Prod
                     resolvedReviews = JSON.parse(reviewsSpec.value);
                   } catch (e) {}
                 }
+              }
+              if (!Array.isArray(resolvedReviews)) resolvedReviews = [];
+              if (resolvedReviews.length > 0 && resolvedReviewsCount === 0) {
+                resolvedReviewsCount = resolvedReviews.length;
               }
 
               let resolvedTagId: string | undefined = item.tag_id || item.tagId || undefined;
@@ -731,12 +831,24 @@ export const fetchProducts = async (options?: { force?: boolean }): Promise<Prod
             const activeMapped = mappedProducts.filter(
               (p) => !deletedIds.has(p.id) && !p.id.startsWith('__system_') && p.category !== '__system__'
             );
+
+            const prev = cachedProducts || getLocalProducts();
+            const changed = hasProductsDataChanged(prev, activeMapped);
+
             saveLocalProducts(activeMapped);
+
+            if (changed && typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('products-updated', { detail: activeMapped }));
+            }
+
             return activeMapped;
           } else {
-            // Seed initial products to Supabase if empty
-            await seedInitialProducts();
-            return getLocalProducts();
+            // Supabase tabla vacía o sin registros: Supabase es la fuente autoritativa real, NO inyectar datos fijos viejos
+            saveLocalProducts([]);
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('products-updated', { detail: [] }));
+            }
+            return [];
           }
         } catch (err) {
           console.warn('Error connecting to Supabase, fallback to local:', err);
@@ -751,6 +863,176 @@ export const fetchProducts = async (options?: { force?: boolean }): Promise<Prod
   })();
 
   return inFlightProductsPromise;
+};
+
+/**
+ * Consulta un producto individual directamente desde Supabase
+ * Útil para revalidación inmediata al navegar a /producto/:id sin arrastrar datos obsoletos
+ */
+export const fetchSingleProduct = async (id: string): Promise<Product | null> => {
+  if (!id || !isSupabaseConfigured() || !supabaseInstance) return null;
+  try {
+    const { data, error } = await supabaseInstance
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error || !data) return null;
+
+    const rawSpecs = Array.isArray(data.specs)
+      ? data.specs
+      : typeof data.specs === 'string' && data.specs.startsWith('[')
+      ? JSON.parse(data.specs)
+      : [];
+    const colors = Array.isArray(data.colors)
+      ? data.colors
+      : typeof data.colors === 'string' && data.colors.startsWith('[')
+      ? JSON.parse(data.colors)
+      : [data.colors].filter(Boolean);
+    const variantTypes = normalizeVariantTypes(data);
+    const sizeVariants = cleanSizeVariantsList(data.size_variants || data.sizeVariants || []);
+    const specs = cleanSpecsList(rawSpecs);
+    const prodImages = extractProductImages(data);
+
+    let resolvedCashPrice: number | undefined = undefined;
+    if (data.cash_price !== undefined && data.cash_price !== null && data.cash_price !== '') {
+      resolvedCashPrice = Number(data.cash_price);
+    } else if (data.cashPrice !== undefined && data.cashPrice !== null && data.cashPrice !== '') {
+      resolvedCashPrice = Number(data.cashPrice);
+    }
+
+    let resolvedRetailCashPrice: number | undefined = undefined;
+    if (data.retail_cash_price !== undefined && data.retail_cash_price !== null && data.retail_cash_price !== '') {
+      resolvedRetailCashPrice = Number(data.retail_cash_price);
+    } else if (data.retailCashPrice !== undefined && data.retailCashPrice !== null && data.retailCashPrice !== '') {
+      resolvedRetailCashPrice = Number(data.retailCashPrice);
+    }
+    if (resolvedRetailCashPrice === undefined && resolvedCashPrice !== undefined) {
+      resolvedRetailCashPrice = resolvedCashPrice;
+    }
+
+    let resolvedWholesaleCashPrice: number | undefined = undefined;
+    if (data.wholesale_cash_price !== undefined && data.wholesale_cash_price !== null && data.wholesale_cash_price !== '') {
+      resolvedWholesaleCashPrice = Number(data.wholesale_cash_price);
+    } else if (data.wholesaleCashPrice !== undefined && data.wholesaleCashPrice !== null && data.wholesaleCashPrice !== '') {
+      resolvedWholesaleCashPrice = Number(data.wholesaleCashPrice);
+    }
+    if (resolvedWholesaleCashPrice === undefined && resolvedCashPrice !== undefined) {
+      resolvedWholesaleCashPrice = resolvedCashPrice;
+    }
+
+    let resolvedReviewsCount: number = 0;
+    if (data.reviews_count !== undefined && data.reviews_count !== null && !isNaN(Number(data.reviews_count))) {
+      resolvedReviewsCount = Number(data.reviews_count);
+    } else if (data.reviewsCount !== undefined && data.reviewsCount !== null && !isNaN(Number(data.reviewsCount))) {
+      resolvedReviewsCount = Number(data.reviewsCount);
+    } else if (Array.isArray(rawSpecs)) {
+      const reviewsCountSpec = rawSpecs.find(
+        (s: any) => s && (s.key === '__reviews_count' || s.label === '__reviews_count')
+      );
+      if (reviewsCountSpec && reviewsCountSpec.value && !isNaN(Number(reviewsCountSpec.value))) {
+        resolvedReviewsCount = Number(reviewsCountSpec.value);
+      }
+    }
+
+    let resolvedReviews: any[] = [];
+    if (Array.isArray(data.reviews)) {
+      resolvedReviews = data.reviews;
+    } else if (typeof data.reviews === 'string' && data.reviews.trim().startsWith('[')) {
+      try {
+        resolvedReviews = JSON.parse(data.reviews);
+      } catch (e) {}
+    } else if (Array.isArray(rawSpecs)) {
+      const reviewsSpec = rawSpecs.find(
+        (s: any) => s && (s.key === '__reviews' || s.label === '__reviews')
+      );
+      if (reviewsSpec && reviewsSpec.value) {
+        try {
+          resolvedReviews = JSON.parse(reviewsSpec.value);
+        } catch (e) {}
+      }
+    }
+    if (!Array.isArray(resolvedReviews)) resolvedReviews = [];
+    if (resolvedReviews.length > 0 && resolvedReviewsCount === 0) {
+      resolvedReviewsCount = resolvedReviews.length;
+    }
+
+    let resolvedTagId: string | undefined = data.tag_id || data.tagId || undefined;
+    let resolvedTag: any = undefined;
+    if (data.tag) {
+      try {
+        resolvedTag = typeof data.tag === 'string' ? JSON.parse(data.tag) : data.tag;
+      } catch (e) {}
+    }
+    if (!resolvedTagId && Array.isArray(rawSpecs)) {
+      const tagIdSpec = rawSpecs.find(
+        (s: any) => s && (s.key === '__tag_id' || s.label === '__tag_id')
+      );
+      if (tagIdSpec && tagIdSpec.value) {
+        resolvedTagId = tagIdSpec.value;
+      }
+    }
+    if (!resolvedTag && Array.isArray(rawSpecs)) {
+      const tagSpec = rawSpecs.find(
+        (s: any) => s && (s.key === '__tag_data' || s.label === '__tag_data')
+      );
+      if (tagSpec && tagSpec.value) {
+        try {
+          resolvedTag = JSON.parse(tagSpec.value);
+        } catch (e) {}
+      }
+    }
+
+    const mapped: Product = {
+      id: data.id || String(data.product_id),
+      title: data.title,
+      description: data.description || '',
+      category: data.category || 'Bijuteria',
+      subcategory: data.subcategory || '',
+      images: prodImages,
+      additionalImage: data.additional_image || data.additionalImage || undefined,
+      videoUrl: data.video_url || data.videoUrl || undefined,
+      minWholesaleQty: Number(data.min_wholesale_qty || data.minWholesaleQty || 1),
+      wholesalePrice: Number(data.wholesale_price || data.wholesalePrice || 0),
+      retailPrice: Number(data.retail_price || data.retailPrice || 0),
+      cashPrice: resolvedCashPrice,
+      retailCashPrice: resolvedRetailCashPrice,
+      wholesaleCashPrice: resolvedWholesaleCashPrice,
+      colors,
+      sizeVariants,
+      variantTypes,
+      stock: Number(data.stock || 0),
+      soldCount: Number(data.sold_count || data.soldCount || 0),
+      rating: Number(data.rating !== undefined && data.rating !== null ? data.rating : 5.0),
+      reviewsCount: resolvedReviewsCount,
+      reviews: resolvedReviews,
+      tagId: resolvedTagId,
+      tag: resolvedTag,
+      specs,
+      isBestSeller: Boolean(data.is_best_seller ?? data.isBestSeller),
+      createdAt: data.created_at || data.createdAt,
+    };
+
+    // Actualizar silenciosamente en caché local si difiere
+    const current = getLocalProducts();
+    const idx = current.findIndex((p) => p.id === mapped.id);
+    let updatedList: Product[];
+    if (idx >= 0) {
+      updatedList = [...current];
+      updatedList[idx] = mapped;
+    } else {
+      updatedList = [mapped, ...current];
+    }
+    saveLocalProducts(updatedList);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('products-updated', { detail: updatedList }));
+    }
+
+    return mapped;
+  } catch (e) {
+    return null;
+  }
 };
 
 export const createProduct = async (product: Omit<Product, 'id'> & { id?: string }): Promise<Product> => {
@@ -795,8 +1077,8 @@ export const createProduct = async (product: Omit<Product, 'id'> & { id?: string
     ...(newProduct.additionalImage ? [{ label: '__additional_image', value: newProduct.additionalImage }] : []),
     ...(newProduct.videoUrl ? [{ label: '__video_url', value: newProduct.videoUrl }] : []),
     ...(newProduct.rating !== undefined ? [{ label: '__rating', value: String(newProduct.rating) }] : []),
-    ...(newProduct.reviewsCount !== undefined ? [{ label: '__reviews_count', value: String(newProduct.reviewsCount) }] : []),
-    ...(newProduct.reviews && newProduct.reviews.length > 0 ? [{ label: '__reviews', value: JSON.stringify(newProduct.reviews) }] : []),
+    ...(newProduct.reviewsCount !== undefined ? [{ label: '__reviews_count', value: String(newProduct.reviewsCount) }] : [{ label: '__reviews_count', value: String(newProduct.reviews?.length || 0) }]),
+    ...(newProduct.reviews && newProduct.reviews.length > 0 ? [{ label: '__reviews', value: JSON.stringify(newProduct.reviews) }] : [{ label: '__reviews', value: '[]' }]),
     ...(newProduct.tagId ? [{ label: '__tag_id', value: newProduct.tagId }] : []),
     ...(newProduct.tag ? [{ label: '__tag_data', value: JSON.stringify(newProduct.tag) }] : []),
     ...(newProduct.isBestSeller ? [{ label: '__is_best_seller__', value: 'true' }] : [])
@@ -837,8 +1119,8 @@ export const createProduct = async (product: Omit<Product, 'id'> & { id?: string
         stock: newProduct.stock,
         sold_count: newProduct.soldCount || 0,
         rating: newProduct.rating !== undefined ? newProduct.rating : 5.0,
-        reviews_count: newProduct.reviewsCount !== undefined ? newProduct.reviewsCount : (newProduct.reviews?.length || 128),
-        reviews: newProduct.reviews || null,
+        reviews_count: newProduct.reviewsCount !== undefined ? newProduct.reviewsCount : (newProduct.reviews?.length || 0),
+        reviews: newProduct.reviews || [],
         specs: specsWithMeta,
         is_best_seller: newProduct.isBestSeller || false,
         tag_id: newProduct.tagId || null,
@@ -927,8 +1209,10 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
   const targetAdditionalImage = updates.additionalImage !== undefined ? updates.additionalImage : existingProduct?.additionalImage;
   const targetVideoUrl = updates.videoUrl !== undefined ? updates.videoUrl : existingProduct?.videoUrl;
   const targetRating = updates.rating !== undefined ? updates.rating : (existingProduct?.rating ?? 5.0);
-  const targetReviewsCount = updates.reviewsCount !== undefined ? updates.reviewsCount : (existingProduct?.reviewsCount ?? 128);
-  const targetReviews = updates.reviews !== undefined ? updates.reviews : existingProduct?.reviews;
+  const targetReviews = updates.reviews !== undefined ? updates.reviews : (existingProduct?.reviews || []);
+  const targetReviewsCount = updates.reviewsCount !== undefined
+    ? updates.reviewsCount
+    : (updates.reviews !== undefined ? updates.reviews.length : (existingProduct?.reviewsCount ?? targetReviews.length));
 
   const specsWithMeta: ProductSpec[] = [
     ...baseSpecs,
@@ -940,7 +1224,7 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
     ...(targetVideoUrl ? [{ label: '__video_url', value: targetVideoUrl }] : []),
     ...(targetRating !== undefined ? [{ label: '__rating', value: String(targetRating) }] : []),
     ...(targetReviewsCount !== undefined ? [{ label: '__reviews_count', value: String(targetReviewsCount) }] : []),
-    ...(targetReviews && targetReviews.length > 0 ? [{ label: '__reviews', value: JSON.stringify(targetReviews) }] : []),
+    ...(targetReviews !== undefined ? [{ label: '__reviews', value: JSON.stringify(targetReviews) }] : []),
     ...(updates.tagId !== undefined
       ? (updates.tagId ? [{ label: '__tag_id', value: updates.tagId }] : [])
       : (existingProduct?.tagId ? [{ label: '__tag_id', value: existingProduct.tagId }] : [])),
@@ -987,6 +1271,7 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
 
       if (updates.rating !== undefined) dbPayload.rating = updates.rating;
       if (updates.reviewsCount !== undefined) dbPayload.reviews_count = updates.reviewsCount;
+      else if (updates.reviews !== undefined) dbPayload.reviews_count = updates.reviews.length;
       if (updates.reviews !== undefined) dbPayload.reviews = updates.reviews;
 
       if (updates.minWholesaleQty !== undefined) dbPayload.min_wholesale_qty = updates.minWholesaleQty;
@@ -1753,7 +2038,10 @@ export const saveOrder = async (
           customer_whatsapp: String(newOrder.customerWhatsapp || 'WhatsApp'),
           delivery_option: String(newOrder.deliveryOption || 'pickup'),
           shipping_method_name: newOrder.shippingMethodName ? String(newOrder.shippingMethodName) : 'Retiro en local',
-          delivery_address: {},
+          delivery_address:
+            typeof newOrder.deliveryAddress === 'object' && newOrder.deliveryAddress !== null
+              ? newOrder.deliveryAddress
+              : {},
           payment_method: String(newOrder.paymentMethod || 'cash'),
           items: Array.isArray(newOrder.items) ? newOrder.items : [],
           subtotal: Number(newOrder.subtotal || 0),
@@ -1846,6 +2134,11 @@ export const fetchOrders = async (): Promise<Order[]> => {
           customerWhatsapp: item.customer_whatsapp || item.customerWhatsapp || '',
           deliveryOption: item.delivery_option || item.deliveryOption || 'pickup',
           shippingMethodName: item.shipping_method_name || item.shippingMethodName || undefined,
+          correoBranch:
+            item.delivery_address?.correoBranch ||
+            item.deliveryAddress?.correoBranch ||
+            item.correo_branch ||
+            undefined,
           deliveryAddress: item.delivery_address || item.deliveryAddress || {},
           paymentMethod: item.payment_method || item.paymentMethod || 'transfer',
           items: Array.isArray(item.items)
@@ -2229,7 +2522,10 @@ export const syncCategoriesToSupabase = async (categories: Category[]): Promise<
 
 export const fetchCategories = async (options?: { force?: boolean }): Promise<Category[]> => {
   const now = Date.now();
-  if (!options?.force && cachedCategories && cachedCategories.length > 0 && (now - categoriesCacheTimestamp < CACHE_TTL_MS)) {
+  const lastSavedTime = getCategoriesCacheTimestamp();
+
+  // 1. Caché válida se usa ya
+  if (!options?.force && cachedCategories && cachedCategories.length > 0 && (now - lastSavedTime < CACHE_FRESHNESS_TTL_MS)) {
     return cachedCategories;
   }
 
@@ -2242,6 +2538,9 @@ export const fetchCategories = async (options?: { force?: boolean }): Promise<Ca
       let loadedFromCloud: Category[] | null = null;
 
       if (isSupabaseConfigured() && supabaseInstance) {
+        let categoriesFromTable: Category[] = [];
+        let categoriesFromSystemRow: Category[] = [];
+
         // Strategy A: Dedicated categories table
         try {
           const { data, error } = await supabaseInstance
@@ -2251,7 +2550,7 @@ export const fetchCategories = async (options?: { force?: boolean }): Promise<Ca
             .order('created_at', { ascending: true });
 
           if (!error && data && Array.isArray(data) && data.length > 0) {
-            loadedFromCloud = data.map((item: any) => ({
+            categoriesFromTable = data.map((item: any) => ({
               id: item.id,
               name: item.name,
               slug: item.slug || slugifyCategory(item.name),
@@ -2267,32 +2566,43 @@ export const fetchCategories = async (options?: { force?: boolean }): Promise<Ca
         }
 
         // Strategy B: Dedicated cloud config row in products table
-        if (!loadedFromCloud || loadedFromCloud.length === 0) {
-          try {
-            const { data, error } = await supabaseInstance
-              .from('products')
-              .select('description')
-              .eq('id', SYSTEM_CATEGORIES_ROW_ID)
-              .maybeSingle();
+        try {
+          const { data, error } = await supabaseInstance
+            .from('products')
+            .select('description')
+            .eq('id', SYSTEM_CATEGORIES_ROW_ID)
+            .maybeSingle();
 
-            if (!error && data && data.description) {
-              const parsed = JSON.parse(data.description);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                loadedFromCloud = parsed.map((item: any, idx: number) => ({
-                  id: item.id || `cat-${item.slug || idx}`,
-                  name: item.name,
-                  slug: item.slug || slugifyCategory(item.name),
-                  image: item.image || 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=600',
-                  sortOrder: typeof item.sortOrder === 'number' ? item.sortOrder : idx + 1,
-                  isVisible: item.isVisible !== false,
-                  description: item.description || '',
-                  createdAt: item.createdAt,
-                }));
-              }
+          if (!error && data && data.description) {
+            const parsed = JSON.parse(data.description);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              categoriesFromSystemRow = parsed.map((item: any, idx: number) => ({
+                id: item.id || `cat-${item.slug || idx}`,
+                name: item.name,
+                slug: item.slug || slugifyCategory(item.name),
+                image: item.image || 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=600',
+                sortOrder: typeof item.sortOrder === 'number' ? item.sortOrder : idx + 1,
+                isVisible: item.isVisible !== false,
+                description: item.description || '',
+                createdAt: item.createdAt,
+              }));
             }
-          } catch (e) {
-            console.warn('[fetchCategories] Error reading from system row:', e);
           }
+        } catch (e) {
+          console.warn('[fetchCategories] Error reading from system row:', e);
+        }
+
+        if (categoriesFromSystemRow.length > 0 || categoriesFromTable.length > 0) {
+          const mergedMap = new Map<string, Category>();
+          for (const c of categoriesFromTable) {
+            const key = (c.id || c.slug || c.name).toLowerCase().trim();
+            mergedMap.set(key, c);
+          }
+          for (const c of categoriesFromSystemRow) {
+            const key = (c.id || c.slug || c.name).toLowerCase().trim();
+            mergedMap.set(key, c);
+          }
+          loadedFromCloud = Array.from(mergedMap.values());
         }
       }
 
@@ -2302,17 +2612,20 @@ export const fetchCategories = async (options?: { force?: boolean }): Promise<Ca
         // Reconciliamos únicamente contra los productos activos para no resucitar categorías eliminadas en otros dispositivos.
         const reconciled = reconcileCategoriesWithProducts(loadedFromCloud, cachedProducts || undefined);
         const sorted = reconciled.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+        const prev = cachedCategories || getLocalCategories();
+        const changed = hasCategoriesDataChanged(prev, sorted);
+
         saveLocalCategories(sorted);
+
+        if (changed && typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('categories-updated', { detail: sorted }));
+        }
+
         return sorted;
       }
 
-      // Fallback to local / initial categories
-      const local = getLocalCategories();
-      if (isSupabaseConfigured() && supabaseInstance && local.length > 0) {
-        // Seed initial categories to Supabase cloud storage so Vercel has them on first load
-        syncCategoriesToSupabase(local).catch(() => {});
-      }
-      return local;
+      // Fallback to local
+      return getLocalCategories();
     } finally {
       inFlightCategoriesPromise = null;
     }

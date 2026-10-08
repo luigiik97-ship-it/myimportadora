@@ -87,6 +87,25 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   const [province, setProvince] = useState(currentUser?.province || '');
   const [receiverName, setReceiverName] = useState(currentUser?.receiverName || currentUser?.fullName || '');
 
+  // Campo para retiro en Sucursal de Correo Argentino
+  const [correoBranch, setCorreoBranch] = useState(() => {
+    try {
+      return localStorage.getItem('my_commerce_last_correo_branch') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [correoBranchError, setCorreoBranchError] = useState<string | null>(null);
+  const correoBranchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    try {
+      if (correoBranch) {
+        localStorage.setItem('my_commerce_last_correo_branch', correoBranch);
+      }
+    } catch {}
+  }, [correoBranch]);
+
   // Auto-fill form fields whenever currentUser changes or logs in
   useEffect(() => {
     if (currentUser) {
@@ -211,6 +230,14 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
 
   // Active selected shipping option object
   const selectedShippingOption = availableShippingOptions.find((opt) => opt.id === selectedShippingOptionId) || null;
+
+  // Comprueba si el método de envío elegido es 'Sucursal de Correo Argentino'
+  const isBranchPickupSelected = Boolean(
+    deliveryOption === 'delivery' &&
+      selectedShippingOption &&
+      (selectedShippingOption.id.includes('sucursal') ||
+        selectedShippingOption.name.toLowerCase().includes('sucursal'))
+  );
 
   // Auto-handle selection when zone changes
   useEffect(() => {
@@ -341,11 +368,6 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     }
 
     if (deliveryOption === 'delivery') {
-      if (!street.trim() || !number.trim() || !city.trim()) {
-        setErrorMessage('Por favor completa la dirección completa de envío a domicilio (Calle, Número y Ciudad).');
-        deliverySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        return;
-      }
       if (!postalCode.trim()) {
         setErrorMessage('Por favor ingresa tu Código Postal para calcular las opciones de envío.');
         deliverySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -355,6 +377,25 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
         setDeliveryOptionError('elija una opción de envió');
         deliverySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
+      }
+      if (isBranchPickupSelected) {
+        if (!correoBranch.trim()) {
+          setCorreoBranchError('Por favor ingresa el nombre y dirección de la sucursal');
+          setErrorMessage('Por favor ingresa el Nombre y dirección de la sucursal.');
+          correoBranchInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          correoBranchInputRef.current?.focus();
+          return;
+        }
+        if (!city.trim()) {
+          setErrorMessage('Por favor completa la ciudad / localidad para tu envío.');
+          return;
+        }
+      } else {
+        if (!street.trim() || !number.trim() || !city.trim()) {
+          setErrorMessage('Por favor completa la dirección completa de envío a domicilio (Calle, Número y Ciudad).');
+          deliverySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
       }
     }
 
@@ -373,16 +414,18 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
         customerWhatsapp: customerWhatsapp.trim(),
         deliveryOption,
         shippingMethodName: deliveryOption === 'delivery' && selectedShippingOption ? selectedShippingOption.name : undefined,
+        correoBranch: isBranchPickupSelected ? correoBranch.trim() : undefined,
         deliveryAddress:
           deliveryOption === 'delivery'
             ? {
-                street: street.trim(),
-                number: number.trim(),
+                street: street.trim() || (isBranchPickupSelected ? correoBranch.trim() : ''),
+                number: number.trim() || (isBranchPickupSelected ? 'S/N' : ''),
                 floor: floor.trim(),
                 city: city.trim(),
                 postalCode: postalCode.trim(),
                 province: province.trim(),
                 receiverName: receiverName.trim() || customerName.trim(),
+                correoBranch: isBranchPickupSelected ? correoBranch.trim() : undefined,
               }
             : undefined,
         paymentMethod,
@@ -427,6 +470,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           paymentMethod: savedOrder.paymentMethod,
           deliveryOption: savedOrder.deliveryOption,
           shippingMethodName: savedOrder.shippingMethodName,
+          correoBranch: isBranchPickupSelected ? correoBranch.trim() : undefined,
         });
 
         const autoWaUrl = buildUniversalWhatsAppUrl(shortMessage, '1166904678');
@@ -673,10 +717,12 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   <div className="mt-3 pt-3 border-t border-blue-200/60 space-y-3">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-0.5">Calle *</label>
+                        <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-0.5">
+                          Calle {isBranchPickupSelected ? '(opcional)' : '*'}
+                        </label>
                         <input
                           type="text"
-                          required
+                          required={!isBranchPickupSelected}
                           value={street}
                           onChange={(e) => setStreet(e.target.value)}
                           placeholder="Ej: Av. Corrientes"
@@ -685,10 +731,12 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       </div>
 
                       <div>
-                        <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-0.5">Número *</label>
+                        <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-0.5">
+                          Número {isBranchPickupSelected ? '(opcional)' : '*'}
+                        </label>
                         <input
                           type="text"
-                          required
+                          required={!isBranchPickupSelected}
                           value={number}
                           onChange={(e) => setNumber(e.target.value)}
                           placeholder="1234"
@@ -789,7 +837,9 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                                       </span>
                                     </div>
                                     <p className="text-xs text-gray-500 mt-0.5">
-                                      {option.description}
+                                      {option.description === 'Retiro en sucursal oficial de Correo Argentino'
+                                        ? 'Retiro en la sucursal'
+                                        : option.description}
                                     </p>
                                   </div>
                                 </div>
@@ -806,6 +856,45 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                           <span>
                             Por favor escribe tu Código Postal arriba para ver los métodos de envío y tarifas exactas para tu localidad.
                           </span>
+                        </div>
+                      )}
+
+                      {/* Campo obligatorio exclusivo: Sucursal */}
+                      {isBranchPickupSelected && (
+                        <div
+                          id="checkout-correo-branch-section"
+                          className="mt-3 p-3 sm:p-3.5 bg-white border-2 border-amber-300 rounded-xl space-y-1.5 animate-fadeIn shadow-2xs"
+                        >
+                          <label className="text-xs sm:text-sm font-bold text-gray-900 flex items-center justify-between">
+                            <span className="flex items-center gap-1.5 text-amber-950 font-bold">
+                              Nombre y dirección de la sucursal *
+                            </span>
+                            <span className="text-[10px] sm:text-[11px] font-bold text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-full">
+                              Obligatorio
+                            </span>
+                          </label>
+                          <input
+                            ref={correoBranchInputRef}
+                            type="text"
+                            required
+                            value={correoBranch}
+                            onChange={(e) => {
+                              setCorreoBranch(e.target.value);
+                              if (correoBranchError) setCorreoBranchError(null);
+                            }}
+                            placeholder="Ej: Sucursal Flores - Av. Rivadavia 7000 (o indicar sucursal elegida)"
+                            className={`w-full border rounded-lg px-3 py-2 text-sm bg-white min-h-[40px] font-medium text-gray-900 focus:outline-none focus:ring-2 ${
+                              correoBranchError
+                                ? 'border-red-500 ring-2 ring-red-300'
+                                : 'border-amber-300 focus:ring-[#0058bb]'
+                            }`}
+                          />
+                          {correoBranchError && (
+                            <p className="text-xs text-red-600 font-semibold flex items-center gap-1">
+                              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                              {correoBranchError}
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>

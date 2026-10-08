@@ -47,107 +47,9 @@ export function persistStoredVotes(votes: Record<string, LaunchInterestLevel>): 
 }
 
 // ---------------- INITIAL PRESET COLLECTIONS ---------------- //
-// Modelos identificados exclusivamente por letras A, B, C, D, E, sin nombres
-const INITIAL_COLLECTIONS: LaunchCollection[] = [
-  {
-    id: 'launch-col-1',
-    title: 'Colección Figuras Armables Pokémon & Anime',
-    description: 'Votá qué modelos preferís que importemos en el próximo ingreso. Los más votados tendrán prioridad de stock.',
-    status: 'active',
-    allowCustomerProposals: true,
-    createdAt: new Date().toISOString(),
-    models: [
-      {
-        id: 'model-1-a',
-        letter: 'A',
-        image: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=800&auto=format&fit=crop&q=80',
-        sortOrder: 1,
-        votes: { level1: 14, level2: 28, level3: 52, total: 94 },
-      },
-      {
-        id: 'model-1-b',
-        letter: 'B',
-        image: 'https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?w=800&auto=format&fit=crop&q=80',
-        sortOrder: 2,
-        votes: { level1: 22, level2: 45, level3: 67, total: 134 },
-      },
-      {
-        id: 'model-1-c',
-        letter: 'C',
-        image: 'https://images.unsplash.com/photo-1618336753974-aae8e04506aa?w=800&auto=format&fit=crop&q=80',
-        sortOrder: 3,
-        votes: { level1: 8, level2: 19, level3: 41, total: 68 },
-      },
-      {
-        id: 'model-1-d',
-        letter: 'D',
-        image: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=800&auto=format&fit=crop&q=80',
-        sortOrder: 4,
-        votes: { level1: 31, level2: 38, level3: 49, total: 118 },
-      },
-      {
-        id: 'model-1-e',
-        letter: 'E',
-        image: 'https://images.unsplash.com/photo-1563089145-599997674d42?w=800&auto=format&fit=crop&q=80',
-        sortOrder: 5,
-        votes: { level1: 15, level2: 24, level3: 38, total: 77 },
-      },
-    ],
-  },
-  {
-    id: 'launch-col-2',
-    title: 'Colección Mochilas & Accesorios Urbanos',
-    description: 'Nuevos diseños y combinaciones de colores para la temporada. Seleccioná tu nivel de interés.',
-    status: 'active',
-    allowCustomerProposals: true,
-    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-    models: [
-      {
-        id: 'model-2-a',
-        letter: 'A',
-        image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&auto=format&fit=crop&q=80',
-        sortOrder: 1,
-        votes: { level1: 18, level2: 34, level3: 61, total: 113 },
-      },
-      {
-        id: 'model-2-b',
-        letter: 'B',
-        image: 'https://images.unsplash.com/photo-1622560480605-d83c853bc5c3?w=800&auto=format&fit=crop&q=80',
-        sortOrder: 2,
-        votes: { level1: 25, level2: 41, level3: 55, total: 121 },
-      },
-      {
-        id: 'model-2-c',
-        letter: 'C',
-        image: 'https://images.unsplash.com/photo-1546938576-6e6a64f317cc?w=800&auto=format&fit=crop&q=80',
-        sortOrder: 3,
-        votes: { level1: 12, level2: 29, level3: 47, total: 88 },
-      },
-      {
-        id: 'model-2-d',
-        letter: 'D',
-        image: 'https://images.unsplash.com/photo-1577733966973-d680bffd2e80?w=800&auto=format&fit=crop&q=80',
-        sortOrder: 4,
-        votes: { level1: 9, level2: 17, level3: 33, total: 59 },
-      },
-    ],
-  },
-];
-
-const INITIAL_PROPOSALS: LaunchCustomerProposal[] = [
-  {
-    id: 'prop-sample-1',
-    collectionId: 'launch-col-1',
-    collectionTitle: 'Colección Figuras Armables Pokémon & Anime',
-    imageUrl: 'https://images.unsplash.com/photo-1563089145-599997674d42?w=800&auto=format&fit=crop&q=80',
-    message: '¡Me encantaría que traigan este set de Mewtwo y Gengar en formato mini blocks!',
-    userId: 'user-demo-1',
-    userEmail: 'cliente.entusiasta@gmail.com',
-    userName: 'Martín Gómez',
-    status: 'pending',
-    createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
-  },
-];
+// Colecciones y propuestas administradas exclusivamente en Supabase y panel de control
+const INITIAL_COLLECTIONS: LaunchCollection[] = [];
+const INITIAL_PROPOSALS: LaunchCustomerProposal[] = [];
 
 // ---------------- IDENTIFICADORES DE FILAS EN SUPABASE ---------------- //
 export const SYSTEM_LAUNCHES_COLLECTIONS_ROW_ID = '__system_launches_collections_v1__';
@@ -274,12 +176,9 @@ export async function fetchLaunchCollections(force = false): Promise<LaunchColle
       console.warn('Error reading launch collections from storage:', e);
     }
 
-    // First time initialization: guardar en local y sembrar en Supabase
-    cachedCollections = INITIAL_COLLECTIONS;
+    cachedCollections = [];
     lastCollectionsFetchTime = Date.now();
-    localStorage.setItem(COLLECTIONS_STORAGE_KEY, JSON.stringify(INITIAL_COLLECTIONS));
-    syncCollectionsToSupabase(INITIAL_COLLECTIONS).catch(() => {});
-    return INITIAL_COLLECTIONS;
+    return [];
   })().finally(() => {
     activeFetchCollectionsPromise = null;
   });
@@ -422,9 +321,7 @@ export async function fetchCustomerProposals(): Promise<LaunchCustomerProposal[]
     console.warn('Error reading proposals from storage:', e);
   }
 
-  localStorage.setItem(PROPOSALS_STORAGE_KEY, JSON.stringify(INITIAL_PROPOSALS));
-  syncProposalsToSupabase(INITIAL_PROPOSALS).catch(() => {});
-  return INITIAL_PROPOSALS;
+  return [];
 }
 
 export async function submitCustomerProposal(

@@ -199,16 +199,21 @@ export function cleanSpecsList(specs: any[] | undefined | null): ProductSpec[] {
     .filter((s: any) => {
       if (!s) return false;
       const keyOrLabel = s.key || s.label;
+      if (!keyOrLabel || typeof keyOrLabel !== 'string') return false;
+      if (keyOrLabel.startsWith('__')) return false;
       return (
         keyOrLabel !== SPECS_VARIANT_TYPES_KEY &&
-        keyOrLabel !== '__variant_types' &&
         keyOrLabel !== 'variantTypes' &&
-        keyOrLabel !== '__cash_price' &&
         keyOrLabel !== 'cashPrice' &&
-        keyOrLabel !== '__retail_cash_price' &&
         keyOrLabel !== 'retailCashPrice' &&
-        keyOrLabel !== '__wholesale_cash_price' &&
-        keyOrLabel !== 'wholesaleCashPrice'
+        keyOrLabel !== 'wholesaleCashPrice' &&
+        keyOrLabel !== 'videoUrl' &&
+        keyOrLabel !== 'additionalImage' &&
+        keyOrLabel !== 'rating' &&
+        keyOrLabel !== 'reviewsCount' &&
+        keyOrLabel !== 'reviews' &&
+        keyOrLabel !== 'tagId' &&
+        keyOrLabel !== 'tag'
       );
     })
     .map((s: any) => ({

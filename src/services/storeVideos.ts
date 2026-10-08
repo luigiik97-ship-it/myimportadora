@@ -10,16 +10,8 @@ import { requireAdminAuth } from './adminAuth';
 export const STORAGE_KEY_STORE_VIDEOS = 'my_commerce_store_videos_config';
 export const SYSTEM_STORE_VIDEOS_ROW_ID = '__system_store_videos_v1__';
 
-// Sample fallback video so the user has an immediate example if none have been created yet
-export const DEFAULT_STORE_VIDEOS: StoreVideo[] = [
-  {
-    id: 'vid-demo-1',
-    title: 'Novedades de Temporada',
-    videoUrl: 'https://res.cloudinary.com/demo/video/upload/q_auto,vc_h264/dog.mp4',
-    createdAt: new Date().toISOString(),
-    sortOrder: 0,
-  }
-];
+// Lista predeterminada vacía: los videos provienen exclusivamente de Supabase y del panel
+export const DEFAULT_STORE_VIDEOS: StoreVideo[] = [];
 
 /**
  * Obtiene los videos guardados en localStorage con fallback a valores iniciales

@@ -363,15 +363,16 @@ export const buildShortOrderWhatsAppMessage = (params: {
   paymentMethod?: 'transfer' | 'cash';
   deliveryOption?: 'pickup' | 'delivery' | null;
   shippingMethodName?: string;
+  correoBranch?: string;
 }): string => {
-  const { orderNumber, totalUnits, total, paymentMethod, deliveryOption, shippingMethodName } = params;
+  const { orderNumber, totalUnits, total, paymentMethod, deliveryOption, shippingMethodName, correoBranch } = params;
 
   const paymentText =
     paymentMethod === 'transfer'
       ? `*Transferencia\nAlias: hola.retiro\nNombre: Silvia Lembo*`
       : `*Efectivo*`;
 
-  const deliveryText =
+  let deliveryText =
     deliveryOption === 'pickup'
       ? '*Retiro en el local*'
       : deliveryOption === 'delivery'
@@ -379,6 +380,10 @@ export const buildShortOrderWhatsAppMessage = (params: {
           ? `*Envío a domicilio (${shippingMethodName})*`
           : `*${shippingMethodName || 'Envío a domicilio'}*`)
       : '*Retiro en el local*';
+
+  if (correoBranch) {
+    deliveryText += `\n*Sucursal Correo Argentino:* ${correoBranch}`;
+  }
 
   return `Hola buenas, te paso mi nuevo pedido. Gracias
 
@@ -440,6 +445,7 @@ export const buildQuickBuyWhatsAppMessage = (params: {
   shippingMethodName?: string;
   shippingCost?: number;
   postalCode?: string;
+  correoBranch?: string;
 }): string => {
   const {
     orderNumber,
@@ -450,6 +456,7 @@ export const buildQuickBuyWhatsAppMessage = (params: {
     shippingMethodName,
     shippingCost,
     postalCode,
+    correoBranch,
   } = params;
 
   const lines: string[] = [];
@@ -502,6 +509,9 @@ export const buildQuickBuyWhatsAppMessage = (params: {
     }
     if (shippingMethodName) {
       lines.push(`*Método de envío:* ${shippingMethodName}`);
+    }
+    if (correoBranch) {
+      lines.push(`*Sucursal Correo Argentino:* ${correoBranch}`);
     }
     if (shippingCost && shippingCost > 0) {
       lines.push(`*Costo de envío:* $ ${Math.round(shippingCost).toLocaleString('es-AR')}`);

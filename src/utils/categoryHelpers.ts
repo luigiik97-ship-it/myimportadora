@@ -295,7 +295,7 @@ export function reconcileCategoriesWithProducts(
     return true;
   });
 
-  const baseSource = filteredInput.length > 0 ? filteredInput : [...INITIAL_CATEGORIES];
+  const baseSource = filteredInput;
 
   const list: Category[] = deduplicateCategories(baseSource);
 

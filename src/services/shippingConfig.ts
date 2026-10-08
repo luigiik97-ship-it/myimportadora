@@ -78,6 +78,14 @@ export const DEFAULT_SHIPPING_CONFIG: ShippingConfig = {
           description: 'Envío a domicilio por Correo Argentino',
           enabled: true,
         },
+        {
+          id: 'caba_correo_sucursal',
+          name: 'Sucursal de Correo Argentino',
+          price: 5200,
+          deliveryTime: 'Llega 1 a 4 días',
+          description: 'Retiro en la sucursal',
+          enabled: true,
+        },
       ],
     },
     gba: {
@@ -105,6 +113,14 @@ export const DEFAULT_SHIPPING_CONFIG: ShippingConfig = {
           description: 'Envío a domicilio por Correo Argentino',
           enabled: true,
         },
+        {
+          id: 'gba_correo_sucursal',
+          name: 'Sucursal de Correo Argentino',
+          price: 5200,
+          deliveryTime: 'Llega 1 a 4 días',
+          description: 'Retiro en la sucursal',
+          enabled: true,
+        },
       ],
     },
     pba_sf_cba: {
@@ -120,6 +136,14 @@ export const DEFAULT_SHIPPING_CONFIG: ShippingConfig = {
           price: 9850,
           deliveryTime: 'Llega 1 a 4 días',
           description: 'Envío a domicilio por Correo Argentino',
+          enabled: true,
+        },
+        {
+          id: 'pba_sf_cba_correo_sucursal',
+          name: 'Sucursal de Correo Argentino',
+          price: 7850,
+          deliveryTime: 'Llega 1 a 4 días',
+          description: 'Retiro en la sucursal',
           enabled: true,
         },
       ],
@@ -139,10 +163,41 @@ export const DEFAULT_SHIPPING_CONFIG: ShippingConfig = {
           description: 'Envío a domicilio por Correo Argentino',
           enabled: true,
         },
+        {
+          id: 'resto_pais_correo_sucursal',
+          name: 'Sucursal de Correo Argentino',
+          price: 10850,
+          deliveryTime: 'Llega 1 a 4 días',
+          description: 'Retiro en la sucursal',
+          enabled: true,
+        },
       ],
     },
   },
   customPostalCodeRules: [],
+};
+
+/**
+ * Combina las opciones guardadas de una zona con las opciones por defecto para
+ * garantizar que opciones nuevas como 'Sucursal de Correo Argentino' aparezcan siempre.
+ */
+export const mergeZoneOptions = (
+  defaultOptions: ShippingOptionConfig[],
+  savedOptions?: ShippingOptionConfig[]
+): ShippingOptionConfig[] => {
+  if (!Array.isArray(savedOptions) || savedOptions.length === 0) {
+    return defaultOptions;
+  }
+  const result = [...savedOptions];
+  for (const defOpt of defaultOptions) {
+    const exists = result.some(
+      (o) => o.id === defOpt.id || (o.name && o.name.toLowerCase().includes('sucursal'))
+    );
+    if (!exists) {
+      result.push({ ...defOpt });
+    }
+  }
+  return result;
 };
 
 /**
@@ -151,19 +206,47 @@ export const DEFAULT_SHIPPING_CONFIG: ShippingConfig = {
  */
 export const getShippingConfig = (): ShippingConfig => {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_SHIPPING_CONFIG);
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY_SHIPPING_CONFIG) : null;
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.zones) {
-        // Combinar con defaults para asegurar que no falten campos
+        // Combinar con defaults para asegurar que no falten campos ni opciones nuevas
         return {
           ...DEFAULT_SHIPPING_CONFIG,
           ...parsed,
           zones: {
-            caba: { ...DEFAULT_SHIPPING_CONFIG.zones.caba, ...parsed.zones.caba },
-            gba: { ...DEFAULT_SHIPPING_CONFIG.zones.gba, ...parsed.zones.gba },
-            pba_sf_cba: { ...DEFAULT_SHIPPING_CONFIG.zones.pba_sf_cba, ...parsed.zones.pba_sf_cba },
-            resto_pais: { ...DEFAULT_SHIPPING_CONFIG.zones.resto_pais, ...parsed.zones.resto_pais },
+            caba: {
+              ...DEFAULT_SHIPPING_CONFIG.zones.caba,
+              ...parsed.zones.caba,
+              options: mergeZoneOptions(
+                DEFAULT_SHIPPING_CONFIG.zones.caba.options,
+                parsed.zones.caba?.options
+              ),
+            },
+            gba: {
+              ...DEFAULT_SHIPPING_CONFIG.zones.gba,
+              ...parsed.zones.gba,
+              options: mergeZoneOptions(
+                DEFAULT_SHIPPING_CONFIG.zones.gba.options,
+                parsed.zones.gba?.options
+              ),
+            },
+            pba_sf_cba: {
+              ...DEFAULT_SHIPPING_CONFIG.zones.pba_sf_cba,
+              ...parsed.zones.pba_sf_cba,
+              options: mergeZoneOptions(
+                DEFAULT_SHIPPING_CONFIG.zones.pba_sf_cba.options,
+                parsed.zones.pba_sf_cba?.options
+              ),
+            },
+            resto_pais: {
+              ...DEFAULT_SHIPPING_CONFIG.zones.resto_pais,
+              ...parsed.zones.resto_pais,
+              options: mergeZoneOptions(
+                DEFAULT_SHIPPING_CONFIG.zones.resto_pais.options,
+                parsed.zones.resto_pais?.options
+              ),
+            },
           },
           customPostalCodeRules: Array.isArray(parsed.customPostalCodeRules)
             ? parsed.customPostalCodeRules
@@ -272,10 +355,38 @@ export const fetchShippingConfigFromSupabase = async (force = false): Promise<Sh
                 ...DEFAULT_SHIPPING_CONFIG,
                 ...parsed,
                 zones: {
-                  caba: { ...DEFAULT_SHIPPING_CONFIG.zones.caba, ...parsed.zones.caba },
-                  gba: { ...DEFAULT_SHIPPING_CONFIG.zones.gba, ...parsed.zones.gba },
-                  pba_sf_cba: { ...DEFAULT_SHIPPING_CONFIG.zones.pba_sf_cba, ...parsed.zones.pba_sf_cba },
-                  resto_pais: { ...DEFAULT_SHIPPING_CONFIG.zones.resto_pais, ...parsed.zones.resto_pais },
+                  caba: {
+                    ...DEFAULT_SHIPPING_CONFIG.zones.caba,
+                    ...parsed.zones.caba,
+                    options: mergeZoneOptions(
+                      DEFAULT_SHIPPING_CONFIG.zones.caba.options,
+                      parsed.zones.caba?.options
+                    ),
+                  },
+                  gba: {
+                    ...DEFAULT_SHIPPING_CONFIG.zones.gba,
+                    ...parsed.zones.gba,
+                    options: mergeZoneOptions(
+                      DEFAULT_SHIPPING_CONFIG.zones.gba.options,
+                      parsed.zones.gba?.options
+                    ),
+                  },
+                  pba_sf_cba: {
+                    ...DEFAULT_SHIPPING_CONFIG.zones.pba_sf_cba,
+                    ...parsed.zones.pba_sf_cba,
+                    options: mergeZoneOptions(
+                      DEFAULT_SHIPPING_CONFIG.zones.pba_sf_cba.options,
+                      parsed.zones.pba_sf_cba?.options
+                    ),
+                  },
+                  resto_pais: {
+                    ...DEFAULT_SHIPPING_CONFIG.zones.resto_pais,
+                    ...parsed.zones.resto_pais,
+                    options: mergeZoneOptions(
+                      DEFAULT_SHIPPING_CONFIG.zones.resto_pais.options,
+                      parsed.zones.resto_pais?.options
+                    ),
+                  },
                 },
                 customPostalCodeRules: Array.isArray(parsed.customPostalCodeRules)
                   ? parsed.customPostalCodeRules

@@ -921,6 +921,7 @@ export const buildCustomerTemplateParams = (order: Order): Record<string, any> =
 
   const isCash = currentOrder.paymentMethod === 'cash' || String(currentOrder.paymentMethod || '').toLowerCase().includes('efectivo');
   const isPickup = currentOrder.deliveryOption === 'pickup';
+  const branch = currentOrder.deliveryAddress?.correoBranch || currentOrder.correoBranch;
 
   const deliveryOptionText = isPickup
     ? 'Retiro en Local Comercial'
@@ -928,11 +929,11 @@ export const buildCustomerTemplateParams = (order: Order): Record<string, any> =
 
   const deliveryText = isPickup
     ? '<strong>Retiro en Local Comercial:</strong><br/>Av. San Pedrito 28, Local 4, Flores, CABA<br/><span style="color: #64748b; font-size: 11px;">(Lunes a sábados 11:00 a 17:00 hs)</span>'
-    : `<strong>Envío a domicilio:</strong><br/>${escapeHtml(currentOrder.deliveryAddress?.street || '')} ${escapeHtml(currentOrder.deliveryAddress?.number || '')}${currentOrder.deliveryAddress?.floor ? ` (Piso/Dpto: ${escapeHtml(currentOrder.deliveryAddress.floor)})` : ''}<br/>${escapeHtml(currentOrder.deliveryAddress?.city || '')}, ${escapeHtml(currentOrder.deliveryAddress?.province || '')} (CP ${escapeHtml(currentOrder.deliveryAddress?.postalCode || '')})<br/><span style="color: #64748b; font-size: 11px;">Recibe: ${escapeHtml(currentOrder.deliveryAddress?.receiverName || currentOrder.customerName)}</span>`;
+    : `<strong>Envío a domicilio:</strong>${branch ? `<br/><span style="color: #b45309; font-weight: bold;">Sucursal Correo Argentino: ${escapeHtml(branch)}</span>` : ''}<br/>${escapeHtml(currentOrder.deliveryAddress?.street || '')} ${escapeHtml(currentOrder.deliveryAddress?.number || '')}${currentOrder.deliveryAddress?.floor ? ` (Piso/Dpto: ${escapeHtml(currentOrder.deliveryAddress.floor)})` : ''}<br/>${escapeHtml(currentOrder.deliveryAddress?.city || '')}, ${escapeHtml(currentOrder.deliveryAddress?.province || '')} (CP ${escapeHtml(currentOrder.deliveryAddress?.postalCode || '')})<br/><span style="color: #64748b; font-size: 11px;">Recibe: ${escapeHtml(currentOrder.deliveryAddress?.receiverName || currentOrder.customerName)}</span>`;
 
   const deliveryAddressText = isPickup
     ? 'Av. San Pedrito 28, Local 4, Flores, CABA.<br/><span style="color: #64748b; font-size: 11px;">(Horario: Lun a Sáb 11:00 a 17:00 hs)</span>'
-    : `${escapeHtml(currentOrder.deliveryAddress?.street || '')} ${escapeHtml(currentOrder.deliveryAddress?.number || '')}${currentOrder.deliveryAddress?.floor ? ` (Piso/Dpto: ${escapeHtml(currentOrder.deliveryAddress.floor)})` : ''}<br/>${escapeHtml(currentOrder.deliveryAddress?.city || '')}, ${escapeHtml(currentOrder.deliveryAddress?.province || '')} (CP ${escapeHtml(currentOrder.deliveryAddress?.postalCode || '')})`;
+    : `${branch ? `<strong>Sucursal Correo Argentino:</strong> ${escapeHtml(branch)}<br/>` : ''}${escapeHtml(currentOrder.deliveryAddress?.street || '')} ${escapeHtml(currentOrder.deliveryAddress?.number || '')}${currentOrder.deliveryAddress?.floor ? ` (Piso/Dpto: ${escapeHtml(currentOrder.deliveryAddress.floor)})` : ''}<br/>${escapeHtml(currentOrder.deliveryAddress?.city || '')}, ${escapeHtml(currentOrder.deliveryAddress?.province || '')} (CP ${escapeHtml(currentOrder.deliveryAddress?.postalCode || '')})`;
 
   const paymentMethodText = isCash ? 'Efectivo' : 'Transferencia';
   const customerPaymentInfoHtml = generateCustomerPaymentInfoHtml(currentOrder);
@@ -1044,6 +1045,7 @@ export const buildAdminTemplateParams = (order: Order): Record<string, any> => {
 
   const isCash = currentOrder.paymentMethod === 'cash' || String(currentOrder.paymentMethod || '').toLowerCase().includes('efectivo');
   const isPickup = currentOrder.deliveryOption === 'pickup';
+  const branchAdmin = currentOrder.deliveryAddress?.correoBranch || currentOrder.correoBranch;
 
   const deliveryOptionText = isPickup
     ? 'Retiro en Local Comercial'
@@ -1051,11 +1053,11 @@ export const buildAdminTemplateParams = (order: Order): Record<string, any> => {
 
   const deliveryText = isPickup
     ? '<strong>Retiro en Local Comercial:</strong><br/>Av. San Pedrito 28, Local 4, Flores, CABA<br/><span style="color: #64748b; font-size: 11px;">(Lunes a sábados 11:00 a 17:00 hs)</span>'
-    : `<strong>Envío a domicilio:</strong><br/>${escapeHtml(currentOrder.deliveryAddress?.street || '')} ${escapeHtml(currentOrder.deliveryAddress?.number || '')}${currentOrder.deliveryAddress?.floor ? ` (Piso/Dpto: ${escapeHtml(currentOrder.deliveryAddress.floor)})` : ''}<br/>${escapeHtml(currentOrder.deliveryAddress?.city || '')}, ${escapeHtml(currentOrder.deliveryAddress?.province || '')} (CP ${escapeHtml(currentOrder.deliveryAddress?.postalCode || '')})<br/><span style="color: #64748b; font-size: 11px;">Recibe: ${escapeHtml(currentOrder.deliveryAddress?.receiverName || currentOrder.customerName)}</span>`;
+    : `<strong>Envío a domicilio:</strong>${branchAdmin ? `<br/><span style="color: #b45309; font-weight: bold;">Sucursal Correo Argentino: ${escapeHtml(branchAdmin)}</span>` : ''}<br/>${escapeHtml(currentOrder.deliveryAddress?.street || '')} ${escapeHtml(currentOrder.deliveryAddress?.number || '')}${currentOrder.deliveryAddress?.floor ? ` (Piso/Dpto: ${escapeHtml(currentOrder.deliveryAddress.floor)})` : ''}<br/>${escapeHtml(currentOrder.deliveryAddress?.city || '')}, ${escapeHtml(currentOrder.deliveryAddress?.province || '')} (CP ${escapeHtml(currentOrder.deliveryAddress?.postalCode || '')})<br/><span style="color: #64748b; font-size: 11px;">Recibe: ${escapeHtml(currentOrder.deliveryAddress?.receiverName || currentOrder.customerName)}</span>`;
 
   const deliveryAddressText = isPickup
     ? 'Av. San Pedrito 28, Local 4, Flores, CABA.<br/><span style="color: #64748b; font-size: 11px;">(Horario: Lun a Sáb 11:00 a 17:00 hs)</span>'
-    : `${escapeHtml(currentOrder.deliveryAddress?.street || '')} ${escapeHtml(currentOrder.deliveryAddress?.number || '')}${currentOrder.deliveryAddress?.floor ? ` (Piso/Dpto: ${escapeHtml(currentOrder.deliveryAddress.floor)})` : ''}<br/>${escapeHtml(currentOrder.deliveryAddress?.city || '')}, ${escapeHtml(currentOrder.deliveryAddress?.province || '')} (CP ${escapeHtml(currentOrder.deliveryAddress?.postalCode || '')})`;
+    : `${branchAdmin ? `<strong>Sucursal Correo Argentino:</strong> ${escapeHtml(branchAdmin)}<br/>` : ''}${escapeHtml(currentOrder.deliveryAddress?.street || '')} ${escapeHtml(currentOrder.deliveryAddress?.number || '')}${currentOrder.deliveryAddress?.floor ? ` (Piso/Dpto: ${escapeHtml(currentOrder.deliveryAddress.floor)})` : ''}<br/>${escapeHtml(currentOrder.deliveryAddress?.city || '')}, ${escapeHtml(currentOrder.deliveryAddress?.province || '')} (CP ${escapeHtml(currentOrder.deliveryAddress?.postalCode || '')})`;
 
   const paymentMethodText = isCash ? 'Efectivo' : 'Transferencia';
 

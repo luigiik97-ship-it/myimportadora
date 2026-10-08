@@ -159,7 +159,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Main Royal Blue Navigation */}
       <div className="bg-[#0058bb] text-white">
-        <div className="max-w-[1240px] mx-auto px-2 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3 md:gap-6">
+        <div
+          id="main-nav-primary-row"
+          className="max-w-[1240px] mx-auto px-2 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3 md:gap-6"
+        >
           {isMobileSearchOpen ? (
             /* Active Search Bar for Mobile */
             <div className="md:hidden flex items-center gap-2 w-full animate-in fade-in duration-200">

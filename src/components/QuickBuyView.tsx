@@ -317,15 +317,8 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
     });
   }, [allFlatItems, searchQuery]);
 
-  // Helper to determine price for sorting
-  const getSortPrice = (item: QuickBuyItem): number => {
-    if (deliveryOption === 'pickup' && paymentMethod === 'cash') {
-      return item.prices.wholesaleCashPrice || item.prices.wholesalePrice || 0;
-    }
-    return item.prices.wholesalePrice || 0;
-  };
-
-  // Group filtered items by category, sorted within each category from lowest to highest price (menor a mayor precio)
+  // Group filtered items by category: keep categories as defined, and within each category,
+  // order items so that each product is immediately followed by all of its variants (never mixed with other products)
   const groupedCategories = useMemo(() => {
     const groups: { categoryName: string; categoryObj?: Category; items: QuickBuyItem[] }[] = [];
     const categoryMap = new Map<string, QuickBuyItem[]>();
@@ -363,19 +356,36 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
 
     sortedCatNames.forEach((catName) => {
       const rawItems = categoryMap.get(catName) || [];
-      // Sort ascending by price (menor a mayor precio)
-      const sortedItems = [...rawItems].sort((a, b) => getSortPrice(a) - getSortPrice(b));
+      // Group items by productId so each product and all its variants stay strictly contiguous
+      const productOrder: string[] = [];
+      const productItemsMap = new Map<string, QuickBuyItem[]>();
+
+      rawItems.forEach((item) => {
+        if (!productItemsMap.has(item.productId)) {
+          productItemsMap.set(item.productId, []);
+          productOrder.push(item.productId);
+        }
+        productItemsMap.get(item.productId)!.push(item);
+      });
+
+      // Assemble contiguous list: each product is followed immediately by all its variants
+      const contiguousItems: QuickBuyItem[] = [];
+      productOrder.forEach((pId) => {
+        const variants = productItemsMap.get(pId) || [];
+        contiguousItems.push(...variants);
+      });
+
       const categoryObj = categories.find((c) => c.name.toLowerCase() === catName.toLowerCase());
 
       groups.push({
         categoryName: catName,
         categoryObj,
-        items: sortedItems,
+        items: contiguousItems,
       });
     });
 
     return groups;
-  }, [filteredItems, categories, deliveryOption, paymentMethod]);
+  }, [filteredItems, categories]);
 
   // Calculate live Cart totals with the active payment method & delivery selection
   const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
@@ -427,6 +437,22 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
     }
   });
   const [selectedShippingOptionId, setSelectedShippingOptionId] = useState<string | null>(null);
+  const [quickBuyCorreoBranch, setQuickBuyCorreoBranch] = useState(() => {
+    try {
+      return localStorage.getItem('my_commerce_last_correo_branch') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (quickBuyCorreoBranch) {
+        localStorage.setItem('my_commerce_last_correo_branch', quickBuyCorreoBranch);
+      }
+    } catch {}
+  }, [quickBuyCorreoBranch]);
+
   const [isShippingOptionsCollapsed, setIsShippingOptionsCollapsed] = useState<boolean>(true);
   const [shippingConfigTick, setShippingConfigTick] = useState(0);
   const [shippingValidationError, setShippingValidationError] = useState<string | null>(null);
@@ -487,6 +513,13 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
 
     // Validación para Envío a Domicilio en Enlace Personalizado:
     // Si no escribieron código postal o no seleccionaron envío, redirige hacia arriba con mensaje indicador
+    const isBranchPickupSelected = Boolean(
+      deliveryOption === 'delivery' &&
+        selectedShippingOption &&
+        (selectedShippingOption.id.includes('sucursal') ||
+          selectedShippingOption.name.toLowerCase().includes('sucursal'))
+    );
+
     if (isCustomLinkMode && deliveryOption === 'delivery') {
       const trimmedCp = quickBuyPostalCode.trim();
       if (!trimmedCp || !selectedShippingOption) {
@@ -507,6 +540,18 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
           document.getElementById('quick-buy-cp-input')?.focus();
         }, 300);
 
+        return;
+      }
+
+      if (isBranchPickupSelected && !quickBuyCorreoBranch.trim()) {
+        setShippingValidationError('Ingrese el nombre y dirección de la sucursal');
+        const target = document.getElementById('quick-buy-correo-branch-input') || document.getElementById('quick-buy-transfer-card');
+        if (target) {
+          const yOffset = -90;
+          const y = target.getBoundingClientRect().top + window.pageYOffset + yOffset;
+          window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+          target.focus?.();
+        }
         return;
       }
     }
@@ -597,6 +642,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         customerWhatsapp,
         deliveryOption,
         shippingMethodName,
+        correoBranch: isBranchPickupSelected ? quickBuyCorreoBranch.trim() : undefined,
         deliveryAddress: activeUser?.street
           ? {
               street: activeUser.street || '',
@@ -606,13 +652,15 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
               postalCode: activeUser.postalCode || quickBuyPostalCode.trim() || '',
               province: activeUser.province || shippingZoneInfo?.zoneLabel || '',
               receiverName: activeUser.receiverName || activeUser.fullName || '',
+              correoBranch: isBranchPickupSelected ? quickBuyCorreoBranch.trim() : undefined,
             }
           : {
-              street: 'A coordinar por WhatsApp',
+              street: isBranchPickupSelected ? quickBuyCorreoBranch.trim() : 'A coordinar por WhatsApp',
               number: 'S/N',
               city: 'A coordinar',
               postalCode: quickBuyPostalCode.trim() || '0000',
               province: shippingZoneInfo?.zoneLabel || 'A coordinar',
+              correoBranch: isBranchPickupSelected ? quickBuyCorreoBranch.trim() : undefined,
             },
         paymentMethod,
         items: processedItems,
@@ -671,6 +719,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         paymentMethod,
         deliveryOption,
         shippingMethodName: selectedShippingOption?.name,
+        correoBranch: isBranchPickupSelected ? quickBuyCorreoBranch.trim() : undefined,
       });
 
       // 8. Construir URL oficial de WhatsApp universal al 1166904678
@@ -1095,6 +1144,37 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                         ) : null}
                       </div>
                     </div>
+
+                    {/* Campo para Sucursal de Correo Argentino si fue seleccionada */}
+                    {selectedShippingOption &&
+                      (selectedShippingOption.id.includes('sucursal') ||
+                        selectedShippingOption.name.toLowerCase().includes('sucursal')) && (
+                        <div className="mt-2 pt-2 border-t border-blue-200/60 animate-fadeIn">
+                          <label className="text-[11px] font-bold text-gray-800 flex items-center justify-between mb-1">
+                            <span className="flex items-center gap-1 text-amber-950 font-bold">
+                              <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                              Nombre y dirección de la sucursal *
+                            </span>
+                            <span className="text-[10px] font-bold text-amber-800 bg-amber-200/80 px-1.5 py-0.5 rounded-full">
+                              Obligatorio
+                            </span>
+                          </label>
+                          <input
+                            id="quick-buy-correo-branch-input"
+                            type="text"
+                            value={quickBuyCorreoBranch}
+                            onChange={(e) => {
+                              setQuickBuyCorreoBranch(e.target.value);
+                              if (shippingValidationError) setShippingValidationError(null);
+                            }}
+                            placeholder="Ej: Sucursal Flores - Av. Rivadavia 7000"
+                            className="w-full text-xs font-medium px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0058bb]"
+                          />
+                          <p className="text-[10.5px] text-amber-800 mt-0.5">
+                            El paquete se despachará a esta sucursal oficial para que lo retires con tu DNI.
+                          </p>
+                        </div>
+                      )}
                   </div>
                 </div>
               ) : (

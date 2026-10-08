@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams, Navigate } from 'react-router-dom';
 import { ArrowLeft, ShoppingBag } from 'lucide-react';
 import { Product, Category, SizeVariant, Order } from '../../types';
 import { slugifyCategory, isObsoleteDefaultCategory } from '../../utils/categoryHelpers';
+import { fetchSingleProduct } from '../../services/supabase';
 import { ProductDetailView } from '../ProductDetailView';
 import { CategoryView } from '../CategoryView';
 import { OrderConfirmationView } from '../OrderConfirmationView';
@@ -48,10 +49,32 @@ export function ProductDetailRouteWrapper({
   const { productId } = useParams<{ productId: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const [directProduct, setDirectProduct] = useState<Product | null>(null);
+  const [isFetchingDirect, setIsFetchingDirect] = useState<boolean>(false);
 
-  const product = useMemo(() => {
+  const productFromList = useMemo(() => {
     return products.find((p) => String(p.id) === String(productId));
   }, [products, productId]);
+
+  // Si no está en lista o para asegurar datos 100% frescos de stock y precios al entrar a /producto/:id
+  useEffect(() => {
+    if (productId) {
+      if (!productFromList) {
+        setIsFetchingDirect(true);
+      }
+      fetchSingleProduct(productId)
+        .then((fetched) => {
+          if (fetched) {
+            setDirectProduct(fetched);
+          }
+        })
+        .finally(() => {
+          setIsFetchingDirect(false);
+        });
+    }
+  }, [productId, productFromList]);
+
+  const product = directProduct || productFromList;
 
   const resolvedInitialVariants = useMemo(() => {
     if (selectedProductVariants && Object.keys(selectedProductVariants).length > 0) {
@@ -64,7 +87,7 @@ export function ProductDetailRouteWrapper({
     return undefined;
   }, [selectedProductVariants, searchParams, product]);
 
-  if (isLoadingData && products.length === 0) {
+  if ((isLoadingData && products.length === 0) || isFetchingDirect) {
     return (
       <div className="max-w-[1240px] mx-auto px-4 py-12 animate-pulse">
         <div className="h-6 w-36 bg-gray-200 rounded mb-6" />

@@ -519,7 +519,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
           const matchesName = order.customerName?.toLowerCase().includes(query);
           const matchesEmail = order.customerEmail?.toLowerCase().includes(query);
           const matchesWhatsapp = order.customerWhatsapp?.toLowerCase().includes(query);
-          const matchesShipping = order.shippingMethodName?.toLowerCase().includes(query);
+          const matchesShipping =
+            order.shippingMethodName?.toLowerCase().includes(query) ||
+            order.deliveryAddress?.correoBranch?.toLowerCase().includes(query) ||
+            order.correoBranch?.toLowerCase().includes(query);
           const matchesOrigin =
             (query.includes('rapida') || query.includes('rápida') || query.includes('whatsapp')) &&
             isQuickBuyOrder(order);
@@ -676,21 +679,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
       images: [],
       additionalImage: '',
       rating: 5.0,
-      reviewsCount: 128,
-      reviews: [
-        {
-          id: `rev-1-${Date.now()}`,
-          rating: 5,
-          author: 'Comprador verificado',
-          text: 'Excelente calidad, no se ponen negros y se venden súper rápido.',
-        },
-        {
-          id: `rev-2-${Date.now()}`,
-          rating: 5,
-          author: 'Revendedora Flores',
-          text: 'Muy buen cierre, el dorado es muy lindo y natural.',
-        },
-      ],
+      reviewsCount: 0,
+      reviews: [],
       minWholesaleQty: 3,
       wholesalePrice: 1000,
       retailPrice: 1500,
@@ -701,7 +691,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
       sizeVariants: [],
       variantTypes: initialVariantTypes,
       stock: 50,
-      soldCount: Math.random() > 0.5 ? 1000 : 500,
+      soldCount: 0,
       isBestSeller: false,
       videoUrl: '',
     });
@@ -716,22 +706,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     const cloned = JSON.parse(JSON.stringify(prod));
     cloned.variantTypes = normalizeVariantTypes(cloned);
     if (cloned.rating === undefined || cloned.rating === null) cloned.rating = 5.0;
-    if (cloned.reviewsCount === undefined || cloned.reviewsCount === null) cloned.reviewsCount = 128;
-    if (!cloned.reviews || cloned.reviews.length === 0) {
-      cloned.reviews = [
-        {
-          id: `rev-1-${Date.now()}`,
-          rating: 5,
-          author: 'Comprador verificado',
-          text: 'Excelente calidad, no se ponen negros y se venden súper rápido.',
-        },
-        {
-          id: `rev-2-${Date.now()}`,
-          rating: 5,
-          author: 'Revendedora Flores',
-          text: 'Muy buen cierre, el dorado es muy lindo y natural.',
-        },
-      ];
+    cloned.reviews = Array.isArray(cloned.reviews) ? cloned.reviews : [];
+    if (cloned.reviewsCount === undefined || cloned.reviewsCount === null) {
+      cloned.reviewsCount = cloned.reviews.length;
     }
     console.log(`\n================== [CASH & VARIANT DEBUG - POST-LOAD (Admin Edit Open)] ==================`);
     console.log(`[Admin Edit Open] Abriendo edición para producto "${cloned.title}" (ID: ${cloned.id})`);
@@ -1141,6 +1118,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     setEditingProduct({
       ...editingProduct,
       reviews: updatedReviews,
+      reviewsCount: updatedReviews.length,
     });
   };
 
@@ -2268,10 +2246,22 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                               <span className="text-gray-700 font-medium">Retiro Local</span>
                             ) : (
                               <div>
-                                <span className="text-blue-700 font-medium block">Envío Domicilio</span>
+                                <span className="text-blue-700 font-medium block">
+                                  {order.shippingMethodName?.toLowerCase().includes('sucursal')
+                                    ? 'Sucursal Correo'
+                                    : 'Envío Domicilio'}
+                                </span>
                                 {order.shippingMethodName && (
                                   <span className="text-[10px] text-gray-500 block truncate max-w-[130px]" title={order.shippingMethodName}>
                                     {order.shippingMethodName}
+                                  </span>
+                                )}
+                                {(order.deliveryAddress?.correoBranch || order.correoBranch) && (
+                                  <span
+                                    className="text-[9.5px] font-bold text-amber-800 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 block truncate max-w-[140px] mt-0.5"
+                                    title={`Sucursal: ${order.deliveryAddress?.correoBranch || order.correoBranch}`}
+                                  >
+                                    Suc: {order.deliveryAddress?.correoBranch || order.correoBranch}
                                   </span>
                                 )}
                               </div>
@@ -3402,7 +3392,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                     <input
                       type="number"
                       min="0"
-                      value={editingProduct.reviewsCount ?? 128}
+                      value={editingProduct.reviewsCount ?? (editingProduct.reviews?.length || 0)}
                       onChange={(e) =>
                         setEditingProduct({
                           ...editingProduct,
@@ -3704,7 +3694,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                 </div>
 
                 {selectedOrder.deliveryOption === 'delivery' && selectedOrder.deliveryAddress && (
-                  <div className="pt-2 text-gray-700 space-y-0.5 border-t border-blue-100/80">
+                  <div className="pt-2 text-gray-700 space-y-1 border-t border-blue-100/80">
+                    {(selectedOrder.deliveryAddress.correoBranch || selectedOrder.correoBranch) && (
+                      <div className="bg-amber-100/90 border border-amber-300 text-amber-950 p-2.5 rounded-lg mb-2">
+                        <span className="block text-[11px] font-bold uppercase tracking-wider text-amber-900">
+                          Sucursal de Correo Argentino:
+                        </span>
+                        <span className="text-sm font-bold text-gray-900 block mt-0.5">
+                          {selectedOrder.deliveryAddress.correoBranch || selectedOrder.correoBranch}
+                        </span>
+                      </div>
+                    )}
                     <div>
                       <strong>Dirección:</strong> {selectedOrder.deliveryAddress.street}{' '}
                       {selectedOrder.deliveryAddress.number}

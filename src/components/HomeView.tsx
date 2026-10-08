@@ -194,121 +194,17 @@ export const HomeView: React.FC<HomeViewProps> = ({
     return rawHeroBanners.some((b) => Boolean(b.imageUrl && b.imageUrl.trim()));
   }, [rawHeroBanners]);
 
-  // Si tiene 1 imagen es estático; si tiene 2 o más se vuelve un carrusel
+  // Banners válidos con imagen real desde Supabase / Panel de administración
   const banners = useMemo(() => {
-    // Si no se ha configurado ninguna imagen personalizada y vienen los 3 slots iniciales
-    if (!hasCustomImages && rawHeroBanners.length === 3) {
-      return [
-        {
-          id: 'banner-1',
-          badge: 'Oferta Mayorista',
-          badgeBg: 'bg-[#00a650]',
-          title: 'Precios en efectivo',
-          subtitleText: 'pagando en',
-          subtitleHighlight: 'efectivo o transferencia',
-          description: 'Precios directos para revendedores y comerciantes de todo el país',
-          ctaText: 'Ver Catálogo',
-          linkUrl: rawHeroBanners[0]?.linkUrl || 'Todo',
-          bgGradient: 'from-slate-100 via-gray-50 to-slate-200',
-          customImage: rawHeroBanners[0]?.imageUrl || '',
-          showText: rawHeroBanners[0]?.showText !== false,
-          images: [
-            {
-              src: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=500&auto=format&fit=crop&q=80',
-              alt: 'Joyas y Dijes',
-              className: 'w-24 h-24 md:w-44 md:h-44 object-cover rounded-xl shadow-md transform -rotate-3 border-2 border-white',
-            },
-            {
-              src: 'https://images.unsplash.com/photo-1524805444758-089113d48a6d?w=500&auto=format&fit=crop&q=80',
-              alt: 'Relojes',
-              className: 'w-28 h-28 md:w-48 md:h-48 object-cover rounded-xl shadow-lg transform rotate-2 border-2 border-white',
-            },
-            {
-              src: 'https://images.unsplash.com/photo-1585366119957-e9730b6d0f60?w=500&auto=format&fit=crop&q=80',
-              alt: 'Juguetes',
-              className: 'w-24 h-24 md:w-44 md:h-44 object-cover rounded-xl shadow-md transform -rotate-2 border-2 border-white hidden sm:block',
-            },
-            {
-              src: 'https://images.unsplash.com/photo-1541643600914-78b084683601?w=500&auto=format&fit=crop&q=80',
-              alt: 'Perfumes',
-              className: 'w-28 h-28 md:w-48 md:h-48 object-cover rounded-xl shadow-lg border-2 border-white hidden md:block',
-            },
-          ],
-        },
-        {
-          id: 'banner-2',
-          badge: 'Envíos Nacionales',
-          badgeBg: 'bg-[#0058bb]',
-          title: 'Despacho Inmediato',
-          subtitleText: 'a todo el país por',
-          subtitleHighlight: 'Expresos y Correo',
-          description: 'Retirá sin costo por Av. San Pedrito 28 (Flores, CABA) de Lunes a Viernes de 11 a 17hs',
-          ctaText: firstCat !== 'Todo' ? `Ver ${firstCat}` : 'Ver Catálogo',
-          linkUrl: rawHeroBanners[1]?.linkUrl || firstCat,
-          bgGradient: 'from-blue-50 via-indigo-50/50 to-slate-100',
-          customImage: rawHeroBanners[1]?.imageUrl || '',
-          showText: rawHeroBanners[1]?.showText !== false,
-          images: [
-            {
-              src: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=500&auto=format&fit=crop&q=80',
-              alt: 'Envíos y Paquetes',
-              className: 'w-28 h-28 md:w-48 md:h-48 object-cover rounded-xl shadow-lg transform -rotate-2 border-2 border-white',
-            },
-            {
-              src: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=500&auto=format&fit=crop&q=80',
-              alt: 'Acero Quirúrgico',
-              className: 'w-24 h-24 md:w-44 md:h-44 object-cover rounded-xl shadow-md transform rotate-3 border-2 border-white',
-            },
-            {
-              src: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=500&auto=format&fit=crop&q=80',
-              alt: 'Accesorios Premium',
-              className: 'w-24 h-24 md:w-44 md:h-44 object-cover rounded-xl shadow-md transform -rotate-1 border-2 border-white hidden sm:block',
-            },
-          ],
-        },
-        {
-          id: 'banner-3',
-          badge: 'Precios de Fábrica',
-          badgeBg: 'bg-amber-600',
-          title: 'Ventas por Bulto y Surtido',
-          subtitleText: 'con hasta un',
-          subtitleHighlight: '40% OFF Mayorista',
-          description: 'Lotes de alta rotación en Bijouterie de acero, tecnología, juguetes y bazar importado',
-          ctaText: secondCat !== 'Todo' ? `Ver ${secondCat}` : 'Ver Novedades',
-          linkUrl: rawHeroBanners[2]?.linkUrl || secondCat,
-          bgGradient: 'from-amber-50/80 via-orange-50/50 to-slate-100',
-          customImage: rawHeroBanners[2]?.imageUrl || '',
-          showText: rawHeroBanners[2]?.showText !== false,
-          images: [
-            {
-              src: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=500&auto=format&fit=crop&q=80',
-              alt: 'Maquillaje y Perfumes',
-              className: 'w-28 h-28 md:w-48 md:h-48 object-cover rounded-xl shadow-lg transform rotate-2 border-2 border-white',
-            },
-            {
-              src: 'https://images.unsplash.com/photo-1559454403-b8fb88521f11?w=500&auto=format&fit=crop&q=80',
-              alt: 'Peluches',
-              className: 'w-24 h-24 md:w-44 md:h-44 object-cover rounded-xl shadow-md transform -rotate-3 border-2 border-white',
-            },
-            {
-              src: 'https://images.unsplash.com/photo-1524805444758-089113d48a6d?w=500&auto=format&fit=crop&q=80',
-              alt: 'Smartwatches',
-              className: 'w-24 h-24 md:w-44 md:h-44 object-cover rounded-xl shadow-md transform rotate-1 border-2 border-white hidden sm:block',
-            },
-          ],
-        },
-      ];
-    }
-
-    // Mapeo dinámico de banners configurados
-    return rawHeroBanners.map((item, idx) => ({
+    const validRaw = rawHeroBanners.filter((b) => Boolean(b.imageUrl && b.imageUrl.trim()));
+    return validRaw.map((item, idx) => ({
       id: item.id || `banner-user-${idx + 1}`,
       badge: item.title ? item.title : `Banner #${idx + 1}`,
       badgeBg: 'bg-[#0058bb]',
-      title: item.title || 'Oferta Exclusiva Mayorista',
-      subtitleText: 'encontrá los mejores productos',
-      subtitleHighlight: 'al por mayor',
-      description: 'Precios directos para revendedores y comerciantes de todo el país',
+      title: item.title || '',
+      subtitleText: '',
+      subtitleHighlight: '',
+      description: '',
       ctaText: 'Ver Productos',
       linkUrl: item.linkUrl || 'Todo',
       bgGradient: 'from-slate-100 via-gray-50 to-slate-200',
@@ -316,7 +212,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       showText: item.showText !== false,
       images: [],
     }));
-  }, [rawHeroBanners, hasCustomImages, firstCat, secondCat]);
+  }, [rawHeroBanners]);
 
   // Si tiene 1 banner es estático; si tiene más de 1 es carrusel
   const isCarousel = banners.length > 1;
@@ -571,105 +467,82 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </section>
 
-      {/* 1. Hero Promo Carousel o Banner Estático */}
-      <section className="w-full max-w-[1240px] mx-auto">
-        {!isCarousel ? (
-          /* ================= BANNER ESTÁTICO (1 sola imagen) ================= */
-          <div
-            id="hero-banner-static"
-            onClick={() => handleBannerClick(banners[0])}
-            className={`relative w-full overflow-hidden border-0 shadow-none rounded-none aspect-[1920/910] sm:aspect-auto min-h-0 sm:min-h-[290px] md:min-h-[330px] flex items-center bg-gradient-to-r ${
-              banners[0].bgGradient
-            } select-none ${banners[0].linkUrl ? 'cursor-pointer' : ''}`}
-            title={banners[0].linkUrl ? `Ir a ${banners[0].linkUrl}` : undefined}
-          >
-            {banners[0].customImage ? (
+      {/* 1. Hero Promo Carousel o Banner Estático (únicamente con imágenes reales de Supabase) */}
+      {banners.length > 0 && (
+        <section className="w-full max-w-[1240px] mx-auto">
+          {!isCarousel ? (
+            /* ================= BANNER ESTÁTICO (1 sola imagen) ================= */
+            <div
+              id="hero-banner-static"
+              onClick={() => handleBannerClick(banners[0])}
+              className={`relative w-full overflow-hidden border-0 shadow-none rounded-none aspect-[1920/910] sm:aspect-auto min-h-0 sm:min-h-[290px] md:min-h-[330px] flex items-center bg-gradient-to-r ${
+                banners[0].bgGradient
+              } select-none ${banners[0].linkUrl ? 'cursor-pointer' : ''}`}
+              title={banners[0].linkUrl ? `Ir a ${banners[0].linkUrl}` : undefined}
+            >
               <img
                 src={banners[0].customImage}
-                alt={banners[0].title}
+                alt={banners[0].title || 'Banner'}
                 draggable={false}
+                loading="eager"
+                fetchPriority="high"
+                decoding="sync"
                 className="absolute inset-0 w-full h-full object-cover z-0 select-none pointer-events-none"
               />
-            ) : (
-              /* Banner Visual Collage Images (fallback si no hay imagen personalizada) */
-              <div className="absolute inset-0 w-full h-full flex items-center justify-center gap-3 sm:gap-6 p-4 opacity-95 pointer-events-none overflow-hidden">
-                {banners[0].images?.map((img, imgIdx) => (
-                  <img
-                    key={imgIdx}
-                    src={img.src}
-                    alt={img.alt}
-                    className={img.className}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          /* ================= BANNER CARRUSEL (2 o más imágenes) ================= */
-          <div
-            id="hero-banner-carousel"
-            ref={carouselRef}
-            className="relative w-full overflow-hidden border-0 shadow-none rounded-none aspect-[1920/910] sm:aspect-auto min-h-0 sm:min-h-[290px] md:min-h-[330px] flex items-center group select-none touch-pan-y cursor-grab active:cursor-grabbing"
-            onMouseEnter={() => setIsPaused(true)}
-            onMouseLeave={() => {
-              if (isPointerDown.current) handleMouseUp();
-              setIsPaused(false);
-            }}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-          >
-            {/* Horizontal Slider Track */}
+            </div>
+          ) : (
+            /* ================= BANNER CARRUSEL (2 o más imágenes) ================= */
             <div
-              className={`flex w-full h-full aspect-[1920/910] sm:aspect-auto min-h-0 sm:min-h-[290px] md:min-h-[330px] ${
-                isTransitioning && !isDragging ? 'transition-transform duration-500 ease-out' : ''
-              }`}
-              style={{
-                transform: isDragging
-                  ? `translateX(calc(-${currentIndex * 100}% + ${dragOffset}px))`
-                  : `translateX(-${currentIndex * 100}%)`,
+              id="hero-banner-carousel"
+              ref={carouselRef}
+              className="relative w-full overflow-hidden border-0 shadow-none rounded-none aspect-[1920/910] sm:aspect-auto min-h-0 sm:min-h-[290px] md:min-h-[330px] flex items-center group select-none touch-pan-y cursor-grab active:cursor-grabbing"
+              onMouseEnter={() => setIsPaused(true)}
+              onMouseLeave={() => {
+                if (isPointerDown.current) handleMouseUp();
+                setIsPaused(false);
               }}
-              onTransitionEnd={handleTransitionEnd}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
             >
-              {extendedBanners.map((banner, index) => {
-                return (
-                  <div
-                    key={`${banner.id}-slide-${index}`}
-                    onClick={() => handleBannerClick(banner)}
-                    className={`w-full min-w-full h-full aspect-[1920/910] sm:aspect-auto min-h-0 sm:min-h-[290px] md:min-h-[330px] relative bg-gradient-to-r ${
-                      banner.bgGradient
-                    } flex items-center shrink-0 overflow-hidden select-none ${
-                      banner.linkUrl ? 'cursor-pointer' : ''
-                    }`}
-                  >
-                    {/* Custom Hero Banner Image */}
-                    {banner.customImage ? (
+              {/* Horizontal Slider Track */}
+              <div
+                className={`flex w-full h-full aspect-[1920/910] sm:aspect-auto min-h-0 sm:min-h-[290px] md:min-h-[330px] ${
+                  isTransitioning && !isDragging ? 'transition-transform duration-500 ease-out' : ''
+                }`}
+                style={{
+                  transform: isDragging
+                    ? `translateX(calc(-${currentIndex * 100}% + ${dragOffset}px))`
+                    : `translateX(-${currentIndex * 100}%)`,
+                }}
+                onTransitionEnd={handleTransitionEnd}
+              >
+                {extendedBanners.map((banner, index) => {
+                  return (
+                    <div
+                      key={`${banner.id}-slide-${index}`}
+                      onClick={() => handleBannerClick(banner)}
+                      className={`w-full min-w-full h-full aspect-[1920/910] sm:aspect-auto min-h-0 sm:min-h-[290px] md:min-h-[330px] relative bg-gradient-to-r ${
+                        banner.bgGradient
+                      } flex items-center shrink-0 overflow-hidden select-none ${
+                        banner.linkUrl ? 'cursor-pointer' : ''
+                      }`}
+                    >
                       <img
                         src={banner.customImage}
-                        alt={banner.title}
+                        alt={banner.title || 'Banner'}
                         draggable={false}
+                        loading={index === 1 ? 'eager' : 'lazy'}
+                        fetchPriority={index === 1 ? 'high' : 'auto'}
                         className="absolute inset-0 w-full h-full object-cover z-0 select-none pointer-events-none"
                       />
-                    ) : (
-                      /* Banner Visual Collage Images (fallback si no hay imagen personalizada) */
-                      <div className="absolute inset-0 w-full h-full flex items-center justify-center gap-3 sm:gap-6 p-4 opacity-95 pointer-events-none overflow-hidden">
-                        {banner.images?.map((img, imgIdx) => (
-                          <img
-                            key={imgIdx}
-                            src={img.src}
-                            alt={img.alt}
-                            className={img.className}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                    </div>
+                  );
+                })}
+              </div>
 
             {/* Previous Button (oculto en móvil) */}
             <button
@@ -715,6 +588,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
         )}
       </section>
+      )}
 
       {/* Main Content Area */}
       <div className="max-w-[1240px] mx-auto px-2 sm:px-4 pt-2 sm:pt-4 pb-4 sm:pb-6 flex flex-col gap-2 sm:gap-4">
@@ -765,6 +639,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 alt={cat.name}
                 className="w-full h-full"
                 imgClassName="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                priority={idx < 6}
+                fetchPriority={idx < 3 ? 'high' : 'auto'}
               />
               <div className="absolute bottom-1.5 sm:bottom-2 inset-x-0 flex items-center justify-center px-1.5 pointer-events-none">
                 <div className="bg-black/90 text-white px-2 sm:px-2.5 py-0.5 rounded-md shadow-sm max-w-[94%] flex items-center justify-center">
@@ -800,7 +676,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             {isLoadingData && bestSellers.length === 0 ? (
               <ProductGridSkeleton count={4} />
             ) : (
-              bestSellers.map((product) => {
+              bestSellers.map((product, idx) => {
                 const isOutOfStock = isProductCompletelyOutOfStock(product);
 
                 return (
@@ -815,6 +691,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       <ImageWithSkeleton
                         src={(product.images && product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'}
                         alt={product.title}
+                        priority={idx < 4}
+                        fetchPriority={idx < 2 ? 'high' : 'auto'}
                         className={`w-full h-full object-cover ${
                           isOutOfStock ? 'opacity-60 grayscale-[30%]' : 'group-hover:scale-105'
                         } transition-transform duration-300`}
@@ -842,26 +720,33 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </section>
       )}
 
-      {/* 4. Middle Promotional Banners (Independientes: estático si es 1 imagen, carrusel si son 2 o más) */}
-      <section id="promo-banners-mid" className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-4">
-        <IntermediateBannerSlot
-          slotId="promo-banner-mid-1"
-          banners={secondaryBanners1}
-          defaultImage={DEFAULT_STORE_BANNERS.secondaryBanner1}
-          fallbackLink="Todo"
-          onBannerClick={handleBannerClick}
-          autoRotateInterval={3600}
-        />
+      {/* 4. Middle Promotional Banners (únicamente si existen banners con imagen real) */}
+      {(secondaryBanners1.some((b) => Boolean(b.imageUrl && b.imageUrl.trim())) ||
+        secondaryBanners2.some((b) => Boolean(b.imageUrl && b.imageUrl.trim()))) && (
+        <section id="promo-banners-mid" className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-4">
+          {secondaryBanners1.some((b) => Boolean(b.imageUrl && b.imageUrl.trim())) && (
+            <IntermediateBannerSlot
+              slotId="promo-banner-mid-1"
+              banners={secondaryBanners1.filter((b) => Boolean(b.imageUrl && b.imageUrl.trim()))}
+              defaultImage=""
+              fallbackLink="Todo"
+              onBannerClick={handleBannerClick}
+              autoRotateInterval={3600}
+            />
+          )}
 
-        <IntermediateBannerSlot
-          slotId="promo-banner-mid-2"
-          banners={secondaryBanners2}
-          defaultImage={DEFAULT_STORE_BANNERS.secondaryBanner2}
-          fallbackLink={secondCat || 'Todo'}
-          onBannerClick={handleBannerClick}
-          autoRotateInterval={4200}
-        />
-      </section>
+          {secondaryBanners2.some((b) => Boolean(b.imageUrl && b.imageUrl.trim())) && (
+            <IntermediateBannerSlot
+              slotId="promo-banner-mid-2"
+              banners={secondaryBanners2.filter((b) => Boolean(b.imageUrl && b.imageUrl.trim()))}
+              defaultImage=""
+              fallbackLink={secondCat || 'Todo'}
+              onBannerClick={handleBannerClick}
+              autoRotateInterval={4200}
+            />
+          )}
+        </section>
+      )}
 
       {/* 4.5 Carrusel 9:16 sin título tipo Reels (debajo de los dos banners) */}
       {allReelVideos.length > 0 && (
@@ -906,7 +791,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-4">
-            {catalogGridItems.map((item) => {
+            {catalogGridItems.map((item, itemIdx) => {
               if (item.kind === 'product') {
                 const product = item.product;
                 const isOutOfStock = isProductCompletelyOutOfStock(product);
@@ -923,6 +808,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       <ImageWithSkeleton
                         src={(product.images && product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'}
                         alt={product.title}
+                        priority={itemIdx < 4}
+                        fetchPriority={itemIdx < 2 ? 'high' : 'auto'}
                         className={`w-full h-full object-cover ${
                           isOutOfStock ? 'opacity-60 grayscale-[30%]' : 'group-hover:scale-105'
                         } transition-transform duration-300`}
@@ -968,6 +855,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     <ImageWithSkeleton
                       src={card.image}
                       alt={`${card.title} - ${card.variantOptionName}`}
+                      priority={itemIdx < 4}
+                      fetchPriority={itemIdx < 2 ? 'high' : 'auto'}
                       className={`w-full h-full object-cover ${
                         card.isOutOfStock ? 'opacity-60 grayscale-[30%]' : 'group-hover:scale-105'
                       } transition-transform duration-300`}
@@ -1125,33 +1014,35 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </div>
         )}
 
-        {/* Showroom Image showcase */}
-        <div className="space-y-2">
-          <h3 className="text-base font-bold text-gray-900 font-['Montserrat']">
-            Exhibición
-          </h3>
-          <div
-            onClick={() => {
-              if (storeBanners.showroomImageLink) {
-                handleBannerClick({ linkUrl: storeBanners.showroomImageLink });
-              }
-            }}
-            className={`h-[210px] rounded-xl overflow-hidden shadow-sm border border-gray-200 ${
-              storeBanners.showroomImageLink ? 'cursor-pointer group' : ''
-            }`}
-            title={storeBanners.showroomImageLink ? `Ir a ${storeBanners.showroomImageLink}` : undefined}
-          >
-            <img
-              src={storeBanners.showroomImage || DEFAULT_STORE_BANNERS.showroomImage}
-              alt="Anillos y piedras finas"
-              loading="lazy"
-              decoding="async"
-              className={`w-full h-full object-cover ${
-                storeBanners.showroomImageLink ? 'group-hover:scale-105 transition-transform duration-500' : 'hover:scale-105 transition-transform duration-500'
+        {/* Showroom Image showcase (únicamente si existe imagen configurada en Supabase) */}
+        {storeBanners.showroomImage && storeBanners.showroomImage.trim() !== '' && (
+          <div className="space-y-2">
+            <h3 className="text-base font-bold text-gray-900 font-['Montserrat']">
+              Exhibición
+            </h3>
+            <div
+              onClick={() => {
+                if (storeBanners.showroomImageLink) {
+                  handleBannerClick({ linkUrl: storeBanners.showroomImageLink });
+                }
+              }}
+              className={`h-[210px] rounded-xl overflow-hidden shadow-sm border border-gray-200 ${
+                storeBanners.showroomImageLink ? 'cursor-pointer group' : ''
               }`}
-            />
+              title={storeBanners.showroomImageLink ? `Ir a ${storeBanners.showroomImageLink}` : undefined}
+            >
+              <img
+                src={storeBanners.showroomImage}
+                alt="Exhibición"
+                loading="lazy"
+                decoding="async"
+                className={`w-full h-full object-cover ${
+                  storeBanners.showroomImageLink ? 'group-hover:scale-105 transition-transform duration-500' : 'hover:scale-105 transition-transform duration-500'
+                }`}
+              />
+            </div>
           </div>
-        </div>
+        )}
       </section>
       </div>
 

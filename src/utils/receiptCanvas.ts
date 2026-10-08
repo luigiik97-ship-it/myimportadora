@@ -3,17 +3,17 @@ import { jsPDF } from 'jspdf';
 /**
  * Generador nativo de comprobante / resumen de pedido en formato PDF.
  * 
- * Características:
- * - Soporte multipágina para pedidos pequeños, medianos y masivos (100, 200 o más productos).
- * - Calidad PDF estándar, nítida, legible y ultra liviana (~60-90 KB por página).
- * - Diseño idéntico al comprobante oficial:
- *   • Header oficial con logo 'M' estilizado, badge PEDIDO #XXXX y fecha/hora.
+ * - Texto 100% vectorial, nítido y de máxima definición (sin borrosidad ni artefactos de compresión).
+ * - Formas vectoriales nativas (tarjetas, bordes, pastillas, divisores) escalables a cualquier resolución.
+ * - Miniaturas de productos optimizadas a calidad moderada (~1.5-2 KB por foto) para mantener el archivo ultra liviano.
+ * - Diseño oficial idéntico:
+ *   • Header con logo 'M' estilizado, badge PEDIDO #XXXX y fecha/hora.
  *   • Listado de productos en tarjetas compactas con fotos/miniaturas de variantes.
  *   • Bloque de Totales (Subtotal, Envío y TOTAL A PAGAR en verde).
  *   • Bloque de Modalidad (Retiro en local / Envío a domicilio con dirección).
  *   • Bloque de Forma de Pago (Efectivo / Transferencia con Alias y CVU).
- *   • Numeración de páginas "Página X de Y" y pie instructivo para WhatsApp.
- * - 100% cliente: no guarda archivos en Supabase ni ningún servidor.
+ *   • Numeración "Página X de Y" y pie instructivo para WhatsApp.
+ * - 100% cliente: compatible con descarga directa y compartición en Web Share / WhatsApp.
  */
 
 export interface ReceiptData {
@@ -38,6 +38,7 @@ export interface ReceiptData {
     province?: string;
     postalCode?: string;
     receiverName?: string;
+    correoBranch?: string;
   };
   items: Array<{
     title: string;
@@ -50,60 +51,35 @@ export interface ReceiptData {
   }>;
 }
 
-function drawRoundedRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number,
-  fillColor?: string,
-  strokeColor?: string,
-  strokeWidth: number = 1
-) {
-  ctx.save();
-  ctx.beginPath();
-  if (typeof ctx.roundRect === 'function') {
-    ctx.roundRect(x, y, width, height, radius);
-  } else {
-    ctx.moveTo(x + radius, y);
-    ctx.lineTo(x + width - radius, y);
-    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-    ctx.lineTo(x + width, y + height - radius);
-    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-    ctx.lineTo(x + radius, y + height);
-    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-    ctx.lineTo(x, y + radius);
-    ctx.quadraticCurveTo(x, y, x + radius, y);
-  }
-  ctx.closePath();
-
-  if (fillColor) {
-    ctx.fillStyle = fillColor;
-    ctx.fill();
-  }
-  if (strokeColor) {
-    ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = strokeWidth;
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function truncateText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
-  if (ctx.measureText(text).width <= maxWidth) return text;
+function truncateText(doc: jsPDF, text: string, maxWidth: number): string {
+  if (!text) return '';
+  if (doc.getTextWidth(text) <= maxWidth) return text;
   let len = text.length;
-  while (len > 0 && ctx.measureText(text.slice(0, len) + '…').width > maxWidth) {
+  while (len > 0 && doc.getTextWidth(text.slice(0, len) + '…') > maxWidth) {
     len--;
   }
   return text.slice(0, Math.max(1, len)) + '…';
 }
 
+function formatReceiptDateTime(isoDate?: string): string {
+  const d = isoDate ? new Date(isoDate) : new Date();
+  const day = d.getDate();
+  const month = d.getMonth() + 1;
+  const year = d.getFullYear();
+  let hours = d.getHours();
+  const minutes = d.getMinutes().toString().padStart(2, '0');
+  const ampm = hours >= 12 ? 'p. m.' : 'a. m.';
+  hours = hours % 12 || 12;
+  return `${day}/${month}/${year} • ${hours}:${minutes} ${ampm} hs`;
+}
+
 /**
- * Carga segura de imágenes con crossOrigin y timeout rápido (800ms) para evitar demoras en pedidos grandes.
+ * Carga segura de imágenes con crossOrigin y timeout rápido (850ms) para evitar demoras en pedidos grandes.
  */
 function loadImageSafely(url?: string): Promise<HTMLImageElement | null> {
-  if (!url || typeof url !== 'string' || !url.trim()) return Promise.resolve(null);
+  if (typeof window === 'undefined' || !url || typeof url !== 'string' || !url.trim()) {
+    return Promise.resolve(null);
+  }
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -124,59 +100,65 @@ function loadImageSafely(url?: string): Promise<HTMLImageElement | null> {
 }
 
 /**
- * Dibuja el logo oficial "M" estilizado con ojos recortados usando Path2D.
+ * Genera el logo oficial 'M' estilizado como DataURL PNG de alta definición pero liviano (~1 KB).
  */
-function drawBrandLogo(ctx: CanvasRenderingContext2D, centerX: number, centerY: number, targetSize: number) {
-  ctx.save();
-  ctx.translate(centerX - targetSize / 2, centerY - targetSize / 2);
-  const scale = targetSize / 1000;
-  ctx.scale(scale, scale);
+function createBrandLogoDataUrl(size: number = 140): string | null {
+  if (typeof document === 'undefined') return null;
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
 
-  ctx.fillStyle = '#000000';
-  // 1. Cuerpo superior de la M
-  const pathM = new Path2D('M280 190 L130 710 L260 710 L395 670 L500 460 L605 670 L740 710 L865 710 L715 190 L500 460 Z');
-  // 2. Ojo izquierdo
-  const pathLeftEye = new Path2D('M225 705 Q225 815 300 815 Q370 815 370 705 Z');
-  // 3. Ojo derecho
-  const pathRightEye = new Path2D('M630 705 Q630 815 700 815 Q775 815 775 705 Z');
+    ctx.clearRect(0, 0, size, size);
+    ctx.save();
+    const scale = size / 1000;
+    ctx.scale(scale, scale);
 
-  ctx.fill(pathM);
-  ctx.fill(pathLeftEye);
-  ctx.fill(pathRightEye);
+    ctx.fillStyle = '#000000';
+    // 1. Cuerpo superior de la M
+    const pathM = new Path2D('M280 190 L130 710 L260 710 L395 670 L500 460 L605 670 L740 710 L865 710 L715 190 L500 460 Z');
+    // 2. Ojo izquierdo
+    const pathLeftEye = new Path2D('M225 705 Q225 815 300 815 Q370 815 370 705 Z');
+    // 3. Ojo derecho
+    const pathRightEye = new Path2D('M630 705 Q630 815 700 815 Q775 815 775 705 Z');
 
-  ctx.restore();
+    ctx.fill(pathM);
+    ctx.fill(pathLeftEye);
+    ctx.fill(pathRightEye);
+    ctx.restore();
+
+    return canvas.toDataURL('image/png');
+  } catch {
+    return null;
+  }
 }
 
 /**
- * Dibuja la miniatura cuadrada redondeada con la foto del producto/variante en modo "cover".
+ * Convierte una imagen de producto cargada en una miniatura optimizada de tamaño moderado (~1.5-2.5 KB).
  */
-function drawRoundedImage(
-  ctx: CanvasRenderingContext2D,
+function createThumbnailDataUrl(
   img: HTMLImageElement | null,
-  x: number,
-  y: number,
-  size: number,
-  radius: number
-) {
-  ctx.save();
-  ctx.beginPath();
-  if (typeof ctx.roundRect === 'function') {
-    ctx.roundRect(x, y, size, size, radius);
-  } else {
-    ctx.rect(x, y, size, size);
-  }
-  ctx.closePath();
-  ctx.clip();
+  targetSize: number = 80
+): string | null {
+  if (typeof document === 'undefined') return null;
+  if (!img || img.width <= 0 || img.height <= 0) return null;
 
-  if (img && img.width > 0 && img.height > 0) {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = targetSize;
+    canvas.height = targetSize;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    // Fondo blanco
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(x, y, size, size);
+    ctx.fillRect(0, 0, targetSize, targetSize);
 
+    // Ajuste proporcional centrado (cover)
     const imgAspect = img.width / img.height;
-    let sx = 0;
-    let sy = 0;
-    let sw = img.width;
-    let sh = img.height;
+    let sx = 0, sy = 0, sw = img.width, sh = img.height;
     if (imgAspect > 1) {
       sw = img.height;
       sx = (img.width - sw) / 2;
@@ -184,177 +166,12 @@ function drawRoundedImage(
       sh = img.width;
       sy = (img.height - sh) / 2;
     }
-    try {
-      ctx.drawImage(img, sx, sy, sw, sh, x, y, size, size);
-    } catch {
-      ctx.fillStyle = '#f1f5f9';
-      ctx.fillRect(x, y, size, size);
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = 'bold 15px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('🛍️', x + size / 2, y + size / 2);
-    }
-  } else {
-    ctx.fillStyle = '#f1f5f9';
-    ctx.fillRect(x, y, size, size);
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = 'bold 15px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('🛍️', x + size / 2, y + size / 2);
+
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, targetSize, targetSize);
+    return canvas.toDataURL('image/jpeg', 0.82);
+  } catch {
+    return null;
   }
-
-  ctx.restore();
-  drawRoundedRect(ctx, x, y, size, size, radius, undefined, '#e2e8f0', 1);
-}
-
-function formatReceiptDateTime(isoDate?: string): string {
-  const d = isoDate ? new Date(isoDate) : new Date();
-  const day = d.getDate();
-  const month = d.getMonth() + 1;
-  const year = d.getFullYear();
-  let hours = d.getHours();
-  const minutes = d.getMinutes().toString().padStart(2, '0');
-  const ampm = hours >= 12 ? 'p. m.' : 'a. m.';
-  hours = hours % 12 || 12;
-  return `${day}/${month}/${year} • ${hours}:${minutes} ${ampm} hs`;
-}
-
-/**
- * Dibuja los bloques de cierre (Totales, Modalidad de entrega y Forma de pago).
- */
-function drawBottomBlocks(
-  ctx: CanvasRenderingContext2D,
-  startY: number,
-  data: ReceiptData,
-  contentWidth: number,
-  pad: number,
-  canvasWidth: number
-): number {
-  let currentY = startY;
-  const spacingBetweenCards = 10;
-  const totalsBoxHeight = 88;
-  const modalityBoxHeight = 64;
-  const paymentBoxHeight = data.paymentMethod === 'transfer' ? 70 : 58;
-
-  // 1. BLOQUE DE TOTALES
-  drawRoundedRect(ctx, pad, currentY, contentWidth, totalsBoxHeight, 10, '#ffffff', '#e2e8f0', 1);
-
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#64748b';
-  ctx.font = '11px system-ui, -apple-system, sans-serif';
-  ctx.fillText('Subtotal productos:', pad + 14, currentY + 18);
-
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#0f172a';
-  ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
-  const subtotalVal = data.subtotal || data.total;
-  ctx.fillText(`$${Math.round(subtotalVal).toLocaleString('es-AR')}`, canvasWidth - pad - 14, currentY + 18);
-
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#64748b';
-  ctx.font = '11px system-ui, -apple-system, sans-serif';
-  ctx.fillText('Envío:', pad + 14, currentY + 38);
-
-  ctx.textAlign = 'right';
-  const isFreeShipping = !data.shippingCost || data.shippingCost === 0 || data.deliveryOption === 'pickup';
-  ctx.fillStyle = isFreeShipping ? '#00a650' : '#0f172a';
-  ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
-  ctx.fillText(
-    isFreeShipping ? 'Gratis' : `$${Math.round(data.shippingCost || 0).toLocaleString('es-AR')}`,
-    canvasWidth - pad - 14,
-    currentY + 38
-  );
-
-  // Línea divisoria interior
-  ctx.strokeStyle = '#f1f5f9';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(pad + 12, currentY + 52);
-  ctx.lineTo(canvasWidth - pad - 12, currentY + 52);
-  ctx.stroke();
-
-  // TOTAL A PAGAR (Grande y Verde)
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#0f172a';
-  ctx.font = '900 13px system-ui, -apple-system, sans-serif';
-  ctx.fillText('TOTAL A PAGAR:', pad + 14, currentY + 68);
-
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#00a650';
-  ctx.font = '900 20px system-ui, -apple-system, sans-serif';
-  ctx.fillText(`$${Math.round(data.total).toLocaleString('es-AR')}`, canvasWidth - pad - 14, currentY + 68);
-
-  currentY += totalsBoxHeight + spacingBetweenCards;
-
-  // 2. BLOQUE DE MODALIDAD
-  drawRoundedRect(ctx, pad, currentY, contentWidth, modalityBoxHeight, 10, '#f8fbff', '#bfdbfe', 1.2);
-
-  const isPickup = data.deliveryOption === 'pickup';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.fillStyle = '#0058bb';
-  ctx.font = '900 11px system-ui, -apple-system, sans-serif';
-  ctx.fillText(
-    isPickup ? 'MODALIDAD: RETIRO EN EL LOCAL' : 'MODALIDAD: ENVÍO A DOMICILIO',
-    pad + 14,
-    currentY + 10
-  );
-
-  if (isPickup) {
-    ctx.fillStyle = '#334155';
-    ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
-    ctx.fillText('Local Flores: Av. San Pedrito 28, CABA', pad + 14, currentY + 28);
-
-    ctx.fillStyle = '#64748b';
-    ctx.font = '10px system-ui, -apple-system, sans-serif';
-    ctx.fillText('Horario: Lunes a sábados de 11:00 hs a 17:00 hs', pad + 14, currentY + 44);
-  } else {
-    const addr = data.deliveryAddress;
-    const addressStr = addr
-      ? `${addr.street || ''} ${addr.number || ''}${addr.floor ? ' ' + addr.floor : ''}, ${addr.city || ''}, ${addr.province || ''}`
-      : 'Dirección a coordinar';
-    ctx.fillStyle = '#334155';
-    ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
-    ctx.fillText(truncateText(ctx, addressStr, contentWidth - 28), pad + 14, currentY + 28);
-
-    ctx.fillStyle = '#64748b';
-    ctx.font = '10px system-ui, -apple-system, sans-serif';
-    const methodStr = data.shippingMethodName || 'Envío por correo/mensajería';
-    ctx.fillText(truncateText(ctx, methodStr, contentWidth - 28), pad + 14, currentY + 44);
-  }
-
-  currentY += modalityBoxHeight + spacingBetweenCards;
-
-  // 3. BLOQUE FORMA DE PAGO
-  const isCash = data.paymentMethod === 'cash';
-  drawRoundedRect(ctx, pad, currentY, contentWidth, paymentBoxHeight, 10, '#ffffff', '#e2e8f0', 1);
-
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.fillStyle = '#0f172a';
-  ctx.font = '900 11px system-ui, -apple-system, sans-serif';
-  ctx.fillText(isCash ? 'FORMA DE PAGO: EFECTIVO' : 'FORMA DE PAGO: TRANSFERENCIA', pad + 14, currentY + 10);
-
-  if (isCash) {
-    ctx.fillStyle = '#00a650';
-    ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
-    ctx.fillText('Abonás en efectivo al retirar tu pedido en el local.', pad + 14, currentY + 30);
-  } else {
-    ctx.fillStyle = '#0058bb';
-    ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
-    ctx.fillText('Alias: hola.retiro • Nombre: Silvia Lembo', pad + 14, currentY + 28);
-
-    ctx.fillStyle = '#64748b';
-    ctx.font = '10px system-ui, -apple-system, sans-serif';
-    ctx.fillText('CVU: 0000003100087788243612', pad + 14, currentY + 45);
-  }
-
-  currentY += paymentBoxHeight;
-  return currentY;
 }
 
 interface PagePlan {
@@ -366,7 +183,7 @@ interface PagePlan {
 }
 
 /**
- * Generador principal de comprobantes en PDF multipágina.
+ * Generador principal de comprobantes en PDF multipágina con texto y formas 100% vectoriales.
  */
 export const generateReceiptPdfBlob = async (
   data: ReceiptData,
@@ -375,31 +192,35 @@ export const generateReceiptPdfBlob = async (
   const mode = options.mode || 'summary';
   const items = Array.isArray(data.items) ? data.items : [];
 
-  // 1. Carga concurrente de imágenes con timeout protector
-  const loadedImages = await Promise.all(
-    items.map((it) => loadImageSafely(it.image))
-  );
+  // 1. Carga concurrente de imágenes de productos y logo
+  const [loadedImages, brandLogoDataUrl] = await Promise.all([
+    Promise.all(items.map((it) => loadImageSafely(it.image))),
+    Promise.resolve(createBrandLogoDataUrl(140)),
+  ]);
 
-  // 2. Geometría estándar A4
-  const PAGE_WIDTH = 800;
-  const PAGE_HEIGHT = 1130;
-  const PAD = 28;
-  const contentWidth = PAGE_WIDTH - PAD * 2; // 744px
+  // Convertir imágenes cargadas en miniaturas optimizadas para el PDF
+  const thumbnailDataUrls = loadedImages.map((img) => createThumbnailDataUrl(img, 80));
+
+  // 2. Geometría estándar A4 en puntos (595.28 x 841.89 pt)
+  const PAGE_WIDTH = 595.28;
+  const PAGE_HEIGHT = 841.89;
+  const PAD = 20;
+  const contentWidth = PAGE_WIDTH - PAD * 2; // 555.28 pt
 
   // Columnas: 1 columna si hay muy pocos ítems (<= 6), sino 2 columnas compactas
   const numCols = items.length <= 6 ? 1 : 2;
-  const colGap = 12;
+  const colGap = 10;
   const cardWidth = Math.floor((contentWidth - (numCols - 1) * colGap) / numCols);
-  const cardHeight = 50;
-  const gapY = 6;
-  const rowHeight = cardHeight + gapY; // 56px
+  const cardHeight = 38;
+  const gapY = 5;
+  const rowHeight = cardHeight + gapY; // 43 pt
 
   // Alturas de secciones fijas
-  const headerHeightP1 = 76;
-  const titleHeight = 28;
-  const runningHeaderHeight = 44;
-  const bottomBlocksHeight = 250;
-  const pageFooterHeight = 34;
+  const headerHeightP1 = 58;
+  const titleHeight = 22;
+  const runningHeaderHeight = 34;
+  const bottomBlocksHeight = 195;
+  const pageFooterHeight = 24;
 
   // Capacidad de filas por página
   const availH_P1_withBottom = PAGE_HEIGHT - PAD * 2 - headerHeightP1 - titleHeight - bottomBlocksHeight - pageFooterHeight;
@@ -494,108 +315,124 @@ export const generateReceiptPdfBlob = async (
     compress: true,
   });
 
-  // Factor de escala Retina moderado (1.5x) para máxima nitidez y peso liviano
-  const scale = 1.5;
-
-  // 4. Renderizar cada página
+  // 4. Renderizar cada página en gráficos y tipografía vectorial nativa
   for (let pIdx = 0; pIdx < pages.length; pIdx++) {
     const pagePlan = pages[pIdx];
+    if (pIdx > 0) {
+      doc.addPage('a4', 'portrait');
+    }
 
-    const canvas = document.createElement('canvas');
-    canvas.width = PAGE_WIDTH * scale;
-    canvas.height = PAGE_HEIGHT * scale;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) continue;
-
-    ctx.scale(scale, scale);
-
-    // Fondo blanco
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
-
-    // Borde perimetral redondeado
-    drawRoundedRect(ctx, 4, 4, PAGE_WIDTH - 8, PAGE_HEIGHT - 8, 14, '#ffffff', '#e2e8f0', 1);
+    // Borde perimetral suave
+    doc.setDrawColor('#e2e8f0');
+    doc.setLineWidth(0.8);
+    doc.roundedRect(6, 6, PAGE_WIDTH - 12, PAGE_HEIGHT - 12, 8, 8, 'D');
 
     let currentY = PAD;
 
     // A. HEADER DE LA PÁGINA
     if (pagePlan.isFirstPage) {
       // Izquierda: Tipo de documento
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-      ctx.fillStyle = '#64748b';
-      ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+      doc.setTextColor('#64748b');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
       const docBadgeTitle = mode === 'detail' ? 'DETALLE DE PEDIDO' : 'RESUMEN DE PEDIDO';
-      ctx.fillText(docBadgeTitle, PAD, currentY + 12);
+      doc.text(docBadgeTitle, PAD, currentY + 12);
 
       // Centro: Logo 'M' estilizado
-      drawBrandLogo(ctx, PAGE_WIDTH / 2, currentY + 16, 42);
+      const logoSize = 28;
+      const logoX = PAGE_WIDTH / 2 - logoSize / 2;
+      const logoY = currentY + 2;
+      if (brandLogoDataUrl) {
+        try {
+          doc.addImage(brandLogoDataUrl, 'PNG', logoX, logoY, logoSize, logoSize);
+        } catch {
+          doc.setTextColor('#000000');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(16);
+          doc.text('MY', PAGE_WIDTH / 2, currentY + 18, { align: 'center' });
+        }
+      } else {
+        doc.setTextColor('#000000');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.text('MY', PAGE_WIDTH / 2, currentY + 18, { align: 'center' });
+      }
 
       // Derecha: Badge PEDIDO #XXXX y fecha/hora
-      const pillW = 144;
-      const pillH = 32;
+      const pillW = 116;
+      const pillH = 26;
       const pillX = PAGE_WIDTH - PAD - pillW;
       const pillY = currentY + 2;
 
-      drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 8, '#eff6ff', '#bfdbfe', 1.5);
+      doc.setFillColor('#eff6ff');
+      doc.setDrawColor('#bfdbfe');
+      doc.setLineWidth(1.2);
+      doc.roundedRect(pillX, pillY, pillW, pillH, 6, 6, 'FD');
 
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#0058bb';
-      ctx.font = '900 13px system-ui, -apple-system, sans-serif';
-      ctx.fillText(`PEDIDO #${data.orderNumber}`, pillX + pillW / 2, pillY + pillH / 2);
+      doc.setTextColor('#0058bb');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.text(`PEDIDO #${data.orderNumber}`, pillX + pillW / 2, pillY + pillH / 2 + 3, { align: 'center' });
 
       // Fecha y hora
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'top';
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '10px system-ui, -apple-system, sans-serif';
-      ctx.fillText(formatReceiptDateTime(data.createdAt), PAGE_WIDTH - PAD, pillY + pillH + 5);
+      doc.setTextColor('#94a3b8');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.text(formatReceiptDateTime(data.createdAt), PAGE_WIDTH - PAD, pillY + pillH + 9, { align: 'right' });
 
       // Línea divisoria suave
-      ctx.strokeStyle = '#f1f5f9';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(PAD, currentY + 54);
-      ctx.lineTo(PAGE_WIDTH - PAD, currentY + 54);
-      ctx.stroke();
+      doc.setDrawColor('#f1f5f9');
+      doc.setLineWidth(0.8);
+      doc.line(PAD, currentY + 44, PAGE_WIDTH - PAD, currentY + 44);
 
       currentY += headerHeightP1;
 
       // Título de la sección de productos
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#0f172a';
-      ctx.font = '900 13px system-ui, -apple-system, sans-serif';
+      doc.setTextColor('#0f172a');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
       const itemsLabel = `${data.itemsCount} ${data.itemsCount === 1 ? 'producto' : 'productos'}`;
       const unitsLabel = `${data.totalUnits} ${data.totalUnits === 1 ? 'unidad' : 'unidades'}`;
-      ctx.fillText(`PRODUCTOS (${itemsLabel} • ${unitsLabel})`, PAD, currentY + 8);
+      doc.text(`PRODUCTOS (${itemsLabel} • ${unitsLabel})`, PAD, currentY + 6);
 
       currentY += titleHeight;
     } else {
       // Running header compacto para páginas 2, 3, etc.
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#0058bb';
-      ctx.font = '900 12px system-ui, -apple-system, sans-serif';
+      doc.setTextColor('#0058bb');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
       const subTitle = mode === 'detail' ? 'DETALLE' : 'RESUMEN';
-      ctx.fillText(`PEDIDO #${data.orderNumber} • ${subTitle} (CONTINUACIÓN)`, PAD, currentY + 14);
+      doc.text(`PEDIDO #${data.orderNumber} • ${subTitle} (CONTINUACIÓN)`, PAD, currentY + 12);
 
       // Mini logo central
-      drawBrandLogo(ctx, PAGE_WIDTH / 2, currentY + 14, 28);
+      const miniLogoSize = 20;
+      const miniLogoX = PAGE_WIDTH / 2 - miniLogoSize / 2;
+      const miniLogoY = currentY;
+      if (brandLogoDataUrl) {
+        try {
+          doc.addImage(brandLogoDataUrl, 'PNG', miniLogoX, miniLogoY, miniLogoSize, miniLogoSize);
+        } catch {
+          doc.setTextColor('#000000');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(12);
+          doc.text('MY', PAGE_WIDTH / 2, currentY + 12, { align: 'center' });
+        }
+      } else {
+        doc.setTextColor('#000000');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.text('MY', PAGE_WIDTH / 2, currentY + 12, { align: 'center' });
+      }
 
       // Fecha/hora compacta a la derecha
-      ctx.textAlign = 'right';
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '10px system-ui, -apple-system, sans-serif';
-      ctx.fillText(formatReceiptDateTime(data.createdAt), PAGE_WIDTH - PAD, currentY + 14);
+      doc.setTextColor('#94a3b8');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.text(formatReceiptDateTime(data.createdAt), PAGE_WIDTH - PAD, currentY + 12, { align: 'right' });
 
-      ctx.strokeStyle = '#f1f5f9';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(PAD, currentY + 30);
-      ctx.lineTo(PAGE_WIDTH - PAD, currentY + 30);
-      ctx.stroke();
+      doc.setDrawColor('#f1f5f9');
+      doc.setLineWidth(0.8);
+      doc.line(PAD, currentY + 24, PAGE_WIDTH - PAD, currentY + 24);
 
       currentY += runningHeaderHeight;
     }
@@ -613,93 +450,240 @@ export const generateReceiptPdfBlob = async (
         const cardY = currentY + row * (cardHeight + gapY);
 
         // Tarjeta
-        drawRoundedRect(ctx, cardX, cardY, cardWidth, cardHeight, 8, '#f8fafc', '#e2e8f0', 1);
+        doc.setFillColor('#f8fafc');
+        doc.setDrawColor('#e2e8f0');
+        doc.setLineWidth(0.8);
+        doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 5, 5, 'FD');
 
         // Miniatura foto
-        const imgSize = 38;
-        const imgX = cardX + 6;
-        const imgY = cardY + 6;
-        const loadedImg = loadedImages[i] || null;
-        drawRoundedImage(ctx, loadedImg, imgX, imgY, imgSize, 6);
+        const imgSize = 28;
+        const imgX = cardX + 5;
+        const imgY = cardY + 5;
+        const thumbUrl = thumbnailDataUrls[i];
+
+        if (thumbUrl) {
+          try {
+            doc.addImage(thumbUrl, 'JPEG', imgX, imgY, imgSize, imgSize);
+            doc.setDrawColor('#e2e8f0');
+            doc.setLineWidth(0.6);
+            doc.roundedRect(imgX, imgY, imgSize, imgSize, 3.5, 3.5, 'D');
+          } catch {
+            doc.setFillColor('#f1f5f9');
+            doc.setDrawColor('#e2e8f0');
+            doc.roundedRect(imgX, imgY, imgSize, imgSize, 3.5, 3.5, 'FD');
+            doc.setTextColor('#94a3b8');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7.5);
+            doc.text('MY', imgX + imgSize / 2, imgY + imgSize / 2 + 2.5, { align: 'center' });
+          }
+        } else {
+          doc.setFillColor('#f1f5f9');
+          doc.setDrawColor('#e2e8f0');
+          doc.roundedRect(imgX, imgY, imgSize, imgSize, 3.5, 3.5, 'FD');
+          doc.setTextColor('#94a3b8');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(7.5);
+          doc.text('MY', imgX + imgSize / 2, imgY + imgSize / 2 + 2.5, { align: 'center' });
+        }
 
         // Textos
-        const textStartX = cardX + 50;
+        const textStartX = cardX + 38;
         const itemTotal = item.totalPrice ?? item.unitPrice * item.quantity;
         const formattedTotal = `$${Math.round(itemTotal).toLocaleString('es-AR')}`;
 
-        ctx.font = '900 13px system-ui, -apple-system, sans-serif';
-        const priceWidth = ctx.measureText(formattedTotal).width;
-        const maxTextWidth = cardWidth - 56 - priceWidth - 8;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        const priceWidth = doc.getTextWidth(formattedTotal);
+        const maxTextWidth = cardWidth - 42 - priceWidth - 6;
 
         // Renglón 1: Título
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        ctx.fillStyle = '#0f172a';
-        ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
-        ctx.fillText(truncateText(ctx, item.title, maxTextWidth), textStartX, cardY + 6);
+        doc.setTextColor('#0f172a');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text(truncateText(doc, item.title, maxTextWidth), textStartX, cardY + 9);
 
         // Renglón 2: Cantidad y Variante en pastilla
         const variantLabel = item.variantText ? item.variantText.trim() : 'Unidad';
         const badgeText = `${item.quantity}x ${variantLabel}`;
 
-        ctx.font = '900 10px system-ui, -apple-system, sans-serif';
-        const badgeMetrics = ctx.measureText(badgeText);
-        const badgeW = Math.min(badgeMetrics.width + 10, maxTextWidth);
-        const badgeH = 15;
-        const badgeY = cardY + 20;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        const badgeTextWidth = doc.getTextWidth(badgeText);
+        const badgeW = Math.min(badgeTextWidth + 8, maxTextWidth);
+        const badgeH = 11;
+        const badgeY = cardY + 14;
 
-        drawRoundedRect(ctx, textStartX, badgeY, badgeW, badgeH, 4, '#e2e8f0');
+        doc.setFillColor('#e2e8f0');
+        doc.roundedRect(textStartX, badgeY, badgeW, badgeH, 3, 3, 'F');
 
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#0f172a';
-        ctx.fillText(truncateText(ctx, badgeText, badgeW - 6), textStartX + 5, badgeY + badgeH / 2);
+        doc.setTextColor('#0f172a');
+        doc.text(truncateText(doc, badgeText, badgeW - 4), textStartX + 4, badgeY + 8);
 
         // Renglón 3: Detalle de precio unitario
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'bottom';
-        ctx.fillStyle = '#64748b';
-        ctx.font = '9px system-ui, -apple-system, sans-serif';
+        doc.setTextColor('#64748b');
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.5);
         const unitPriceFormatted = Math.round(item.unitPrice).toLocaleString('es-AR');
         const priceType = item.isWholesale ? 'precio mayorista' : 'precio minorista';
         const detailText = `a $${unitPriceFormatted} · ${priceType}`;
-        ctx.fillText(truncateText(ctx, detailText, maxTextWidth), textStartX, cardY + cardHeight - 4);
+        doc.text(truncateText(doc, detailText, maxTextWidth), textStartX, cardY + cardHeight - 4);
 
         // Precio total a la derecha
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#0f172a';
-        ctx.font = '900 13.5px monospace, system-ui';
-        ctx.fillText(formattedTotal, cardX + cardWidth - 8, cardY + cardHeight / 2);
+        doc.setTextColor('#0f172a');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.text(formattedTotal, cardX + cardWidth - 6, cardY + cardHeight / 2 + 3, { align: 'right' });
       }
 
       const totalRowsThisPage = Math.ceil(pageItemsCount / numCols);
-      currentY += totalRowsThisPage * rowHeight + 10;
+      currentY += totalRowsThisPage * rowHeight + 8;
     }
 
     // C. BLOQUES DE CIERRE (Totales, Modalidad, Pago)
     if (pagePlan.hasBottomBlocks) {
-      currentY = drawBottomBlocks(ctx, currentY, data, contentWidth, PAD, PAGE_WIDTH);
+      const totalsBoxHeight = 68;
+      const modalityBoxHeight = 48;
+      const paymentBoxHeight = data.paymentMethod === 'transfer' ? 52 : 44;
+      const spacing = 7;
+
+      // 1. BLOQUE DE TOTALES
+      doc.setFillColor('#ffffff');
+      doc.setDrawColor('#e2e8f0');
+      doc.setLineWidth(0.8);
+      doc.roundedRect(PAD, currentY, contentWidth, totalsBoxHeight, 6, 6, 'FD');
+
+      doc.setTextColor('#64748b');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.text('Subtotal productos:', PAD + 10, currentY + 14);
+
+      doc.setTextColor('#0f172a');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      const subtotalVal = data.subtotal || data.total;
+      doc.text(`$${Math.round(subtotalVal).toLocaleString('es-AR')}`, PAGE_WIDTH - PAD - 10, currentY + 14, { align: 'right' });
+
+      doc.setTextColor('#64748b');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.text('Envío:', PAD + 10, currentY + 30);
+
+      const isFreeShipping = !data.shippingCost || data.shippingCost === 0 || data.deliveryOption === 'pickup';
+      doc.setTextColor(isFreeShipping ? '#00a650' : '#0f172a');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.text(
+        isFreeShipping ? 'Gratis' : `$${Math.round(data.shippingCost || 0).toLocaleString('es-AR')}`,
+        PAGE_WIDTH - PAD - 10,
+        currentY + 30,
+        { align: 'right' }
+      );
+
+      // Línea divisoria interior
+      doc.setDrawColor('#f1f5f9');
+      doc.setLineWidth(0.8);
+      doc.line(PAD + 8, currentY + 40, PAGE_WIDTH - PAD - 8, currentY + 40);
+
+      // TOTAL A PAGAR (Grande y Verde)
+      doc.setTextColor('#0f172a');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.text('TOTAL A PAGAR:', PAD + 10, currentY + 54);
+
+      doc.setTextColor('#00a650');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.text(`$${Math.round(data.total).toLocaleString('es-AR')}`, PAGE_WIDTH - PAD - 10, currentY + 55, { align: 'right' });
+
+      currentY += totalsBoxHeight + spacing;
+
+      // 2. BLOQUE DE MODALIDAD
+      doc.setFillColor('#f8fbff');
+      doc.setDrawColor('#bfdbfe');
+      doc.setLineWidth(1);
+      doc.roundedRect(PAD, currentY, contentWidth, modalityBoxHeight, 6, 6, 'FD');
+
+      const isPickup = data.deliveryOption === 'pickup';
+      doc.setTextColor('#0058bb');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.text(
+        isPickup ? 'MODALIDAD: RETIRO EN EL LOCAL' : 'MODALIDAD: ENVÍO A DOMICILIO',
+        PAD + 10,
+        currentY + 11
+      );
+
+      if (isPickup) {
+        doc.setTextColor('#334155');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('Local Flores: Av. San Pedrito 28, CABA', PAD + 10, currentY + 25);
+
+        doc.setTextColor('#64748b');
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.text('Horario: Lunes a sábados de 11:00 hs a 17:00 hs', PAD + 10, currentY + 37);
+      } else {
+        const addr = data.deliveryAddress;
+        const addressStr = addr?.correoBranch
+          ? `Sucursal Correo: ${addr.correoBranch}`
+          : addr
+          ? `${addr.street || ''} ${addr.number || ''}${addr.floor ? ' ' + addr.floor : ''}, ${addr.city || ''}, ${addr.province || ''}`
+          : 'Dirección a coordinar';
+        doc.setTextColor('#334155');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text(truncateText(doc, addressStr, contentWidth - 20), PAD + 10, currentY + 25);
+
+        doc.setTextColor('#64748b');
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        const methodStr = data.shippingMethodName || 'Envío por correo/mensajería';
+        doc.text(truncateText(doc, methodStr, contentWidth - 20), PAD + 10, currentY + 37);
+      }
+
+      currentY += modalityBoxHeight + spacing;
+
+      // 3. BLOQUE FORMA DE PAGO
+      const isCash = data.paymentMethod === 'cash';
+      doc.setFillColor('#ffffff');
+      doc.setDrawColor('#e2e8f0');
+      doc.setLineWidth(0.8);
+      doc.roundedRect(PAD, currentY, contentWidth, paymentBoxHeight, 6, 6, 'FD');
+
+      doc.setTextColor('#0f172a');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.text(isCash ? 'FORMA DE PAGO: EFECTIVO' : 'FORMA DE PAGO: TRANSFERENCIA', PAD + 10, currentY + 11);
+
+      if (isCash) {
+        doc.setTextColor('#00a650');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('Abonás en efectivo al retirar tu pedido en el local.', PAD + 10, currentY + 26);
+      } else {
+        doc.setTextColor('#0058bb');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('Alias: hola.retiro • Nombre: Silvia Lembo', PAD + 10, currentY + 25);
+
+        doc.setTextColor('#64748b');
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.text('CVU: 0000003100087788243612', PAD + 10, currentY + 38);
+      }
     }
 
     // D. PIE DE PÁGINA (Paginación oficial y nota de WhatsApp)
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '10px system-ui, -apple-system, sans-serif';
-    ctx.fillText(
+    doc.setTextColor('#94a3b8');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.text(
       `Página ${pIdx + 1} de ${totalPages} • Presentá este comprobante al coordinar tu pedido por WhatsApp`,
       PAGE_WIDTH / 2,
-      PAGE_HEIGHT - PAD + 8
+      PAGE_HEIGHT - PAD + 8,
+      { align: 'center' }
     );
-
-    // E. AGREGAR AL DOCUMENTO PDF
-    const imgData = canvas.toDataURL('image/jpeg', 0.85);
-    if (pIdx > 0) {
-      doc.addPage('a4', 'portrait');
-    }
-    // A4 dimensions in pt: 595.28 x 841.89
-    doc.addImage(imgData, 'JPEG', 0, 0, 595.28, 841.89, undefined, 'FAST');
   }
 
   // 5. Devolver Blob PDF
@@ -717,3 +701,4 @@ export const generateReceiptPdfBlob = async (
 export const generateReceiptBlob = async (data: ReceiptData): Promise<Blob> => {
   return generateReceiptPdfBlob(data, { mode: 'summary' });
 };
+

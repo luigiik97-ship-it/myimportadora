@@ -14,7 +14,10 @@ interface ImageWithSkeletonProps extends React.ImgHTMLAttributes<HTMLImageElemen
   showShimmer?: boolean;
   targetWidth?: number;
   quality?: number;
+  priority?: boolean;
 }
+
+const NEUTRAL_FALLBACK_SVG = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" fill="%23f8fafc" viewBox="0 0 400 400"><rect width="400" height="400" fill="%23f8fafc"/><path d="M160 180 L200 230 L230 200 L270 250 L130 250 Z" fill="%23cbd5e1"/><circle cx="165" cy="155" r="15" fill="%23cbd5e1"/></svg>';
 
 export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
   src,
@@ -22,17 +25,22 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
   className = '',
   imgClassName = '',
   aspectRatio,
-  fallbackSrc = 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400&auto=format&fit=crop&q=75',
+  fallbackSrc = NEUTRAL_FALLBACK_SVG,
   showShimmer = true,
-  loading = 'lazy',
+  loading,
   decoding = 'async',
   fetchPriority,
   targetWidth,
   quality,
+  priority = false,
   onError,
   onLoad,
   ...restProps
 }) => {
+  const resolvedLoading: 'eager' | 'lazy' = priority ? 'eager' : (loading || 'lazy');
+  const resolvedFetchPriority: 'high' | 'low' | 'auto' | undefined = priority
+    ? 'high'
+    : (fetchPriority as 'high' | 'low' | 'auto' | undefined);
   const optimizedSrc = getOptimizedImageUrl(src, { width: targetWidth || 600, quality: quality || 75 });
   const isPreloaded = loadedImageUrls.has(optimizedSrc) || loadedImageUrls.has(src);
   const [isLoaded, setIsLoaded] = useState<boolean>(isPreloaded);

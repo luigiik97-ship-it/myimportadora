@@ -50,30 +50,8 @@ export const STORAGE_KEY_BANNERS = 'my_commerce_store_banners_config';
 export const SYSTEM_STORE_BANNERS_ROW_ID = '__system_store_banners_v1__';
 
 export const DEFAULT_STORE_BANNERS: StoreBannersConfig = {
-  heroBanners: [
-    {
-      id: 'banner-default-1',
-      imageUrl: '',
-      linkUrl: 'Todo',
-      showText: true,
-      title: 'Precios en efectivo',
-    },
-    {
-      id: 'banner-default-2',
-      imageUrl: '',
-      linkUrl: 'Todo',
-      showText: true,
-      title: 'Despacho Inmediato',
-    },
-    {
-      id: 'banner-default-3',
-      imageUrl: '',
-      linkUrl: 'Todo',
-      showText: true,
-      title: 'Ventas por Bulto y Surtido',
-    },
-  ],
-  heroBanner1: '', // Vacío: utiliza la composición/collage por defecto
+  heroBanners: [],
+  heroBanner1: '',
   heroBanner2: '',
   heroBanner3: '',
   heroBanner1ShowText: true,
@@ -82,29 +60,15 @@ export const DEFAULT_STORE_BANNERS: StoreBannersConfig = {
   heroBanner1Link: '',
   heroBanner2Link: '',
   heroBanner3Link: '',
-  secondaryBanners1: [
-    {
-      id: 'sec-1-default',
-      imageUrl: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800&auto=format&fit=crop&q=80',
-      linkUrl: '',
-      title: 'Banner Intermedio 1',
-    },
-  ],
-  secondaryBanners2: [
-    {
-      id: 'sec-2-default',
-      imageUrl: 'https://images.unsplash.com/photo-1611591475152-47eac9806830?w=800&auto=format&fit=crop&q=80',
-      linkUrl: '',
-      title: 'Banner Intermedio 2',
-    },
-  ],
-  secondaryBanner1: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800&auto=format&fit=crop&q=80',
-  secondaryBanner2: 'https://images.unsplash.com/photo-1611591475152-47eac9806830?w=800&auto=format&fit=crop&q=80',
+  secondaryBanners1: [],
+  secondaryBanners2: [],
+  secondaryBanner1: '',
+  secondaryBanner2: '',
   secondaryBanner1Link: '',
   secondaryBanner2Link: '',
-  showroomImage: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=600&auto=format&fit=crop&q=80',
+  showroomImage: '',
   showroomImageLink: '',
-  lastUpdated: '2026-01-01T00:00:00.000Z',
+  lastUpdated: new Date().toISOString(),
 };
 
 /**

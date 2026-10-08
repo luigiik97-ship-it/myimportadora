@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Product, SizeVariant, VariantOption, VariantType } from '../types';
 import {
   normalizeVariantTypes,
@@ -21,6 +21,9 @@ import { ShareModal } from './common/ShareModal';
 import { StoreVideo } from '../types';
 import { usePurchaseMode } from '../context/PurchaseModeContext';
 import { getStoreSettings, StoreSettings } from '../services/storeSettings';
+import { getLocalStoreVideos } from '../services/storeVideos';
+import { getShippingZoneInfo, ShippingOption } from '../utils/shipping';
+import { getLocalAuthUser, getLocalProfiles } from '../services/auth';
 import {
   Truck,
   ShieldCheck,
@@ -41,6 +44,8 @@ import {
   Maximize2,
   Video as VideoIcon,
   Share2,
+  ChevronDown,
+  X,
 } from 'lucide-react';
 
 interface ProductDetailViewProps {
@@ -175,9 +180,12 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
       items.push({ type: 'image', url: baseImages[0], imageIndex: 0 });
     }
 
-    // 2nd item: If product has video, show video as second thumbnail with autoplay
-    if (product.videoUrl && product.videoUrl.trim()) {
-      items.push({ type: 'video', url: product.videoUrl.trim() });
+    // 2nd item: If product has video (directly or linked in Reels), show video as second thumbnail with autoplay
+    const resolvedVideo =
+      (product.videoUrl && product.videoUrl.trim()) ||
+      getLocalStoreVideos().find((v) => v.productId === product.id)?.videoUrl?.trim();
+    if (resolvedVideo) {
+      items.push({ type: 'video', url: resolvedVideo });
     }
 
     // Remaining images
@@ -186,7 +194,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     }
 
     return items;
-  }, [activeImages, product.images, product.videoUrl]);
+  }, [activeImages, product.id, product.images, product.videoUrl]);
 
   // Lightbox media items combining active variant images and associated video
   const lightboxMediaItems = useMemo(() => {
@@ -225,6 +233,50 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
     return list;
   }, [product, allProducts]);
+
+  // Precarga rápida en segundo plano de imágenes secundarias de galería y variantes
+  // Elimina tiempos de espera de 1-2 segundos al cambiar de foto o seleccionar variantes
+  useEffect(() => {
+    const urlsToPreload = new Set<string>();
+
+    // 1. Imágenes secundarias de la galería activa
+    galleryMedia.slice(1).forEach((m) => {
+      if (m.type === 'image' && m.url) {
+        urlsToPreload.add(getOptimizedImageUrl(m.url, { width: 800, quality: 82 }));
+      }
+    });
+
+    // 2. Imágenes de todas las opciones de variantes disponibles
+    if (product.variantTypes && Array.isArray(product.variantTypes)) {
+      product.variantTypes.forEach((vt) => {
+        if (Array.isArray(vt.options)) {
+          vt.options.forEach((opt) => {
+            if (Array.isArray(opt.images)) {
+              opt.images.forEach((imgUrl) => {
+                if (imgUrl) urlsToPreload.add(getOptimizedImageUrl(imgUrl, { width: 800, quality: 82 }));
+              });
+            }
+          });
+        }
+      });
+    }
+
+    // 3. Imagen complementaria
+    if (product.additionalImage) {
+      urlsToPreload.add(getOptimizedImageUrl(product.additionalImage, { width: 800, quality: 80 }));
+    }
+
+    // Disparar precarga asíncrona rápida en segundo plano
+    const timer = setTimeout(() => {
+      urlsToPreload.forEach((url) => {
+        const img = new Image();
+        img.decoding = 'async';
+        img.src = url;
+      });
+    }, 30);
+
+    return () => clearTimeout(timer);
+  }, [product.id, galleryMedia, product.variantTypes, product.additionalImage]);
 
   // Current active image index for lightbox and cart
   const activeImageIndex = galleryMedia[activeMediaIndex]?.imageIndex ?? 0;
@@ -524,6 +576,202 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     .filter((p) => p.id !== product.id && (p.category === product.category || p.isBestSeller))
     .slice(0, 4);
 
+  // --- Shipping Calculator (Informativo) ---
+  // Prioridad por rapidez: Uber Moto (1) -> Envío Flex (2) -> Correo Argentino (3) -> Sucursal (4)
+  const getShippingSpeedRank = (opt: ShippingOption): number => {
+    const text = `${opt.id} ${opt.name} ${opt.description || ''}`.toLowerCase();
+    if (text.includes('uber')) return 1;
+    if (text.includes('flex')) return 2;
+    if (text.includes('sucursal')) return 4;
+    if (text.includes('correo')) return 3;
+    return 5;
+  };
+
+  const getInitialStoredCp = (): string => {
+    try {
+      const saved =
+        localStorage.getItem('my_commerce_shipping_calc_cp') ||
+        localStorage.getItem('my_commerce_last_cp');
+      if (saved && saved.trim()) return saved.trim().toUpperCase();
+      const authUser = getLocalAuthUser();
+      if (authUser?.id) {
+        const profiles = getLocalProfiles();
+        const profile =
+          profiles[authUser.id] ||
+          (authUser.email ? profiles[authUser.email.toLowerCase()] : null);
+        if (profile?.postalCode && profile.postalCode.trim()) {
+          return profile.postalCode.trim().toUpperCase();
+        }
+      }
+    } catch {}
+    return '';
+  };
+
+  const [shippingCpInput, setShippingCpInput] = useState<string>('');
+  const [shippingResult, setShippingResult] = useState<{
+    cp: string;
+    options: ShippingOption[];
+  } | null>(null);
+  const [selectedShippingOptionId, setSelectedShippingOptionId] = useState<string | null>(null);
+  const [isShippingDropdownOpen, setIsShippingDropdownOpen] = useState<boolean>(false);
+  const [shippingCalcError, setShippingCalcError] = useState<string | null>(null);
+
+  const calculateShippingForCp = useCallback(
+    (cpToCalculate: string, preferredOptionId?: string | null) => {
+      const cleanCp = cpToCalculate.trim().toUpperCase();
+      if (!cleanCp) {
+        setShippingCalcError('Ingresa un código postal');
+        return false;
+      }
+
+      const zoneInfo = getShippingZoneInfo(cleanCp);
+      if (!zoneInfo || !zoneInfo.options || zoneInfo.options.length === 0) {
+        setShippingCalcError('Código postal no válido o sin cobertura');
+        return false;
+      }
+
+      // Ordenar exclusivamente por rapidez: Uber Moto -> Envío Flex -> Correo Argentino
+      const sorted = [...zoneInfo.options].sort(
+        (a, b) => getShippingSpeedRank(a) - getShippingSpeedRank(b)
+      );
+
+      const activeOpt =
+        (preferredOptionId && sorted.find((o) => o.id === preferredOptionId)) ||
+        sorted[0];
+
+      // Guardar únicamente CP y opción de envío en localStorage (NUNCA precios)
+      try {
+        localStorage.setItem('my_commerce_shipping_calc_cp', cleanCp);
+        localStorage.setItem('my_commerce_shipping_calc_option', activeOpt.id);
+        localStorage.setItem('my_commerce_last_cp', cleanCp);
+      } catch {}
+
+      setShippingResult({
+        cp: cleanCp,
+        options: sorted,
+      });
+      setSelectedShippingOptionId(activeOpt.id);
+      setIsShippingDropdownOpen(false);
+      setShippingCalcError(null);
+      return true;
+    },
+    []
+  );
+
+  // Recalcular automáticamente si hay CP guardado (al montar o al abrir otro producto)
+  useEffect(() => {
+    const savedCp = getInitialStoredCp();
+    if (savedCp) {
+      setShippingCpInput(savedCp);
+      let preferredOptId: string | null = null;
+      try {
+        preferredOptId = localStorage.getItem('my_commerce_shipping_calc_option');
+      } catch {}
+      calculateShippingForCp(savedCp, preferredOptId);
+    } else {
+      setShippingResult(null);
+      setShippingCpInput('');
+      setSelectedShippingOptionId(null);
+      setIsShippingDropdownOpen(false);
+      setShippingCalcError(null);
+    }
+  }, [product.id, calculateShippingForCp]);
+
+  // Actualizar inmediatamente ante cambios de configuración de envíos desde administración
+  useEffect(() => {
+    const handleConfigUpdate = () => {
+      const savedCp = getInitialStoredCp();
+      if (savedCp) {
+        let preferredOptId: string | null = null;
+        try {
+          preferredOptId = localStorage.getItem('my_commerce_shipping_calc_option');
+        } catch {}
+        calculateShippingForCp(savedCp, preferredOptId);
+      }
+    };
+    window.addEventListener('my_commerce_shipping_config_updated' as any, handleConfigUpdate);
+    return () => {
+      window.removeEventListener('my_commerce_shipping_config_updated' as any, handleConfigUpdate);
+    };
+  }, [calculateShippingForCp]);
+
+  // Borrar CP y volver al estado inicial
+  const handleClearShippingCp = () => {
+    try {
+      localStorage.removeItem('my_commerce_shipping_calc_cp');
+      localStorage.removeItem('my_commerce_shipping_calc_option');
+      localStorage.removeItem('my_commerce_last_cp');
+    } catch {}
+    setShippingResult(null);
+    setShippingCpInput('');
+    setSelectedShippingOptionId(null);
+    setIsShippingDropdownOpen(false);
+    setShippingCalcError(null);
+  };
+
+  const activeShippingOption = useMemo(() => {
+    if (!shippingResult || shippingResult.options.length === 0) return null;
+    if (selectedShippingOptionId) {
+      const found = shippingResult.options.find((o) => o.id === selectedShippingOptionId);
+      if (found) return found;
+    }
+    return shippingResult.options[0];
+  }, [shippingResult, selectedShippingOptionId]);
+
+  const otherShippingOptions = useMemo(() => {
+    if (!shippingResult || !activeShippingOption) return [];
+    return shippingResult.options.filter((o) => o.id !== activeShippingOption.id);
+  }, [shippingResult, activeShippingOption]);
+
+  const getMethodBadge = (opt: ShippingOption) => {
+    const text = `${opt.id} ${opt.name} ${opt.description || ''}`.toLowerCase();
+    if (text.includes('uber')) {
+      return (
+        <span className="bg-black/90 text-white text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded shrink-0">
+          Uber moto
+        </span>
+      );
+    }
+    if (text.includes('flex')) {
+      return (
+        <span className="bg-[#a3e635] text-gray-900 text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded shrink-0">
+          Envíos Flex
+        </span>
+      );
+    }
+    if (text.includes('sucursal')) {
+      return (
+        <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded shrink-0">
+          Sucursal
+        </span>
+      );
+    }
+    if (text.includes('correo')) {
+      return (
+        <span className="bg-[#facc15] text-gray-900 text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded shrink-0">
+          Correo Argentino
+        </span>
+      );
+    }
+    return (
+      <span className="bg-gray-100 text-gray-800 border border-gray-300 text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded shrink-0">
+        {opt.name}
+      </span>
+    );
+  };
+
+  const formatOptionDeliveryText = (opt: ShippingOption): string => {
+    if (opt.deliveryTime) {
+      return opt.deliveryTime;
+    }
+    const text = `${opt.id} ${opt.name}`.toLowerCase();
+    if (text.includes('uber')) return 'Llega hoy';
+    if (text.includes('flex')) return 'Llega mañana';
+    if (text.includes('sucursal')) return 'Retiro en sucursal (1 a 4 días)';
+    if (text.includes('correo')) return 'Llega 1 a 4 días';
+    return opt.description || '';
+  };
+
   return (
     <div className="max-w-[1240px] mx-auto px-0 sm:px-4 pt-0 sm:py-5 pb-3 sm:pb-6 space-y-3 sm:space-y-5 md:space-y-6">
       {/* Breadcrumbs (Hidden on mobile, visible on desktop) */}
@@ -692,6 +940,8 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     aspectRatio="aspect-square"
                     className="w-full h-full flex items-center justify-center"
                     imgClassName="w-full h-full object-contain md:object-cover aspect-square transition-transform duration-300 ease-out md:group-hover:scale-105 select-none"
+                    priority={true}
+                    fetchPriority="high"
                   />
                 </div>
               )}
@@ -766,10 +1016,10 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             {/* Desktop Description: Placed directly below the main showcase image */}
             <div className="hidden md:block pt-3 border-t border-gray-100 md:border-gray-200/80 space-y-4">
               <div className="space-y-2">
-                <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 font-['Montserrat']">
+                <h3 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 font-['Montserrat']">
                   Descripción del Producto
                 </h3>
-                <div className="text-sm sm:text-base text-gray-600 space-y-2 whitespace-pre-line leading-relaxed font-normal">
+                <div className="text-[13px] sm:text-sm text-gray-600 space-y-2 whitespace-pre-line leading-relaxed font-normal">
                   {product.description}
                 </div>
               </div>
@@ -963,21 +1213,149 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               </button>
             </div>
 
-            {/* Shipping & Delivery Highlights */}
-            <div className="order-6 lg:order-6 space-y-1.5 pt-1 text-sm sm:text-base text-gray-700">
-              <div className="flex items-start gap-2.5">
-                <Truck className="w-4 h-4 sm:w-5 sm:h-5 text-[#16a34a] shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold text-gray-900 block text-sm sm:text-base">Envío a domicilio</span>
-                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                    <span className="bg-black/90 text-xs sm:text-sm font-bold px-2 py-0.5 rounded text-white">Uber moto</span>
-                    <span className="bg-[#a3e635] text-xs sm:text-sm font-bold px-2 py-0.5 rounded text-gray-900">Envíos Flex</span>
-                    <span className="bg-[#facc15] text-xs sm:text-sm font-bold px-2 py-0.5 rounded text-gray-900">Correo Argentino</span>
-                  </div>
-                </div>
+            {/* Shipping & Delivery Highlights (Calculador informativo) */}
+            <div className="order-6 lg:order-6 space-y-2 pt-1 text-sm sm:text-base text-gray-700">
+              <div className="bg-gray-50/80 border border-gray-200/90 rounded-xl p-2.5 sm:p-3 space-y-2">
+                {!shippingResult || !activeShippingOption ? (
+                  <>
+                    {/* Estado inicial compacto: título y debajo en una sola línea Código postal + Calcular, sin textos adicionales */}
+                    <div className="flex items-center gap-2">
+                      <Truck className="w-4 h-4 sm:w-5 sm:h-5 text-[#16a34a] shrink-0" />
+                      <span className="font-bold text-gray-900 text-sm sm:text-base">
+                        Envíos a domicilio
+                      </span>
+                    </div>
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        calculateShippingForCp(shippingCpInput);
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <input
+                        id="product-detail-cp-input"
+                        type="text"
+                        inputMode="numeric"
+                        value={shippingCpInput}
+                        onChange={(e) => {
+                          setShippingCpInput(e.target.value.toUpperCase());
+                          if (shippingCalcError) setShippingCalcError(null);
+                        }}
+                        placeholder="Código postal"
+                        aria-label="Código postal para envíos a domicilio"
+                        className="flex-1 min-w-0 px-2.5 py-1.5 text-xs sm:text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent"
+                      />
+                      <button
+                        id="product-detail-calculate-shipping-btn"
+                        type="submit"
+                        className="shrink-0 px-3.5 py-1.5 bg-[#0058bb] hover:bg-[#004696] text-white text-xs sm:text-sm font-bold rounded-lg transition-colors cursor-pointer"
+                      >
+                        Calcular
+                      </button>
+                    </form>
+                    {shippingCalcError && (
+                      <p className="text-xs text-red-600 font-medium">{shippingCalcError}</p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {/* Estado calculado: título "Envíos a domicilio" + chip con CP y X para borrar */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Truck className="w-4 h-4 sm:w-5 sm:h-5 text-[#16a34a] shrink-0" />
+                        <span className="font-bold text-gray-900 text-sm sm:text-base truncate">
+                          Envíos a domicilio
+                        </span>
+                      </div>
+                      <div className="shrink-0 inline-flex items-center gap-1.5 px-2 py-0.5 bg-gray-200/80 hover:bg-gray-200 rounded-full text-xs font-semibold text-gray-800 transition-colors">
+                        <span>CP {shippingResult.cp}</span>
+                        <button
+                          id="product-detail-clear-cp-btn"
+                          type="button"
+                          onClick={handleClearShippingCp}
+                          className="p-0.5 text-gray-500 hover:text-gray-900 rounded-full cursor-pointer transition-colors"
+                          title="Borrar código postal y volver al estado inicial"
+                          aria-label="Borrar código postal"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Un solo renglón con el método prioritario y su precio más flecha desplegable */}
+                    <div className="relative">
+                      <button
+                        id="product-detail-shipping-toggle-btn"
+                        type="button"
+                        onClick={() => {
+                          if (otherShippingOptions.length > 0) {
+                            setIsShippingDropdownOpen((prev) => !prev);
+                          }
+                        }}
+                        className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 sm:py-2 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-left transition-colors shadow-2xs ${
+                          otherShippingOptions.length > 0 ? 'cursor-pointer' : 'cursor-default'
+                        }`}
+                        aria-expanded={isShippingDropdownOpen}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {getMethodBadge(activeShippingOption)}
+                          <span className="text-xs sm:text-sm text-gray-600 truncate">
+                            {formatOptionDeliveryText(activeShippingOption)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-xs sm:text-sm font-bold text-gray-900">
+                            {activeShippingOption.price === 0
+                              ? 'Gratis'
+                              : `$${activeShippingOption.price.toLocaleString('es-AR')}`}
+                          </span>
+                          {otherShippingOptions.length > 0 && (
+                            <ChevronDown
+                              className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${
+                                isShippingDropdownOpen ? 'rotate-180' : ''
+                              }`}
+                            />
+                          )}
+                        </div>
+                      </button>
+
+                      {/* Desplegable con las demás opciones disponibles */}
+                      {isShippingDropdownOpen && otherShippingOptions.length > 0 && (
+                        <div className="mt-1.5 p-1 bg-white border border-gray-200 rounded-lg shadow-md space-y-1">
+                          {otherShippingOptions.map((opt) => (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedShippingOptionId(opt.id);
+                                try {
+                                  localStorage.setItem('my_commerce_shipping_calc_option', opt.id);
+                                } catch {}
+                                setIsShippingDropdownOpen(false);
+                              }}
+                              className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 hover:bg-gray-50 rounded-md text-left transition-colors cursor-pointer text-xs sm:text-sm"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                {getMethodBadge(opt)}
+                                <span className="text-xs sm:text-sm text-gray-600 truncate">
+                                  {formatOptionDeliveryText(opt)}
+                                </span>
+                              </div>
+                              <span className="text-xs sm:text-sm font-bold text-gray-900 shrink-0">
+                                {opt.price === 0
+                                  ? 'Gratis'
+                                  : `$${opt.price.toLocaleString('es-AR')}`}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
 
-              <div className="flex items-start gap-2.5">
+              <div className="flex items-start gap-2.5 px-0.5">
                 <Store className="w-4 h-4 sm:w-5 sm:h-5 text-[#0058bb] shrink-0 mt-0.5" />
                 <div className="text-sm sm:text-base">
                   <span className="font-bold text-gray-900">Retiro gratis</span> en Local de Flores, CABA.
@@ -1142,10 +1520,10 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
             {/* Mobile Only: Description directly below purchase info, preserving mobile order */}
             <div className="md:hidden order-9 pt-3 border-t border-gray-100 space-y-2">
-              <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 font-['Montserrat']">
+              <h3 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 font-['Montserrat']">
                 Descripción del Producto
               </h3>
-              <div className="text-sm sm:text-base text-gray-600 space-y-2 whitespace-pre-line leading-relaxed font-normal">
+              <div className="text-[13px] sm:text-sm text-gray-600 space-y-2 whitespace-pre-line leading-relaxed font-normal">
                 {product.description}
               </div>
             </div>
@@ -1172,7 +1550,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             {/* Clasificación y Opiniones */}
             <div className="space-y-2.5 sm:space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 border-b border-gray-100 md:border-gray-200/80 pb-2 sm:pb-3">
-                <h3 className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat']">
+                <h3 className="text-sm sm:text-base font-bold text-gray-900 font-['Montserrat']">
                   Clasificación y Opiniones
                 </h3>
                 <div className="flex items-center gap-2 sm:gap-3">
@@ -1192,50 +1570,42 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     ))}
                   </div>
                   <span className="text-xs sm:text-sm text-gray-500">
-                    ({product.reviewsCount ?? (product.reviews?.length || 128)} clasificaciones)
+                    ({product.reviewsCount ?? (product.reviews?.length || 0)} clasificaciones)
                   </span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-4">
-                {(product.reviews && product.reviews.length > 0
-                  ? product.reviews
-                  : [
-                      {
-                        id: 'def-1',
-                        rating: 5,
-                        text: 'Excelente calidad, no se ponen negros y se venden súper rápido.',
-                      },
-                      {
-                        id: 'def-2',
-                        rating: 5,
-                        text: 'Muy buen cierre, el dorado es muy lindo y natural.',
-                      },
-                    ]
-                ).map((rev, idx) => (
-                  <div
-                    key={rev.id || idx}
-                    className="text-xs sm:text-sm text-gray-600 bg-gray-50/70 rounded-xl p-2.5 sm:p-3.5 border border-gray-100 md:border-gray-200/60 space-y-1 sm:space-y-1.5"
-                  >
-                    <div className="flex text-[#0058bb]">
-                      {[...Array(5)].map((_, i) => (
-                        <Star
-                          key={i}
-                          className={`w-3.5 h-3.5 ${
-                            i < (rev.rating ?? 5)
-                              ? 'fill-[#0058bb] text-[#0058bb]'
-                              : 'fill-gray-200 text-gray-200'
-                          }`}
-                        />
-                      ))}
+              {product.reviews && product.reviews.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-4">
+                  {product.reviews.map((rev, idx) => (
+                    <div
+                      key={rev.id || idx}
+                      className="text-xs sm:text-sm text-gray-600 bg-gray-50/70 rounded-xl p-2.5 sm:p-3.5 border border-gray-100 md:border-gray-200/60 space-y-1 sm:space-y-1.5"
+                    >
+                      <div className="flex text-[#0058bb]">
+                        {[...Array(5)].map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`w-3.5 h-3.5 ${
+                              i < (rev.rating ?? 5)
+                                ? 'fill-[#0058bb] text-[#0058bb]'
+                                : 'fill-gray-200 text-gray-200'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <p className="font-normal text-gray-700 leading-snug">"{rev.text}"</p>
+                      {rev.author && (
+                        <span className="text-xs text-gray-400 block font-medium">{rev.author}</span>
+                      )}
                     </div>
-                    <p className="font-normal text-gray-700 leading-snug">"{rev.text}"</p>
-                    {rev.author && (
-                      <span className="text-xs text-gray-400 block font-medium">{rev.author}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs sm:text-sm text-gray-500 italic py-2">
+                  Este producto aún no cuenta con comentarios u opiniones cargadas.
+                </p>
+              )}
             </div>
           </div>
         </div>

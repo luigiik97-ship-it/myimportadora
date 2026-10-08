@@ -488,9 +488,14 @@ export const ShippingConfigManager: React.FC = () => {
                           FLEX
                         </span>
                       )}
-                      {option.id.includes('correo') && (
+                      {option.id.includes('correo') && !option.id.includes('sucursal') && !option.name.toLowerCase().includes('sucursal') && (
                         <span className="text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded font-bold">
-                          CORREO
+                          DOMICILIO
+                        </span>
+                      )}
+                      {(option.id.includes('sucursal') || option.name.toLowerCase().includes('sucursal')) && (
+                        <span className="text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold">
+                          SUCURSAL
                         </span>
                       )}
                     </label>
@@ -632,9 +637,14 @@ export const ShippingConfigManager: React.FC = () => {
                           FLEX
                         </span>
                       )}
-                      {option.id.includes('correo') && (
+                      {option.id.includes('correo') && !option.id.includes('sucursal') && !option.name.toLowerCase().includes('sucursal') && (
                         <span className="text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded font-bold">
-                          CORREO
+                          DOMICILIO
+                        </span>
+                      )}
+                      {(option.id.includes('sucursal') || option.name.toLowerCase().includes('sucursal')) && (
+                        <span className="text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold">
+                          SUCURSAL
                         </span>
                       )}
                     </label>
@@ -750,9 +760,16 @@ export const ShippingConfigManager: React.FC = () => {
                       className="text-sm font-bold text-gray-900 cursor-pointer flex items-center gap-1.5"
                     >
                       {option.name}
-                      <span className="text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded font-bold">
-                        CORREO
-                      </span>
+                      {option.id.includes('correo') && !option.id.includes('sucursal') && !option.name.toLowerCase().includes('sucursal') && (
+                        <span className="text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded font-bold">
+                          DOMICILIO
+                        </span>
+                      )}
+                      {(option.id.includes('sucursal') || option.name.toLowerCase().includes('sucursal')) && (
+                        <span className="text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold">
+                          SUCURSAL
+                        </span>
+                      )}
                     </label>
                   </div>
                   <input
@@ -868,9 +885,16 @@ export const ShippingConfigManager: React.FC = () => {
                       className="text-sm font-bold text-gray-900 cursor-pointer flex items-center gap-1.5"
                     >
                       {option.name}
-                      <span className="text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded font-bold">
-                        CORREO
-                      </span>
+                      {option.id.includes('correo') && !option.id.includes('sucursal') && !option.name.toLowerCase().includes('sucursal') && (
+                        <span className="text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded font-bold">
+                          DOMICILIO
+                        </span>
+                      )}
+                      {(option.id.includes('sucursal') || option.name.toLowerCase().includes('sucursal')) && (
+                        <span className="text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold">
+                          SUCURSAL
+                        </span>
+                      )}
                     </label>
                   </div>
                   <input

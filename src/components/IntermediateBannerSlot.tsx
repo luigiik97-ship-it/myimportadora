@@ -129,6 +129,11 @@ export const IntermediateBannerSlot: React.FC<IntermediateBannerSlotProps> = ({
     }
   };
 
+  // Si no hay imagen válida configurada, no renderizar contenedor vacío
+  if (validBanners.length === 0 || !validBanners[0]?.imageUrl) {
+    return null;
+  }
+
   // 1. Si es solo 1 imagen -> MODO ESTÁTICO LIMPIO
   if (!isCarousel) {
     return (
