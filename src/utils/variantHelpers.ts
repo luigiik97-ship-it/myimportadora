@@ -1,4 +1,4 @@
-import { Product, ProductSpec, SizeVariant, VariantOption, VariantType } from '../types';
+import { Product, ProductSpec, SizeVariant, VariantOption, VariantType, CartItem } from '../types';
 
 export const META_VARIANT_TYPES_KEY = '__meta_variant_types__';
 export const SPECS_VARIANT_TYPES_KEY = '__variant_types';
@@ -941,5 +941,91 @@ export function getItemEffectiveCashPrice(
   const cashPrice = isWholesale ? resolved.wholesaleCashPrice : resolved.retailCashPrice;
   if (cashPrice > 0) return cashPrice;
   return fallbackPrice !== undefined && fallbackPrice > 0 ? fallbackPrice : (isWholesale ? resolved.wholesalePrice : resolved.retailPrice);
+}
+
+/**
+ * Calculates cart summary totals and wholesale savings consistently across the application.
+ * Honors category-level wholesale thresholds and active purchase mode (cash vs transfer).
+ */
+export function calculateCartSummary(cartItems: CartItem[] = [], isCashMode: boolean = false) {
+  if (!cartItems || cartItems.length === 0) {
+    return {
+      totalQuantity: 0,
+      subtotalProducts: 0,
+      cashSubtotalProducts: 0,
+      activeSubtotal: 0,
+      totalSavings: 0,
+    };
+  }
+
+  // 1. Calculate total quantity per category in cart
+  const categoryQuantities: Record<string, number> = {};
+  cartItems.forEach((item) => {
+    const cat = item.product?.category || 'General';
+    categoryQuantities[cat] = (categoryQuantities[cat] || 0) + item.quantity;
+  });
+
+  let subtotalProducts = 0;
+  let cashSubtotalProducts = 0;
+  let totalSavings = 0;
+  let totalQuantity = 0;
+
+  cartItems.forEach((item) => {
+    if (!item.product) return;
+    const cat = item.product.category || 'General';
+    const totalInCat = categoryQuantities[cat] || 0;
+    const minQty = item.product.minWholesaleQty || 1;
+    const isWholesale = totalInCat >= minQty;
+
+    const wholesaleUnitPrice = getItemEffectiveNormalPrice(
+      item.product,
+      item.selectedVariants,
+      item.selectedSizeVariant,
+      true
+    );
+
+    const retailUnitPrice = getItemEffectiveNormalPrice(
+      item.product,
+      item.selectedVariants,
+      item.selectedSizeVariant,
+      false
+    );
+
+    const unitPrice = isWholesale ? wholesaleUnitPrice : retailUnitPrice;
+    const totalPrice = unitPrice * item.quantity;
+    const retailTotal = retailUnitPrice * item.quantity;
+    const savings = isWholesale ? retailTotal - totalPrice : 0;
+
+    const cashUnitPrice = getItemEffectiveCashPrice(
+      item.product,
+      item.selectedVariants,
+      item.selectedSizeVariant,
+      unitPrice,
+      isWholesale
+    );
+    const cashTotalPrice = cashUnitPrice * item.quantity;
+
+    subtotalProducts += totalPrice;
+    cashSubtotalProducts += cashTotalPrice;
+    totalSavings += savings;
+    totalQuantity += item.quantity;
+  });
+
+  const activeSubtotal = isCashMode ? cashSubtotalProducts : subtotalProducts;
+
+  return {
+    totalQuantity,
+    subtotalProducts,
+    cashSubtotalProducts,
+    activeSubtotal,
+    totalSavings,
+  };
+}
+
+/**
+ * Returns the exact current active total of the cart.
+ */
+export function calculateCartTotal(cartItems: CartItem[] = [], isCashMode: boolean = false): number {
+  return calculateCartSummary(cartItems, isCashMode).activeSubtotal;
 }
 

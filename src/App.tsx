@@ -987,6 +987,7 @@ export default function App() {
               <ProductDetailRouteWrapper
                 products={products}
                 isLoadingData={isLoadingData}
+                cartItems={cart}
                 selectedProductVariants={selectedProductVariants}
                 selectedProductImage={selectedProductImage}
                 previousView={previousView}

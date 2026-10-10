@@ -3,6 +3,8 @@ import { Search, ShoppingCart, User, ChevronDown, ChevronRight, Layers, ArrowLef
 import { CartItem, Category, UserProfile } from '../types';
 import { reconcileCategoriesWithProducts } from '../utils/categoryHelpers';
 import { getOptimizedImageUrl } from '../utils/imageOptimizer';
+import { usePurchaseMode } from '../context/PurchaseModeContext';
+import { calculateCartTotal } from '../utils/variantHelpers';
 
 interface NavbarProps {
   currentCategory: string;
@@ -44,6 +46,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAccount,
 }) => {
   const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
+  const { isCashMode } = usePurchaseMode();
+  const cartTotal = useMemo(() => {
+    return calculateCartTotal(cartItems, isCashMode);
+  }, [cartItems, isCashMode]);
   const [isCategoriesOpen, setIsCategoriesOpen] = useState(false);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [dropdownCoords, setDropdownCoords] = useState<{ top: number; left: number } | null>(null);
@@ -303,6 +309,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </button>
                 )}
 
+                {/* Desktop: Current Cart Total (displayed to the left of the cart icon in normal shopping mode) */}
+                {!isQuickBuyActive && cartTotal > 0 && (
+                  <button
+                    type="button"
+                    id="desktop-header-cart-total"
+                    onClick={onOpenCart}
+                    className="hidden md:flex items-center gap-1.5 px-3 py-1.5 min-h-[38px] rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all cursor-pointer select-none group"
+                    title="Ver Carrito de Compras - Total actual"
+                    aria-label={`Total del carrito: $${cartTotal.toLocaleString('es-AR')}`}
+                  >
+                    <span className="text-white/75 text-xs font-normal">Total:</span>
+                    <span className="font-bold text-white text-sm tracking-tight font-['Montserrat']">
+                      ${cartTotal.toLocaleString('es-AR')}
+                    </span>
+                  </button>
+                )}
+
                 {/* Cart Button */}
                 <button
                   id="header-cart-btn"
@@ -323,86 +346,107 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Sub-bar Category Pills */}
-        <div className="max-w-[1240px] mx-auto px-2 sm:px-4 pb-2 pt-0.5 flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar">
-          {/* Todo */}
-          <button
-            id="category-tab-todo"
-            onClick={() => {
-              setIsCategoriesOpen(false);
-              onSelectCategory('Todo');
-            }}
-            className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer ${
-              currentCategory === 'Todo'
-                ? 'bg-white text-[#0058bb] shadow-sm font-semibold'
-                : 'text-white/90 hover:bg-white/15'
-            }`}
-          >
-            Todo
-          </button>
-
-          {/* Categorías (with dropdown toggle) */}
-          <button
-            ref={categoriesButtonRef}
-            id="category-tab-categorias"
-            onClick={handleCategoriesToggle}
-            aria-expanded={isCategoriesOpen}
-            aria-haspopup="true"
-            className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
-              isCategoriesOpen
-                ? 'bg-white text-[#0058bb] shadow-sm font-semibold'
-                : 'text-white/90 hover:bg-white/15'
-            }`}
-          >
-            <span>Categorías</span>
-            <ChevronDown
-              className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                isCategoriesOpen ? 'rotate-180 text-[#0058bb]' : 'text-white/80'
-              }`}
-            />
-          </button>
-
-          {/* 🚀 Próximos Lanzamientos */}
-          {onOpenLaunches && isLaunchesVisible && (
+        <div className="max-w-[1240px] mx-auto px-2 sm:px-4 pb-2 pt-0.5 flex items-center justify-between gap-1.5 sm:gap-2">
+          {/* Horizontally scrollable categories container */}
+          <div className="flex-1 min-w-0 flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5">
+            {/* Todo */}
             <button
-              id="category-tab-lanzamientos"
-              type="button"
+              id="category-tab-todo"
               onClick={() => {
                 setIsCategoriesOpen(false);
-                onOpenLaunches();
+                onSelectCategory('Todo');
               }}
-              className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-bold rounded-full transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 border shadow-xs ${
-                isLaunchesActive
-                  ? 'bg-yellow-400 text-gray-950 border-yellow-400 ring-2 ring-white/50'
-                  : 'bg-white/15 hover:bg-white/25 text-yellow-300 border-yellow-300/40'
+              className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer ${
+                currentCategory === 'Todo'
+                  ? 'bg-white text-[#0058bb] shadow-sm font-semibold'
+                  : 'text-white/90 hover:bg-white/15'
               }`}
-              title="Votá los próximos modelos de la tienda"
             >
-              <Rocket className="w-3.5 h-3.5 fill-current" />
-              <span>Próximos Lanzamientos</span>
+              Todo
             </button>
-          )}
 
-          {/* Remaining categories (Bijuteria, etc.) */}
-          {displayCategoryNames.map((cat, idx) => {
-            const isSelected = currentCategory === cat;
-            return (
+            {/* Categorías (with dropdown toggle) */}
+            <button
+              ref={categoriesButtonRef}
+              id="category-tab-categorias"
+              onClick={handleCategoriesToggle}
+              aria-expanded={isCategoriesOpen}
+              aria-haspopup="true"
+              className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                isCategoriesOpen
+                  ? 'bg-white text-[#0058bb] shadow-sm font-semibold'
+                  : 'text-white/90 hover:bg-white/15'
+              }`}
+            >
+              <span>Categorías</span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                  isCategoriesOpen ? 'rotate-180 text-[#0058bb]' : 'text-white/80'
+                }`}
+              />
+            </button>
+
+            {/* 🚀 Próximos Lanzamientos */}
+            {onOpenLaunches && isLaunchesVisible && (
               <button
-                key={`cat-nav-${cat}-${idx}`}
-                id={`category-tab-${cat.toLowerCase()}`}
+                id="category-tab-lanzamientos"
+                type="button"
                 onClick={() => {
                   setIsCategoriesOpen(false);
-                  onSelectCategory(cat);
+                  onOpenLaunches();
                 }}
-                className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer ${
-                  isSelected
-                    ? 'bg-white text-[#0058bb] shadow-sm font-semibold'
-                    : 'text-white/90 hover:bg-white/15'
+                className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-bold rounded-full transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 border shadow-xs ${
+                  isLaunchesActive
+                    ? 'bg-yellow-400 text-gray-950 border-yellow-400 ring-2 ring-white/50'
+                    : 'bg-white/15 hover:bg-white/25 text-yellow-300 border-yellow-300/40'
                 }`}
+                title="Votá los próximos modelos de la tienda"
               >
-                {cat}
+                <Rocket className="w-3.5 h-3.5 fill-current" />
+                <span>Próximos Lanzamientos</span>
               </button>
-            );
-          })}
+            )}
+
+            {/* Remaining categories (Bijuteria, etc.) */}
+            {displayCategoryNames.map((cat, idx) => {
+              const isSelected = currentCategory === cat;
+              return (
+                <button
+                  key={`cat-nav-${cat}-${idx}`}
+                  id={`category-tab-${cat.toLowerCase()}`}
+                  onClick={() => {
+                    setIsCategoriesOpen(false);
+                    onSelectCategory(cat);
+                  }}
+                  className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer ${
+                    isSelected
+                      ? 'bg-white text-[#0058bb] shadow-sm font-semibold'
+                      : 'text-white/90 hover:bg-white/15'
+                  }`}
+                >
+                  {cat}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Mobile Cart Total: fixed under the cart button area on the right, perfectly centered and symmetrical */}
+          {!isQuickBuyActive && cartTotal > 0 && (
+            <div className="md:hidden shrink-0 flex items-center justify-center pl-2 sm:pl-2.5 border-l border-white/20">
+              <button
+                type="button"
+                id="mobile-header-cart-total"
+                onClick={onOpenCart}
+                className="flex items-center justify-center px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 text-white border border-white/25 text-xs font-semibold shadow-xs transition-all cursor-pointer select-none whitespace-nowrap"
+                title="Ver Carrito de Compras - Total actual"
+                aria-label={`Total del carrito: $${cartTotal.toLocaleString('es-AR')}`}
+              >
+                <span className="font-bold text-white tracking-tight font-['Montserrat'] text-center">
+                  ${cartTotal.toLocaleString('es-AR')}
+                </span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

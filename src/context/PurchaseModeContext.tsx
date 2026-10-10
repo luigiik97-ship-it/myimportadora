@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
 import { Product } from '../types';
 
 export type PurchaseMode = 'transfer' | 'cash';
@@ -60,29 +60,35 @@ export const PurchaseModeProvider: React.FC<PurchaseModeProviderProps> = ({
 }) => {
   const [purchaseMode, setPurchaseModeState] = useState<PurchaseMode>(getStoredPurchaseMode);
 
-  const setPurchaseMode = useCallback(
-    (newMode: PurchaseMode) => {
-      setPurchaseModeState(newMode);
-      try {
-        localStorage.setItem(PURCHASE_MODE_STORAGE_KEY, newMode);
-        localStorage.setItem('my_commerce_checkout_payment_method', newMode);
-        if (newMode === 'cash') {
-          // Cash mode activates local pickup automatically
-          localStorage.setItem('my_commerce_checkout_delivery_option', 'pickup');
-        }
-      } catch (e) {}
+  const onModeChangeExternalRef = useRef(onModeChangeExternal);
+  useEffect(() => {
+    onModeChangeExternalRef.current = onModeChangeExternal;
+  }, [onModeChangeExternal]);
 
-      // Dispatch event for cross-component sync
-      window.dispatchEvent(
-        new CustomEvent(PURCHASE_MODE_EVENT, { detail: newMode })
-      );
-
-      if (onModeChangeExternal) {
-        onModeChangeExternal(newMode);
+  const setPurchaseMode = useCallback((newMode: PurchaseMode) => {
+    setPurchaseModeState(newMode);
+    try {
+      localStorage.setItem(PURCHASE_MODE_STORAGE_KEY, newMode);
+      localStorage.setItem('my_commerce_checkout_payment_method', newMode);
+      if (newMode === 'cash') {
+        // Cash mode activates local pickup automatically
+        localStorage.setItem('my_commerce_checkout_delivery_option', 'pickup');
+        // Regla dos: al activar modo efectivo, limpiar CP guardado y sus resultados
+        localStorage.removeItem('my_commerce_shipping_calc_cp');
+        localStorage.removeItem('my_commerce_shipping_calc_option');
+        localStorage.removeItem('my_commerce_last_cp');
       }
-    },
-    [onModeChangeExternal]
-  );
+    } catch (e) {}
+
+    // Dispatch event for cross-component sync
+    window.dispatchEvent(
+      new CustomEvent(PURCHASE_MODE_EVENT, { detail: newMode })
+    );
+
+    if (onModeChangeExternalRef.current) {
+      onModeChangeExternalRef.current(newMode);
+    }
+  }, []);
 
   const togglePurchaseMode = useCallback(() => {
     setPurchaseMode(purchaseMode === 'transfer' ? 'cash' : 'transfer');
@@ -94,12 +100,26 @@ export const PurchaseModeProvider: React.FC<PurchaseModeProviderProps> = ({
       const mode = e?.detail;
       if ((mode === 'transfer' || mode === 'cash') && mode !== purchaseMode) {
         setPurchaseModeState(mode);
+        if (mode === 'cash') {
+          try {
+            localStorage.removeItem('my_commerce_shipping_calc_cp');
+            localStorage.removeItem('my_commerce_shipping_calc_option');
+            localStorage.removeItem('my_commerce_last_cp');
+          } catch {}
+        }
       }
     };
 
     const handleStorage = (e: StorageEvent) => {
       if (e.key === PURCHASE_MODE_STORAGE_KEY && (e.newValue === 'transfer' || e.newValue === 'cash')) {
         setPurchaseModeState(e.newValue as PurchaseMode);
+        if (e.newValue === 'cash') {
+          try {
+            localStorage.removeItem('my_commerce_shipping_calc_cp');
+            localStorage.removeItem('my_commerce_shipping_calc_option');
+            localStorage.removeItem('my_commerce_last_cp');
+          } catch {}
+        }
       }
     };
 
@@ -125,14 +145,20 @@ export const PurchaseModeProvider: React.FC<PurchaseModeProviderProps> = ({
     [purchaseMode]
   );
 
-  const value: PurchaseModeContextType = {
+  const value = useMemo<PurchaseModeContextType>(() => ({
     purchaseMode,
     setPurchaseMode,
     isCashMode: purchaseMode === 'cash',
     togglePurchaseMode,
     getEffectiveWholesalePrice,
     getEffectiveRetailPrice,
-  };
+  }), [
+    purchaseMode,
+    setPurchaseMode,
+    togglePurchaseMode,
+    getEffectiveWholesalePrice,
+    getEffectiveRetailPrice,
+  ]);
 
   return (
     <PurchaseModeContext.Provider value={value}>

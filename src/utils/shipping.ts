@@ -27,24 +27,46 @@ export interface ShippingZoneInfo {
  * según el Código Postal, Provincia y Ciudad ingresados por el usuario,
  * consultando la configuración central administrada.
  */
+export const isValidPostalCode = (postalCode: string): boolean => {
+  const clean = (postalCode || '').trim();
+  if (!clean) return false;
+  // Debe contener exclusivamente números (4 dígitos en el sistema tradicional argentino, o 4 a 5 dígitos numéricos)
+  if (!/^\d{4,5}$/.test(clean)) {
+    return false;
+  }
+  const num = parseInt(clean, 10);
+  // Códigos postales argentinos válidos están entre 1000 y 9431
+  return num >= 1000 && num <= 9999;
+};
+
+/**
+ * Determina las opciones de envío disponibles y sus tarifas vigentes
+ * según el Código Postal, Provincia y Ciudad ingresados por el usuario,
+ * consultando la configuración central administrada.
+ */
 export const getShippingZoneInfo = (
   postalCode: string,
   province: string = '',
   city: string = '',
   customConfig?: ShippingConfig
 ): ShippingZoneInfo | null => {
-  const cleanCp = (postalCode || '').trim().toUpperCase();
-  const cpDigits = cleanCp.replace(/\D/g, '');
-  const num = parseInt(cpDigits, 10);
-
+  const rawCp = (postalCode || '').trim();
   const cleanProvince = (province || '').trim().toLowerCase();
   const cleanCity = (city || '').trim().toLowerCase();
 
-  // Si no hay dígitos de CP ni provincia/ciudad, retorna null
-  if (!cleanCp && !cleanProvince && !cleanCity) {
+  // Si se ingresó un código postal, debe ser estrictamente numérico y válido.
+  // Si contiene letras o caracteres no numéricos, no debe calcular nada ni convertirlo en envío lejano.
+  if (rawCp) {
+    if (!isValidPostalCode(rawCp)) {
+      return null;
+    }
+  } else if (!cleanProvince && !cleanCity) {
+    // Si no hay CP ni provincia/ciudad, retorna null
     return null;
   }
 
+  const cleanCp = rawCp;
+  const num = cleanCp ? parseInt(cleanCp, 10) : NaN;
   const config = customConfig || getShippingConfig();
 
   // 0. Reglas personalizadas específicas por Código Postal (Overrides del administrador)
@@ -52,7 +74,7 @@ export const getShippingZoneInfo = (
     const matchedRule = config.customPostalCodeRules.find(
       (r) =>
         r.postalCode.trim().toUpperCase() === cleanCp ||
-        (cpDigits && r.postalCode.trim().replace(/\D/g, '') === cpDigits)
+        (cleanCp && r.postalCode.trim().replace(/\D/g, '') === cleanCp)
     );
 
     if (matchedRule && matchedRule.options && matchedRule.options.length > 0) {
@@ -170,8 +192,9 @@ export const getShippingZoneInfo = (
     };
   }
 
-  // 4. Resto de provincias que no se mencionaron
-  if (cpDigits.length >= 3 || cleanCp.length >= 3 || cleanProvince.length >= 3) {
+  // 4. Resto de provincias que no se mencionaron (Interior del País)
+  // Se alcanza solo si se ingresó un CP numérico válido o una provincia explícita
+  if ((cleanCp && !isNaN(num) && num >= 1000) || cleanProvince.length >= 3) {
     const restoZone = config.zones.resto_pais;
     const activeOptions = restoZone.options.filter((o) => o.enabled !== false);
     return {

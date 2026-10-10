@@ -773,12 +773,16 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                         </label>
                         <input
                           type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={5}
                           required
                           value={postalCode}
                           onChange={(e) => {
-                            setPostalCode(e.target.value);
+                            const digitsOnly = e.target.value.replace(/\D/g, '');
+                            setPostalCode(digitsOnly);
                             try {
-                              localStorage.setItem('my_commerce_last_cp', e.target.value);
+                              localStorage.setItem('my_commerce_last_cp', digitsOnly);
                             } catch {}
                           }}
                           placeholder="Ej: 1406, 1602..."
@@ -837,8 +841,10 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                                       </span>
                                     </div>
                                     <p className="text-xs text-gray-500 mt-0.5">
-                                      {option.description === 'Retiro en sucursal oficial de Correo Argentino'
+                                      {option.description === 'Retiro en sucursal oficial de Correo Argentino' || option.description === 'Retiro en la sucursal'
                                         ? 'Retiro en la sucursal'
+                                        : option.description === 'Envío a domicilio por Correo Argentino'
+                                        ? 'Envió a domicilio'
                                         : option.description}
                                     </p>
                                   </div>

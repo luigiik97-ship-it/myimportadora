@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Product, SizeVariant, VariantOption, VariantType } from '../types';
+import { Product, SizeVariant, VariantOption, VariantType, CartItem } from '../types';
+import { WholesaleCategoryProgressCard } from './common/WholesaleCategoryProgressCard';
 import {
   normalizeVariantTypes,
   getActiveVariantImages,
@@ -54,6 +55,7 @@ interface ProductDetailViewProps {
   initialSelectedVariants?: Record<string, string>;
   initialSelectedImage?: string;
   backLabel?: string;
+  cartItems?: CartItem[];
   onBack: () => void;
   onGoToCart?: () => void;
   onAddToCart: (
@@ -91,6 +93,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   initialSelectedVariants,
   initialSelectedImage,
   backLabel,
+  cartItems,
   onBack,
   onGoToCart,
   onAddToCart,
@@ -375,6 +378,22 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
   const { purchaseMode, setPurchaseMode, isCashMode } = usePurchaseMode();
 
+  // Calculate total units currently in cart for this product's category
+  const categoryUnitsInCart = useMemo(() => {
+    const cat = product.category || 'General';
+    let items = cartItems;
+    if (!items || items.length === 0) {
+      try {
+        const raw = localStorage.getItem('my_cart_items');
+        if (raw) items = JSON.parse(raw);
+      } catch {}
+    }
+    if (!items || !Array.isArray(items)) return 0;
+    return items
+      .filter((i) => (i.product?.category || 'General') === cat)
+      .reduce((acc, i) => acc + (i.quantity || 0), 0);
+  }, [cartItems, product.category]);
+
   // Price calculations dynamically resolved from selected variant options and base product
   const resolvedPrices = useMemo(() => {
     return getResolvedProductPrices(product, selectedOptions);
@@ -588,21 +607,13 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   };
 
   const getInitialStoredCp = (): string => {
+    // Si el modo efectivo está activo, nunca restaurar CP ni mostrar resultados de envío
+    if (isCashMode) return '';
     try {
       const saved =
         localStorage.getItem('my_commerce_shipping_calc_cp') ||
         localStorage.getItem('my_commerce_last_cp');
       if (saved && saved.trim()) return saved.trim().toUpperCase();
-      const authUser = getLocalAuthUser();
-      if (authUser?.id) {
-        const profiles = getLocalProfiles();
-        const profile =
-          profiles[authUser.id] ||
-          (authUser.email ? profiles[authUser.email.toLowerCase()] : null);
-        if (profile?.postalCode && profile.postalCode.trim()) {
-          return profile.postalCode.trim().toUpperCase();
-        }
-      }
     } catch {}
     return '';
   };
@@ -616,12 +627,31 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   const [isShippingDropdownOpen, setIsShippingDropdownOpen] = useState<boolean>(false);
   const [shippingCalcError, setShippingCalcError] = useState<string | null>(null);
 
+  // Borrar CP y volver al estado inicial (Regla dos / X del chip)
+  const handleClearShippingCp = useCallback(() => {
+    try {
+      localStorage.removeItem('my_commerce_shipping_calc_cp');
+      localStorage.removeItem('my_commerce_shipping_calc_option');
+      localStorage.removeItem('my_commerce_last_cp');
+    } catch {}
+    setShippingResult(null);
+    setShippingCpInput('');
+    setSelectedShippingOptionId(null);
+    setIsShippingDropdownOpen(false);
+    setShippingCalcError(null);
+  }, []);
+
   const calculateShippingForCp = useCallback(
     (cpToCalculate: string, preferredOptionId?: string | null) => {
       const cleanCp = cpToCalculate.trim().toUpperCase();
       if (!cleanCp) {
         setShippingCalcError('Ingresa un código postal');
         return false;
+      }
+
+      // Regla uno: Al presionar Calcular envío, si el efectivo está activo, desactivarlo automáticamente y mostrar los precios por transferencia.
+      if (isCashMode) {
+        setPurchaseMode('transfer');
       }
 
       const zoneInfo = getShippingZoneInfo(cleanCp);
@@ -655,11 +685,26 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
       setShippingCalcError(null);
       return true;
     },
-    []
+    [isCashMode, setPurchaseMode]
   );
 
-  // Recalcular automáticamente si hay CP guardado (al montar o al abrir otro producto)
+  const prevCashModeRef = useRef<boolean>(isCashMode);
+
+  // Regla dos: Si activo el efectivo se quita el CP y sus resultados si está colocado
   useEffect(() => {
+    // Se ejecuta únicamente en la transición de apagado a encendido (false -> true)
+    if (!prevCashModeRef.current && isCashMode) {
+      handleClearShippingCp();
+    }
+    prevCashModeRef.current = isCashMode;
+  }, [isCashMode, handleClearShippingCp]);
+
+  // Recalcular automáticamente si hay CP guardado (al abrir otro producto)
+  useEffect(() => {
+    if (isCashMode) {
+      return;
+    }
+
     const savedCp = getInitialStoredCp();
     if (savedCp) {
       setShippingCpInput(savedCp);
@@ -675,7 +720,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
       setIsShippingDropdownOpen(false);
       setShippingCalcError(null);
     }
-  }, [product.id, calculateShippingForCp]);
+  }, [product.id]);
 
   // Actualizar inmediatamente ante cambios de configuración de envíos desde administración
   useEffect(() => {
@@ -695,20 +740,6 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     };
   }, [calculateShippingForCp]);
 
-  // Borrar CP y volver al estado inicial
-  const handleClearShippingCp = () => {
-    try {
-      localStorage.removeItem('my_commerce_shipping_calc_cp');
-      localStorage.removeItem('my_commerce_shipping_calc_option');
-      localStorage.removeItem('my_commerce_last_cp');
-    } catch {}
-    setShippingResult(null);
-    setShippingCpInput('');
-    setSelectedShippingOptionId(null);
-    setIsShippingDropdownOpen(false);
-    setShippingCalcError(null);
-  };
-
   const activeShippingOption = useMemo(() => {
     if (!shippingResult || shippingResult.options.length === 0) return null;
     if (selectedShippingOptionId) {
@@ -727,28 +758,40 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     const text = `${opt.id} ${opt.name} ${opt.description || ''}`.toLowerCase();
     if (text.includes('uber')) {
       return (
-        <span className="bg-black/90 text-white text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded shrink-0">
+        <span
+          style={{ backgroundColor: '#1d1d1b' }}
+          className="text-white text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded shrink-0 shadow-2xs"
+        >
           Uber moto
         </span>
       );
     }
     if (text.includes('flex')) {
       return (
-        <span className="bg-[#a3e635] text-gray-900 text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded shrink-0">
+        <span
+          style={{ backgroundColor: '#a3ca2c', color: '#001b3e' }}
+          className="text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded shrink-0 shadow-2xs"
+        >
           Envíos Flex
         </span>
       );
     }
     if (text.includes('sucursal')) {
       return (
-        <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded shrink-0">
-          Sucursal
+        <span
+          style={{ backgroundColor: '#fccf04' }}
+          className="text-gray-950 text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded shrink-0 shadow-2xs"
+        >
+          Sucursal Correo
         </span>
       );
     }
     if (text.includes('correo')) {
       return (
-        <span className="bg-[#facc15] text-gray-900 text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded shrink-0">
+        <span
+          style={{ backgroundColor: '#fccf04' }}
+          className="text-gray-950 text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded shrink-0 shadow-2xs"
+        >
           Correo Argentino
         </span>
       );
@@ -1183,7 +1226,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             ) : null}
 
             {/* Discount Promo Banner */}
-            <div id="cash-discount-banner" className="order-7 lg:order-5 bg-white border border-[#16a34a] rounded-xl p-2 sm:p-2.5 flex items-center justify-between gap-2 sm:gap-3">
+            <div id="cash-discount-banner" className="order-7 lg:order-8 bg-white border border-[#16a34a] rounded-xl p-2 sm:p-2.5 flex items-center justify-between gap-2 sm:gap-3">
               <div className="flex items-center min-w-0">
                 <div className="text-xs sm:text-sm min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -1215,19 +1258,22 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
             {/* Shipping & Delivery Highlights (Calculador informativo) */}
             <div className="order-6 lg:order-6 space-y-2 pt-1 text-sm sm:text-base text-gray-700">
-              <div className="bg-gray-50/80 border border-gray-200/90 rounded-xl p-2.5 sm:p-3 space-y-2">
-                {!shippingResult || !activeShippingOption ? (
+              <div className="space-y-2">
+                {!shippingResult || !activeShippingOption || isCashMode ? (
                   <>
                     {/* Estado inicial compacto: título y debajo en una sola línea Código postal + Calcular, sin textos adicionales */}
                     <div className="flex items-center gap-2">
                       <Truck className="w-4 h-4 sm:w-5 sm:h-5 text-[#16a34a] shrink-0" />
-                      <span className="font-bold text-gray-900 text-sm sm:text-base">
+                      <span className="font-medium text-gray-900 text-sm sm:text-base">
                         Envíos a domicilio
                       </span>
                     </div>
                     <form
                       onSubmit={(e) => {
                         e.preventDefault();
+                        if (isCashMode) {
+                          setPurchaseMode('transfer');
+                        }
                         calculateShippingForCp(shippingCpInput);
                       }}
                       className="flex items-center gap-2"
@@ -1236,9 +1282,12 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                         id="product-detail-cp-input"
                         type="text"
                         inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={5}
                         value={shippingCpInput}
                         onChange={(e) => {
-                          setShippingCpInput(e.target.value.toUpperCase());
+                          const digitsOnly = e.target.value.replace(/\D/g, '');
+                          setShippingCpInput(digitsOnly);
                           if (shippingCalcError) setShippingCalcError(null);
                         }}
                         placeholder="Código postal"
@@ -1253,9 +1302,6 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                         Calcular
                       </button>
                     </form>
-                    {shippingCalcError && (
-                      <p className="text-xs text-red-600 font-medium">{shippingCalcError}</p>
-                    )}
                   </>
                 ) : (
                   <>
@@ -1263,7 +1309,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <Truck className="w-4 h-4 sm:w-5 sm:h-5 text-[#16a34a] shrink-0" />
-                        <span className="font-bold text-gray-900 text-sm sm:text-base truncate">
+                        <span className="font-medium text-gray-900 text-sm sm:text-base truncate">
                           Envíos a domicilio
                         </span>
                       </div>
@@ -1354,17 +1400,18 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   </>
                 )}
               </div>
+            </div>
 
-              <div className="flex items-start gap-2.5 px-0.5">
-                <Store className="w-4 h-4 sm:w-5 sm:h-5 text-[#0058bb] shrink-0 mt-0.5" />
-                <div className="text-sm sm:text-base">
-                  <span className="font-bold text-gray-900">Retiro gratis</span> en Local de Flores, CABA.
-                </div>
+            {/* Retiro Gratis Highlights */}
+            <div className="order-6 lg:order-7 flex items-start gap-2.5 px-0.5">
+              <Store className="w-4 h-4 sm:w-5 sm:h-5 text-[#0058bb] shrink-0 mt-0.5" />
+              <div className="text-sm sm:text-base">
+                <span className="font-bold text-gray-900">Retiro gratis</span> en Local de Flores, CABA.
               </div>
             </div>
 
-            {/* Action Buttons & Quantity (order 5 on mobile, order 7 on desktop) */}
-            <div className="order-5 lg:order-7 space-y-2 sm:space-y-2.5 pt-1.5 sm:pt-2 border-t border-gray-100 md:border-gray-200">
+            {/* Action Buttons & Quantity (order 5 on mobile, order 5 on desktop) */}
+            <div className="order-5 lg:order-5 space-y-2 sm:space-y-2.5 pt-1.5 sm:pt-2 border-t border-gray-100 md:border-gray-200">
               {/* Stock status indicator */}
               {isCurrentSelectionOutOfStock ? (
                 <div className="p-2 sm:p-2.5 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-xs md:text-sm text-red-700 font-bold">
@@ -1497,6 +1544,13 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   )}
                 </button>
 
+                {/* Tarjeta compacta mayorista estilo Mercado Libre */}
+                <WholesaleCategoryProgressCard
+                  currentQty={categoryUnitsInCart}
+                  minQty={product.minWholesaleQty || 1}
+                  isProductDetail={true}
+                />
+
                 {/* Link to cart after adding */}
                 {hasAddedToCart && onGoToCart && (
                   <button
@@ -1514,7 +1568,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             </div>
 
             {/* Official Store Badge */}
-            <div className="order-8 lg:order-8 pt-0.5 sm:pt-1">
+            <div className="order-8 lg:order-9 pt-0.5 sm:pt-1">
               <MichyOfficialBadge />
             </div>
 

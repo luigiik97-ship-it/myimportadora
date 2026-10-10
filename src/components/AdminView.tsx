@@ -6,6 +6,7 @@ import {
   fetchProductTags,
   createProductTag,
   getProductTagById,
+  toVividTagColor,
 } from '../services/productTags';
 import {
   normalizeVariantTypes,
@@ -1826,10 +1827,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                                 {(() => {
                                   const tag = prod.tag || (prod.tagId ? getProductTagById(prod.tagId) : undefined);
                                   if (!tag) return null;
+                                  const vividBg = toVividTagColor(tag.color, tag.id, tag.label);
+                                  const isLight = vividBg === '#FFE600' || vividBg.toLowerCase() === '#ffffff';
                                   return (
                                     <span
-                                      className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shadow-2xs leading-none shrink-0"
-                                      style={{ backgroundColor: tag.color, color: tag.textColor || '#ffffff' }}
+                                      className="px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider shadow-2xs leading-none shrink-0"
+                                      style={{ backgroundColor: vividBg, color: isLight ? '#18181b' : (tag.textColor || '#ffffff') }}
                                     >
                                       {tag.label}
                                     </span>
@@ -2648,6 +2651,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
 
                   {availableTags.map((t) => {
                     const isSelected = editingProduct.tagId === t.id;
+                    const vividBg = toVividTagColor(t.color, t.id, t.label);
+                    const isLight = vividBg === '#FFE600' || vividBg.toLowerCase() === '#ffffff';
                     return (
                       <button
                         key={t.id}
@@ -2656,7 +2661,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                           setEditingProduct({
                             ...editingProduct,
                             tagId: t.id,
-                            tag: t,
+                            tag: { ...t, color: vividBg },
                           })
                         }
                         className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs select-none ${
@@ -2665,9 +2670,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                             : 'opacity-85 hover:opacity-100 hover:scale-102'
                         }`}
                         style={{
-                          backgroundColor: t.color,
-                          color: t.textColor || '#ffffff',
-                          borderColor: t.color,
+                          backgroundColor: vividBg,
+                          color: isLight ? '#18181b' : (t.textColor || '#ffffff'),
+                          borderColor: vividBg,
                         }}
                       >
                         {isSelected && <span>✓</span>}

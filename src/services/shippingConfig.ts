@@ -75,7 +75,7 @@ export const DEFAULT_SHIPPING_CONFIG: ShippingConfig = {
           name: 'Correo Argentino (llega 1 a 4 días)',
           price: 6520,
           deliveryTime: 'Llega 1 a 4 días',
-          description: 'Envío a domicilio por Correo Argentino',
+          description: 'Envió a domicilio',
           enabled: true,
         },
         {
@@ -110,7 +110,7 @@ export const DEFAULT_SHIPPING_CONFIG: ShippingConfig = {
           name: 'Correo Argentino (llega 1 a 4 días)',
           price: 6520,
           deliveryTime: 'Llega 1 a 4 días',
-          description: 'Envío a domicilio por Correo Argentino',
+          description: 'Envió a domicilio',
           enabled: true,
         },
         {
@@ -135,7 +135,7 @@ export const DEFAULT_SHIPPING_CONFIG: ShippingConfig = {
           name: 'Correo Argentino (llega 1 a 4 días)',
           price: 9850,
           deliveryTime: 'Llega 1 a 4 días',
-          description: 'Envío a domicilio por Correo Argentino',
+          description: 'Envió a domicilio',
           enabled: true,
         },
         {
@@ -160,7 +160,7 @@ export const DEFAULT_SHIPPING_CONFIG: ShippingConfig = {
           name: 'Correo Argentino (llega 1 a 4 días)',
           price: 13500,
           deliveryTime: 'Llega 1 a 4 días',
-          description: 'Envío a domicilio por Correo Argentino',
+          description: 'Envió a domicilio',
           enabled: true,
         },
         {

@@ -11,35 +11,109 @@ export interface TagColorPreset {
   textColor: string; // Text hex
 }
 
-// Paleta amplia de colores profesionales
+// Mapa de colores heredados/apagados a colores vivos estilo Mercado Libre
+export const VIVID_COLOR_MAP: Record<string, string> = {
+  // Verdes -> Verde vibrante Mercado Libre (#00A650)
+  '#16a34a': '#00A650',
+  '#15803d': '#00A650',
+  '#0f766e': '#00A650',
+  '#059669': '#00A650',
+
+  // Dorados/Ámbar -> Dorado Solar / Oro brillante
+  '#d97706': '#F59E0B',
+  '#b45309': '#F59E0B',
+  '#854d0e': '#F59E0B',
+
+  // Naranjas -> Naranja Mercado Libre / Flama
+  '#ea580c': '#FF7733',
+  '#c2410c': '#FF5722',
+  '#f97316': '#FF7733',
+
+  // Azules -> Azul eléctrico Mercado Libre (#3483FA)
+  '#0058bb': '#3483FA',
+  '#1d4ed8': '#3483FA',
+  '#2563eb': '#3483FA',
+  '#1e40af': '#3483FA',
+
+  // Rojos -> Rojo Fuego / Oferta Relámpago vibrante
+  '#dc2626': '#FF2B2B',
+  '#b91c1c': '#FF2B2B',
+  '#ef4444': '#FF2B2B',
+
+  // Púrpuras/Violetas -> Violeta / Púrpura Neón
+  '#7c3aed': '#8B5CF6',
+  '#6d28d9': '#8B5CF6',
+  '#4338ca': '#6366F1',
+
+  // Rosas/Fucsias -> Fucsia Neón / Rosa Vivo
+  '#db2777': '#FF2D78',
+  '#be185d': '#FF2D78',
+
+  // Cianos/Celestes -> Cian Vibrante
+  '#0284c7': '#0EA5E9',
+  '#0369a1': '#0EA5E9',
+
+  // Limas -> Lima Eléctrico
+  '#65a30d': '#84CC16',
+  '#4d7c0f': '#84CC16',
+
+  // Oscuros
+  '#18181b': '#111827',
+  '#27272a': '#111827',
+  '#475569': '#334155',
+};
+
+/**
+ * Convierte un color de etiqueta a un color vivo e impactante estilo Mercado Libre
+ */
+export const toVividTagColor = (color?: string, id?: string, label?: string): string => {
+  const cleanLabel = (label || '').toLowerCase();
+  const cleanId = (id || '').toLowerCase();
+
+  // En Mercado Libre, la etiqueta "MÁS VENDIDO" es siempre el naranja icónico (#FF7733)
+  if (cleanId === 'tag-mas-vendido' || cleanLabel.includes('vendido') || cleanLabel.includes('bestseller')) {
+    return '#FF7733';
+  }
+
+  if (!color) return '#3483FA';
+
+  const lower = color.toLowerCase().trim();
+  if (VIVID_COLOR_MAP[lower]) {
+    return VIVID_COLOR_MAP[lower];
+  }
+
+  return color;
+};
+
+// Paleta amplia de colores vivos inspirada en Mercado Libre y comercio electrónico moderno
 export const TAG_COLOR_PALETTE: TagColorPreset[] = [
-  { name: 'Dorado Oro', color: '#d97706', textColor: '#ffffff' },
-  { name: 'Verde Éxito', color: '#16a34a', textColor: '#ffffff' },
-  { name: 'Rojo Oferta', color: '#dc2626', textColor: '#ffffff' },
-  { name: 'Azul Michy', color: '#0058bb', textColor: '#ffffff' },
-  { name: 'Púrpura Exclusivo', color: '#7c3aed', textColor: '#ffffff' },
-  { name: 'Naranja Alerta', color: '#ea580c', textColor: '#ffffff' },
-  { name: 'Rosa Fuerte', color: '#db2777', textColor: '#ffffff' },
-  { name: 'Cian Fresco', color: '#0284c7', textColor: '#ffffff' },
-  { name: 'Negro Elegante', color: '#18181b', textColor: '#ffffff' },
-  { name: 'Gris Pizarra', color: '#475569', textColor: '#ffffff' },
-  { name: 'Lima Vibrante', color: '#65a30d', textColor: '#ffffff' },
-  { name: 'Bronce Cobre', color: '#854d0e', textColor: '#ffffff' },
-  { name: 'Índigo Profundo', color: '#4338ca', textColor: '#ffffff' },
-  { name: 'Teal Esmeralda', color: '#0f766e', textColor: '#ffffff' },
-  { name: 'Blanco Nieve', color: '#ffffff', textColor: '#18181b' },
+  { name: 'Naranja Mercado Libre', color: '#FF7733', textColor: '#ffffff' }, // Ícono "MÁS VENDIDO"
+  { name: 'Verde Mercado Libre', color: '#00A650', textColor: '#ffffff' }, // "LLEGA MAÑANA / FULL / GRATIS"
+  { name: 'Azul Mercado Libre', color: '#3483FA', textColor: '#ffffff' }, // Azul oficial de ML
+  { name: 'Rojo Fuego', color: '#FF2B2B', textColor: '#ffffff' }, // Oferta Relámpago
+  { name: 'Dorado Solar', color: '#F59E0B', textColor: '#ffffff' }, // TOP 1 / Destacado
+  { name: 'Naranja Flama', color: '#FF5722', textColor: '#ffffff' }, // Pocas unidades
+  { name: 'Púrpura Neón', color: '#8B5CF6', textColor: '#ffffff' }, // Exclusivo
+  { name: 'Fucsia Vivo', color: '#FF2D78', textColor: '#ffffff' }, // Últimas unidades
+  { name: 'Cian Vibrante', color: '#0EA5E9', textColor: '#ffffff' }, // Nuevo
+  { name: 'Lima Eléctrico', color: '#84CC16', textColor: '#ffffff' }, // Lanzamiento
+  { name: 'Verde Esmeralda', color: '#10B981', textColor: '#ffffff' }, // Disponible
+  { name: 'Violeta Intenso', color: '#7C3AED', textColor: '#ffffff' }, // Edición Especial
+  { name: 'Amarillo ML', color: '#FFE600', textColor: '#18181b' }, // Amarillo clásico Mercado Libre
+  { name: 'Negro Carbón', color: '#111827', textColor: '#ffffff' }, // Liquidación / Black
+  { name: 'Blanco Puro', color: '#ffffff', textColor: '#111827' },
 ];
 
 export const DEFAULT_PRODUCT_TAGS: ProductTag[] = [
-  { id: 'tag-top-1', label: 'TOP 1', color: '#d97706', textColor: '#ffffff' },
-  { id: 'tag-mas-vendido', label: 'Más vendido', color: '#16a34a', textColor: '#ffffff' },
-  { id: 'tag-pocas-unidades', label: 'Pocas unidades', color: '#ea580c', textColor: '#ffffff' },
-  { id: 'tag-nuevo', label: 'Nuevo', color: '#0284c7', textColor: '#ffffff' },
-  { id: 'tag-oferta', label: 'Oferta', color: '#dc2626', textColor: '#ffffff' },
-  { id: 'tag-destacado', label: 'Destacado', color: '#0058bb', textColor: '#ffffff' },
-  { id: 'tag-exclusivo', label: 'Exclusivo', color: '#7c3aed', textColor: '#ffffff' },
-  { id: 'tag-ultimas-unidades', label: 'Últimas unidades', color: '#db2777', textColor: '#ffffff' },
-  { id: 'tag-liquidacion', label: 'Liquidación', color: '#18181b', textColor: '#ffffff' },
+  { id: 'tag-top-1', label: 'TOP 1', color: '#F59E0B', textColor: '#ffffff' },
+  { id: 'tag-mas-vendido', label: 'Más vendido', color: '#FF7733', textColor: '#ffffff' },
+  { id: 'tag-pocas-unidades', label: 'Pocas unidades', color: '#FF5722', textColor: '#ffffff' },
+  { id: 'tag-nuevo', label: 'Nuevo', color: '#3483FA', textColor: '#ffffff' },
+  { id: 'tag-oferta', label: 'Oferta', color: '#FF2B2B', textColor: '#ffffff' },
+  { id: 'tag-destacado', label: 'Destacado', color: '#00A650', textColor: '#ffffff' },
+  { id: 'tag-exclusivo', label: 'Exclusivo', color: '#8B5CF6', textColor: '#ffffff' },
+  { id: 'tag-ultimas-unidades', label: 'Últimas unidades', color: '#FF2D78', textColor: '#ffffff' },
+  { id: 'tag-liquidacion', label: 'Liquidación', color: '#DC2626', textColor: '#ffffff' },
 ];
 
 // In-memory cache
@@ -57,8 +131,20 @@ export const getLocalProductTags = (): ProductTag[] => {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        cachedTags = parsed;
-        return parsed;
+        const upgraded: ProductTag[] = parsed.map((t: ProductTag) => {
+          const vividColor = toVividTagColor(t.color, t.id, t.label);
+          const isLight = vividColor === '#FFE600' || vividColor.toLowerCase() === '#ffffff';
+          return {
+            ...t,
+            color: vividColor,
+            textColor: isLight ? '#18181b' : (t.textColor && t.textColor !== '#ffffff' ? t.textColor : '#ffffff'),
+          };
+        });
+        cachedTags = upgraded;
+        try {
+          localStorage.setItem(STORAGE_KEY_PRODUCT_TAGS, JSON.stringify(upgraded));
+        } catch (e) {}
+        return upgraded;
       }
     }
   } catch (e) {
@@ -116,12 +202,21 @@ export const fetchProductTags = async (force = false): Promise<ProductTag[]> => 
             }
 
             if (Array.isArray(loadedTags) && loadedTags.length > 0) {
-              cachedTags = loadedTags;
+              const upgraded: ProductTag[] = loadedTags.map((t: ProductTag) => {
+                const vividColor = toVividTagColor(t.color, t.id, t.label);
+                const isLight = vividColor === '#FFE600' || vividColor.toLowerCase() === '#ffffff';
+                return {
+                  ...t,
+                  color: vividColor,
+                  textColor: isLight ? '#18181b' : (t.textColor && t.textColor !== '#ffffff' ? t.textColor : '#ffffff'),
+                };
+              });
+              cachedTags = upgraded;
               lastTagsFetchTime = Date.now();
               try {
-                localStorage.setItem(STORAGE_KEY_PRODUCT_TAGS, JSON.stringify(loadedTags));
+                localStorage.setItem(STORAGE_KEY_PRODUCT_TAGS, JSON.stringify(upgraded));
               } catch (e) {}
-              return loadedTags;
+              return upgraded;
             }
           }
         }

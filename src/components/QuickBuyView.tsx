@@ -1001,9 +1001,12 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                         <input
                           id="quick-buy-cp-input"
                           type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={5}
                           value={quickBuyPostalCode}
                           onChange={(e) => {
-                            const val = e.target.value.toUpperCase();
+                            const val = e.target.value.replace(/\D/g, '');
                             setQuickBuyPostalCode(val);
                             if (shippingValidationError) setShippingValidationError(null);
                             try {

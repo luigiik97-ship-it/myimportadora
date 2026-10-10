@@ -1,10 +1,12 @@
-import React from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { CartItem, Product } from '../types';
-import { Trash2, Plus, Minus, ArrowRight, ArrowLeft, ShieldCheck, Truck, ShoppingBag, Info, CheckCircle2, Banknote, CreditCard, ArrowLeftRight, Store } from 'lucide-react';
+import { Trash2, Plus, Minus, ArrowRight, ArrowLeft, ShieldCheck, Truck, ShoppingBag, Info, CheckCircle2, Banknote, CreditCard, ArrowLeftRight, Store, ChevronRight } from 'lucide-react';
 import { getItemEffectiveNormalPrice, getItemEffectiveCashPrice, getSelectedVariantStock } from '../utils/variantHelpers';
 import { usePurchaseMode } from '../context/PurchaseModeContext';
 import { getOptimizedImageUrl } from '../utils/imageOptimizer';
+import { WholesaleCategoryProgressCard } from './common/WholesaleCategoryProgressCard';
+import { slugifyCategory } from '../utils/categoryHelpers';
 
 interface CartViewProps {
   cartItems: CartItem[];
@@ -28,7 +30,21 @@ export const CartView: React.FC<CartViewProps> = ({
   showCashEquivalent = false,
 }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { purchaseMode, setPurchaseMode, isCashMode } = usePurchaseMode();
+
+  const handleCategoryClick = (categoryName: string) => {
+    if (onSelectCategory) {
+      onSelectCategory(categoryName);
+    } else {
+      if (categoryName === 'Todo' || categoryName === 'General') {
+        navigate('/');
+      } else {
+        navigate(`/categoria/${slugifyCategory(categoryName)}`);
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   const isCashEquivalentActive = Boolean(
     showCashEquivalent ||
@@ -110,6 +126,29 @@ export const CartView: React.FC<CartViewProps> = ({
   const totalSavings = processedItems.reduce((acc, i) => acc + i.savings, 0);
   const cashSubtotalProducts = processedItems.reduce((acc, i) => acc + i.cashTotalPrice, 0);
   const activeSubtotal = isCashMode ? cashSubtotalProducts : subtotalProducts;
+
+  // Group processed items by category for visual grouping and wholesale summary
+  const categoryGroups = useMemo(() => {
+    const map = new Map<string, typeof processedItems>();
+    processedItems.forEach((item) => {
+      const cat = item.cat || 'General';
+      if (!map.has(cat)) {
+        map.set(cat, []);
+      }
+      map.get(cat)!.push(item);
+    });
+
+    return Array.from(map.entries()).map(([categoryName, items]) => {
+      const totalUnits = items.reduce((acc, i) => acc + i.quantity, 0);
+      const minQty = items[0]?.minQty || 1;
+      return {
+        categoryName,
+        items,
+        totalUnits,
+        minQty,
+      };
+    });
+  }, [processedItems]);
 
   if (cartItems.length === 0) {
     return (
@@ -193,141 +232,161 @@ export const CartView: React.FC<CartViewProps> = ({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
-        {/* Left: Product List (Cols 8) - Flat native rows on mobile */}
-        <div className="lg:col-span-8 divide-y divide-gray-100 md:divide-y-0 md:space-y-2.5">
-          {processedItems.map((item) => {
-            const variantSummary = item.selectedVariants && Object.keys(item.selectedVariants).length > 0
-              ? Object.entries(item.selectedVariants)
-                  .map(([k, v]) => `${k}: ${v}`)
-                  .join(' | ')
-              : [
-                  item.selectedColor ? `Color: ${item.selectedColor}` : null,
-                  item.selectedSizeVariant ? `Talle/Tamaño: ${item.selectedSizeVariant.name}` : null,
-                ]
-                  .filter(Boolean)
-                  .join(' | ');
-
-            const itemDisplayImage = item.selectedImage || (item.product.images && item.product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400';
-
+        {/* Left: Product List grouped by category (Cols 8) */}
+        <div className="lg:col-span-8 space-y-3 sm:space-y-4">
+          {categoryGroups.map((group) => {
             return (
               <div
-                key={item.id}
-                id={`cart-item-${item.id}`}
-                className="bg-transparent md:bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-200 px-1 py-1.5 md:py-2 md:px-3 shadow-none md:shadow-xs space-y-1.5"
+                key={group.categoryName}
+                className="bg-white rounded-xl border border-gray-200/90 p-2.5 sm:p-3.5 shadow-2xs space-y-2.5"
               >
-                <div className="flex gap-3 sm:gap-3.5">
-                  {/* Thumbnail - Enlarged for mobile readability */}
-                  <button
-                    type="button"
-                    onClick={() => onSelectProduct?.(item.product, item.selectedVariants, itemDisplayImage)}
-                    className="w-20 h-20 sm:w-20 sm:h-20 bg-white md:bg-gray-50 rounded-xl overflow-hidden flex items-center justify-center shrink-0 border border-gray-200/90 cursor-pointer hover:border-blue-400 transition-all focus:outline-none focus:ring-2 focus:ring-[#0058bb]/20 group/thumb self-center shadow-2xs"
-                    title={`Ver detalle de ${item.product.title}`}
-                  >
-                    <img
-                      src={getOptimizedImageUrl(itemDisplayImage, { width: 160, quality: 70 })}
-                      alt={item.product.title}
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-200"
-                    />
-                  </button>
-
-                  {/* Title and details */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3
-                        onClick={() => onSelectProduct?.(item.product, item.selectedVariants, itemDisplayImage)}
-                        className="text-sm sm:text-base font-bold text-gray-900 leading-snug cursor-pointer hover:text-[#0058bb] transition-colors truncate"
-                        title={`Ver detalle de ${item.product.title}`}
-                      >
-                        {item.product.title}
-                      </h3>
-                      <button
-                        id={`remove-item-${item.id}`}
-                        onClick={() => onRemoveItem(item.id)}
-                        className="text-gray-400 hover:text-red-500 p-1 transition-colors cursor-pointer shrink-0"
-                        title="Eliminar producto"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    {variantSummary && (
-                      <p className="text-xs text-gray-500 mt-0.5 font-medium truncate">
-                        {variantSummary}
-                      </p>
-                    )}
-
-                    {/* Quantity Modifier, Wholesale Tag & Line Price */}
-                    <div className="flex items-center justify-between gap-1.5 sm:gap-2 mt-1 min-w-0">
-                      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                        <div className="flex items-center border border-gray-300 rounded-xl bg-white overflow-hidden shadow-2xs shrink-0">
-                          <button
-                            onClick={() => onUpdateQuantity(item.id, -1)}
-                            className="w-8 h-8 sm:w-8 sm:h-8 text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer flex items-center justify-center active:bg-gray-200"
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                          <span className="px-2.5 text-sm sm:text-base font-bold text-gray-900 min-w-[28px] text-center">
-                            {item.quantity}
-                          </span>
-                          <button
-                            onClick={() => onUpdateQuantity(item.id, 1)}
-                            disabled={item.availableStock > 0 && item.quantity >= item.availableStock}
-                            className={`w-8 h-8 sm:w-8 sm:h-8 text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer flex items-center justify-center active:bg-gray-200 ${
-                              item.availableStock > 0 && item.quantity >= item.availableStock
-                                ? 'opacity-40 cursor-not-allowed'
-                                : ''
-                            }`}
-                            title={
-                              item.availableStock > 0 && item.quantity >= item.availableStock
-                                ? 'Stock máximo disponible alcanzado'
-                                : 'Añadir unidad'
-                            }
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-
-                        {item.isWholesale && (
-                          <span className="inline-flex items-center justify-center text-[10px] sm:text-[11px] font-bold text-[#16a34a] bg-white border border-[#16a34a] px-1.5 py-0.5 rounded-full text-center leading-none overflow-hidden whitespace-nowrap [text-overflow:clip] shrink">
-                            Mayorista
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="text-right shrink-0">
-                        <span className="text-base sm:text-lg font-bold font-['Montserrat'] whitespace-nowrap block text-gray-900">
-                          ${item.effectiveTotalPrice.toLocaleString('es-AR')}
-                        </span>
-                        <span className="text-xs text-gray-500 block whitespace-nowrap">
-                          (${item.effectiveUnitPrice.toLocaleString('es-AR')} c/u)
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                {/* Encabezado del grupo de categoría */}
+                <div className="flex items-center justify-between pb-1.5 border-b border-gray-100">
+                  <span className="text-xs sm:text-sm font-bold text-gray-900 tracking-tight flex items-center gap-1.5">
+                    <span className="text-gray-500 font-semibold">Categoría:</span>
+                    <button
+                      type="button"
+                      onClick={() => handleCategoryClick(group.categoryName)}
+                      className="text-[#0058bb] hover:text-blue-800 hover:underline inline-flex items-center gap-0.5 cursor-pointer font-bold transition-colors group/cat-link focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-sm"
+                      title={`Ver todos los productos de ${group.categoryName}`}
+                    >
+                      <span>{group.categoryName}</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-blue-500 group-hover/cat-link:translate-x-0.5 transition-transform" />
+                    </button>
+                  </span>
+                  <span className="text-[11px] sm:text-xs font-semibold text-gray-500">
+                    {group.totalUnits} {group.totalUnits === 1 ? 'unidad' : 'unidades'}
+                  </span>
                 </div>
 
-                {/* Status: Pending Units (only shown when wholesale not reached) */}
-                {!item.isWholesale && (
-                  <div className="bg-blue-50/70 md:bg-gray-50 text-blue-950 md:text-gray-700 text-[11px] px-2.5 py-1 rounded-lg border border-blue-100 md:border-gray-200/80">
-                    <span className="leading-tight">
-                      Te faltan <strong className="text-gray-900">{item.remainingToWholesale} unidades</strong> (dentro la{' '}
-                      {onSelectCategory ? (
-                        <button
-                          type="button"
-                          onClick={() => onSelectCategory(item.cat)}
-                          className="text-[#0058bb] hover:underline font-bold cursor-pointer inline-block"
-                        >
-                          categoría {item.cat}
-                        </button>
-                      ) : (
-                        <span className="text-[#0058bb] font-bold">categoría {item.cat}</span>
-                      )}
-                      ) para alcanzar el precio al por mayor.
-                    </span>
-                  </div>
-                )}
+                {/* Lista de productos de la categoría */}
+                <div className="divide-y divide-gray-100">
+                  {group.items.map((item) => {
+                    const variantSummary = item.selectedVariants && Object.keys(item.selectedVariants).length > 0
+                      ? Object.entries(item.selectedVariants)
+                          .map(([k, v]) => `${k}: ${v}`)
+                          .join(' | ')
+                      : [
+                          item.selectedColor ? `Color: ${item.selectedColor}` : null,
+                          item.selectedSizeVariant ? `Talle/Tamaño: ${item.selectedSizeVariant.name}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' | ');
+
+                    const itemDisplayImage = item.selectedImage || (item.product.images && item.product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400';
+
+                    return (
+                      <div
+                        key={item.id}
+                        id={`cart-item-${item.id}`}
+                        className="py-2.5 first:pt-0 last:pb-1 space-y-1.5"
+                      >
+                        <div className="flex gap-3 sm:gap-3.5">
+                          {/* Thumbnail */}
+                          <button
+                            type="button"
+                            onClick={() => onSelectProduct?.(item.product, item.selectedVariants, itemDisplayImage)}
+                            className="w-18 h-18 sm:w-20 sm:h-20 bg-gray-50 rounded-xl overflow-hidden flex items-center justify-center shrink-0 border border-gray-200/90 cursor-pointer hover:border-blue-400 transition-all focus:outline-none focus:ring-2 focus:ring-[#0058bb]/20 group/thumb self-center shadow-2xs"
+                            title={`Ver detalle de ${item.product.title}`}
+                          >
+                            <img
+                              src={getOptimizedImageUrl(itemDisplayImage, { width: 160, quality: 70 })}
+                              alt={item.product.title}
+                              loading="lazy"
+                              decoding="async"
+                              className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-200"
+                            />
+                          </button>
+
+                          {/* Title and details */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <h3
+                                onClick={() => onSelectProduct?.(item.product, item.selectedVariants, itemDisplayImage)}
+                                className="text-sm sm:text-base font-bold text-gray-900 leading-snug cursor-pointer hover:text-[#0058bb] transition-colors truncate"
+                                title={`Ver detalle de ${item.product.title}`}
+                              >
+                                {item.product.title}
+                              </h3>
+                              <button
+                                id={`remove-item-${item.id}`}
+                                onClick={() => onRemoveItem(item.id)}
+                                className="text-gray-400 hover:text-red-500 p-1 transition-colors cursor-pointer shrink-0"
+                                title="Eliminar producto"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+
+                            {variantSummary && (
+                              <p className="text-xs text-gray-500 mt-0.5 font-medium truncate">
+                                {variantSummary}
+                              </p>
+                            )}
+
+                            {/* Quantity Modifier, Wholesale Tag & Line Price */}
+                            <div className="flex items-center justify-between gap-1.5 sm:gap-2 mt-1 min-w-0">
+                              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                                <div className="flex items-center border border-gray-300 rounded-xl bg-white overflow-hidden shadow-2xs shrink-0">
+                                  <button
+                                    onClick={() => onUpdateQuantity(item.id, -1)}
+                                    className="w-8 h-8 sm:w-8 sm:h-8 text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer flex items-center justify-center active:bg-gray-200"
+                                  >
+                                    <Minus className="w-3.5 h-3.5" />
+                                  </button>
+                                  <span className="px-2.5 text-sm sm:text-base font-bold text-gray-900 min-w-[28px] text-center">
+                                    {item.quantity}
+                                  </span>
+                                  <button
+                                    onClick={() => onUpdateQuantity(item.id, 1)}
+                                    disabled={item.availableStock > 0 && item.quantity >= item.availableStock}
+                                    className={`w-8 h-8 sm:w-8 sm:h-8 text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer flex items-center justify-center active:bg-gray-200 ${
+                                      item.availableStock > 0 && item.quantity >= item.availableStock
+                                        ? 'opacity-40 cursor-not-allowed'
+                                        : ''
+                                    }`}
+                                    title={
+                                      item.availableStock > 0 && item.quantity >= item.availableStock
+                                        ? 'Stock máximo disponible alcanzado'
+                                        : 'Añadir unidad'
+                                    }
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+
+                                {item.isWholesale && (
+                                  <span className="inline-flex items-center justify-center text-[10px] sm:text-[11px] font-bold text-[#16a34a] bg-white border border-[#16a34a] px-1.5 py-0.5 rounded-full text-center leading-none overflow-hidden whitespace-nowrap [text-overflow:clip] shrink">
+                                    Mayorista
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="text-right shrink-0">
+                                <span className="text-base sm:text-lg font-bold font-['Montserrat'] whitespace-nowrap block text-gray-900">
+                                  ${item.effectiveTotalPrice.toLocaleString('es-AR')}
+                                </span>
+                                <span className="text-xs text-gray-500 block whitespace-nowrap">
+                                  (${item.effectiveUnitPrice.toLocaleString('es-AR')} c/u)
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Tarjeta compacta mayorista al final del grupo de categoría */}
+                <div className="pt-1 border-t border-gray-100">
+                  <WholesaleCategoryProgressCard
+                    currentQty={group.totalUnits}
+                    minQty={group.minQty}
+                    isProductDetail={false}
+                    hideTitle={true}
+                  />
+                </div>
               </div>
             );
           })}

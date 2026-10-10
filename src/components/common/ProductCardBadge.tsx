@@ -1,6 +1,6 @@
 import React from 'react';
 import { ProductTag, Product } from '../../types';
-import { getProductTagById } from '../../services/productTags';
+import { getProductTagById, toVividTagColor } from '../../services/productTags';
 
 interface ProductCardBadgeProps {
   product?: Partial<Product>;
@@ -24,12 +24,21 @@ export const ProductCardBadge: React.FC<ProductCardBadgeProps> = ({
     return null;
   }
 
-  const bgColor = resolvedTag.color || '#0058bb';
-  const textColor = resolvedTag.textColor || '#ffffff';
+  const rawBgColor = resolvedTag.color || '#3483FA';
+  const bgColor = toVividTagColor(rawBgColor, resolvedTag.id, resolvedTag.label);
+
+  // High-contrast text color - dark text for bright yellow or white, white text for saturated vivid tones
+  const isLightBg = bgColor === '#FFE600' || bgColor.toLowerCase() === '#ffffff';
+  const textColor =
+    resolvedTag.textColor && resolvedTag.textColor !== '#ffffff' && !isLightBg
+      ? resolvedTag.textColor
+      : isLightBg
+      ? '#18181b'
+      : '#ffffff';
 
   return (
     <span
-      className={`absolute top-1.5 left-1.5 sm:top-2 sm:left-2 z-10 px-2 py-0.5 sm:px-2.5 sm:py-0.5 rounded-md text-[10px] sm:text-[11px] font-bold tracking-wide uppercase shadow-sm select-none pointer-events-none transition-all drop-shadow-xs leading-tight ${className}`}
+      className={`absolute top-1.5 left-1.5 sm:top-2 sm:left-2 z-10 px-2 py-0.5 sm:px-2.5 sm:py-0.5 rounded text-[10px] sm:text-[11px] font-extrabold tracking-wider uppercase shadow-xs select-none pointer-events-none transition-all leading-tight ${className}`}
       style={{
         backgroundColor: bgColor,
         color: textColor,
