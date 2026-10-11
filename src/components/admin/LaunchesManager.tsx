@@ -19,6 +19,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { LaunchCollection, LaunchCustomerProposal, LaunchModel } from '../../types';
+import { ImageOptimizationBadge } from './ImageOptimizationBadge';
 import {
   fetchLaunchCollections,
   saveLaunchCollection,
@@ -599,6 +600,10 @@ export const LaunchesManager: React.FC = () => {
                         <span>Subir o Cambiar Foto</span>
                       </button>
                     </div>
+
+                    {model.image && (
+                      <ImageOptimizationBadge imageUrl={model.image} compact align="center" className="py-0.5" />
+                    )}
 
                     {/* Metadata & Controls */}
                     <div className="space-y-2">

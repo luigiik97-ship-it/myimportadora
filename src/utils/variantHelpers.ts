@@ -657,13 +657,53 @@ export function getFirstInStockVariantOptions(product: Product): Record<string, 
 }
 
 /**
+ * Obtiene la imagen de portada de una publicación.
+ * Regla: La portada proviene ÚNICAMENTE de la primera imagen de la primera variante con foto (sin duplicarla).
+ * Si ninguna variante tiene foto o el producto no tiene variantes, retorna la primera imagen de base o placeholder.
+ */
+export function getProductCoverImage(product: Partial<Product> | any): string {
+  if (!product) {
+    return 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
+  }
+
+  const variantTypes = normalizeVariantTypes(product);
+  for (const vt of variantTypes) {
+    if (vt && Array.isArray(vt.options)) {
+      for (const opt of vt.options) {
+        if (opt && Array.isArray(opt.images)) {
+          const firstValid = opt.images.find(
+            (img: any) => typeof img === 'string' && img.trim().length > 0
+          );
+          if (firstValid) {
+            return firstValid;
+          }
+        }
+      }
+    }
+  }
+
+  // Fallback a imágenes base del producto o placeholder
+  if (Array.isArray(product.images) && product.images.length > 0) {
+    const firstImg = product.images.find(
+      (img: any) => typeof img === 'string' && img.trim().length > 0
+    );
+    if (firstImg) return firstImg;
+  }
+
+  if (typeof product.image === 'string' && product.image.trim().length > 0) {
+    return product.image;
+  }
+
+  return 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
+}
+
+/**
  * Computes the active gallery of images for a product given the user's variant selections.
  * 
  * Rules:
- * 1. Shows the selected variant's image(s) first (as main showcase image).
- * 2. Retains all general/additional product images in the gallery, without hiding them.
- * 3. If the variant has only 1 image (or N images), merges them seamlessly with the base product images (deduplicating URLs).
- * 4. Fully compatible with products without variants (returns base product images).
+ * 1. Cada variante debe mostrar SOLO sus propias imágenes; no se inserta la portada en otras galerías.
+ * 2. Si la variante seleccionada no tiene imágenes cargadas, usa como fallback la portada de la publicación.
+ * 3. Productos sin variantes muestran sus imágenes base.
  */
 export function getActiveVariantImages(
   product: Product,
@@ -674,17 +714,11 @@ export function getActiveVariantImages(
     return ['https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800'];
   }
 
-  // 1. Gather all base product images
-  const baseImages = Array.isArray(product.images)
-    ? product.images.filter((img) => typeof img === 'string' && img.trim().length > 0)
-    : [];
-
   const defaultPlaceholder = 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
-
   const variantTypes = normalizeVariantTypes(product);
   let variantCustomImages: string[] = [];
 
-  // 2. Look for custom images from the selected variant options
+  // 1. Look for custom images from the selected variant options
   // Check preferred variant type first if user recently clicked/interacted with it
   if (preferredVariantTypeId) {
     const preferredVt = variantTypes.find(
@@ -746,19 +780,14 @@ export function getActiveVariantImages(
     }
   }
 
-  // 3. Combine: Put variant custom images first, then append all remaining base product images
+  // Cada variante muestra exclusivamente sus propias imágenes (sin inyectar la portada de otra variante)
   if (variantCustomImages.length > 0) {
-    const combined = [...variantCustomImages];
-    for (const baseImg of baseImages) {
-      if (!combined.includes(baseImg)) {
-        combined.push(baseImg);
-      }
-    }
-    return combined.length > 0 ? combined : [defaultPlaceholder];
+    return variantCustomImages;
   }
 
-  // 4. Products without variants or variants without custom images -> return base images
-  return baseImages.length > 0 ? baseImages : [defaultPlaceholder];
+  // Si la variante no tiene fotos o no hay variantes, se utiliza la portada de la publicación
+  const cover = getProductCoverImage(product);
+  return cover ? [cover] : [defaultPlaceholder];
 }
 
 export interface ResolvedProductPrices {

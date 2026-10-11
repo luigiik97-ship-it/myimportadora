@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { CartItem, Product } from '../types';
 import { Trash2, Plus, Minus, ArrowRight, ArrowLeft, ShieldCheck, Truck, ShoppingBag, Info, CheckCircle2, Banknote, CreditCard, ArrowLeftRight, Store, ChevronRight } from 'lucide-react';
-import { getItemEffectiveNormalPrice, getItemEffectiveCashPrice, getSelectedVariantStock } from '../utils/variantHelpers';
+import { getItemEffectiveNormalPrice, getItemEffectiveCashPrice, getSelectedVariantStock, getProductCoverImage } from '../utils/variantHelpers';
 import { usePurchaseMode } from '../context/PurchaseModeContext';
 import { getOptimizedImageUrl } from '../utils/imageOptimizer';
 import { WholesaleCategoryProgressCard } from './common/WholesaleCategoryProgressCard';
@@ -273,7 +273,7 @@ export const CartView: React.FC<CartViewProps> = ({
                           .filter(Boolean)
                           .join(' | ');
 
-                    const itemDisplayImage = item.selectedImage || (item.product.images && item.product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400';
+                    const itemDisplayImage = item.selectedImage || getProductCoverImage(item.product);
 
                     return (
                       <div

@@ -29,6 +29,7 @@ import {
   getNormalizedSecondaryBanners2,
 } from '../../services/storeBanners';
 import { uploadBannerImage, isSupabaseConfigured } from '../../services/supabase';
+import { ImageOptimizationBadge } from './ImageOptimizationBadge';
 
 export const BannerManager: React.FC = () => {
   const [config, setConfig] = useState<StoreBannersConfig>(() => getStoreBannersConfig());
@@ -505,7 +506,11 @@ export const BannerManager: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Link de Destino al hacer clic */}
+                    {banner.imageUrl && (
+                      <div className="mt-2">
+                        <ImageOptimizationBadge imageUrl={banner.imageUrl} />
+                      </div>
+                    )}
                     <div className="mt-3 space-y-1">
                       <div className="flex items-center justify-between">
                         <label className="text-[11px] font-semibold text-gray-700 flex items-center gap-1">
@@ -897,7 +902,11 @@ const IntermediateBannerGroup: React.FC<IntermediateBannerGroupProps> = ({
                   )}
                 </div>
 
-                {/* Input Link de Destino */}
+                {item.imageUrl && (
+                  <div className="mt-1.5">
+                    <ImageOptimizationBadge imageUrl={item.imageUrl} compact />
+                  </div>
+                )}
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-gray-700 flex items-center gap-1">
                     <LinkIcon className="w-3 h-3 text-[#0058bb]" />
@@ -1066,7 +1075,11 @@ const StaticBannerCard: React.FC<StaticBannerCardProps> = ({
           )}
         </div>
 
-        {/* Link Input */}
+        {imageUrl && (
+          <div className="mt-2">
+            <ImageOptimizationBadge imageUrl={imageUrl} />
+          </div>
+        )}
         <div className="mt-3 space-y-1">
           <label className="text-[11px] font-semibold text-gray-700 flex items-center gap-1">
             <LinkIcon className="w-3 h-3 text-[#0058bb]" />

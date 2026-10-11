@@ -16,6 +16,7 @@ import {
   RefreshCw,
   X,
 } from 'lucide-react';
+import { ImageOptimizationBadge } from './ImageOptimizationBadge';
 
 interface VariantManagerProps {
   variantTypes: VariantType[];
@@ -692,45 +693,47 @@ export const VariantManager: React.FC<VariantManagerProps> = ({
                           </div>
 
                           {/* Thumbnails grid */}
-                          <div className="flex flex-wrap gap-2 items-center">
+                          <div className="flex flex-wrap gap-2.5 items-start">
                             {optionImages.map((imgUrl, imgIdx) => (
-                              <div
-                                key={imgIdx}
-                                className="relative w-16 h-16 rounded-lg border-2 border-gray-200 overflow-hidden group bg-gray-50 flex items-center justify-center p-1"
-                              >
-                                <img
-                                  src={imgUrl}
-                                  alt={`Foto ${imgIdx + 1}`}
-                                  className="max-h-full max-w-full object-contain"
-                                />
+                              <div key={imgIdx} className="flex flex-col items-center gap-1">
+                                <div
+                                  className="relative w-16 h-16 rounded-lg border-2 border-gray-200 overflow-hidden group bg-gray-50 flex items-center justify-center p-1"
+                                >
+                                  <img
+                                    src={imgUrl}
+                                    alt={`Foto ${imgIdx + 1}`}
+                                    className="max-h-full max-w-full object-contain"
+                                  />
 
-                                {imgIdx === 0 && (
-                                  <span className="absolute top-0.5 left-0.5 bg-[#0058bb] text-white text-[8px] font-bold px-1 rounded shadow-xs">
-                                    Principal
-                                  </span>
-                                )}
+                                  {imgIdx === 0 && (
+                                    <span className="absolute top-0.5 left-0.5 bg-[#0058bb] text-white text-[8px] font-bold px-1 rounded shadow-xs">
+                                      Principal
+                                    </span>
+                                  )}
 
-                                {/* Overlay action buttons */}
-                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
-                                  {imgIdx > 0 && (
+                                  {/* Overlay action buttons */}
+                                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 transition-opacity">
+                                    {imgIdx > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSetOptionCoverImage(vtIdx, optIdx, imgIdx)}
+                                        className="p-1 bg-white/90 text-amber-600 rounded hover:bg-white cursor-pointer"
+                                        title="Poner como foto principal de esta variante"
+                                      >
+                                        <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                                      </button>
+                                    )}
                                     <button
                                       type="button"
-                                      onClick={() => handleSetOptionCoverImage(vtIdx, optIdx, imgIdx)}
-                                      className="p-1 bg-white/90 text-amber-600 rounded hover:bg-white cursor-pointer"
-                                      title="Poner como foto principal de esta variante"
+                                      onClick={() => handleRemoveOptionImage(vtIdx, optIdx, imgIdx)}
+                                      className="p-1 bg-red-600 text-white rounded hover:bg-red-700 cursor-pointer"
+                                      title="Quitar foto"
                                     >
-                                      <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                                      <Trash2 className="w-3 h-3" />
                                     </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveOptionImage(vtIdx, optIdx, imgIdx)}
-                                    className="p-1 bg-red-600 text-white rounded hover:bg-red-700 cursor-pointer"
-                                    title="Quitar foto"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
+                                  </div>
                                 </div>
+                                <ImageOptimizationBadge imageUrl={imgUrl} compact align="center" />
                               </div>
                             ))}
 

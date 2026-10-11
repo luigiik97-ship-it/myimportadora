@@ -25,6 +25,7 @@ import {
   optimizeProductImage,
   ImageOptimizationOptions,
   OptimizationResult,
+  recordOptimizationResult,
 } from '../utils/imageOptimizer';
 
 // Configuración robusta de Supabase: utiliza variables de entorno de Vite
@@ -469,6 +470,31 @@ let knownProductColumns: Set<string> | null = null;
 const invalidColumnsBlacklist = new Set<string>();
 
 /**
+ * Sanitiza recursivamente cualquier payload para la base de datos remota,
+ * impidiendo estrictamente que cadenas Base64 (data:image/...) se inserten en columnas.
+ */
+function stripBase64FromDatabasePayload(val: any): any {
+  if (typeof val === 'string') {
+    if (val.startsWith('data:image/') || val.includes(';base64,')) {
+      console.warn('[SEGURIDAD STORAGE] Cadena Base64 bloqueada en escritura remota a Supabase para evitar sobreconsumo.');
+      return '';
+    }
+    return val;
+  }
+  if (Array.isArray(val)) {
+    return val.map(stripBase64FromDatabasePayload).filter((v) => v !== '');
+  }
+  if (typeof val === 'object' && val !== null) {
+    const res: Record<string, any> = {};
+    for (const [k, v] of Object.entries(val)) {
+      res[k] = stripBase64FromDatabasePayload(v);
+    }
+    return res;
+  }
+  return val;
+}
+
+/**
  * Adaptively executes Supabase INSERT / UPDATE / UPSERT for products.
  * If the database table does not have a specific column, it strips the column,
  * memorizes the blacklist, and retries seamlessly.
@@ -483,11 +509,11 @@ async function executeAdaptiveProductWrite(
     return { success: false, error: 'No client' };
   }
 
-  // Filter out any known invalid columns immediately based on dynamic blacklist
+  // Filter out any known invalid columns immediately based on dynamic blacklist and strip Base64
   const currentPayload: Record<string, any> = {};
   for (const [key, value] of Object.entries(payload)) {
     if (!invalidColumnsBlacklist.has(key)) {
-      currentPayload[key] = value;
+      currentPayload[key] = stripBase64FromDatabasePayload(value);
     }
   }
 
@@ -606,6 +632,7 @@ export const fetchProducts = async (options?: { force?: boolean }): Promise<Prod
           const { data, error } = await supabaseInstance
             .from('products')
             .select('*')
+            .not('id', 'like', '__system_%')
             .order('created_at', { ascending: false });
 
           if (error) {
@@ -1523,21 +1550,23 @@ export const uploadProductImage = async (
         if (data?.publicUrl) {
           console.log(`[IMAGE UPLOAD] ✓ Archivo optimizado subido con éxito. URL Pública:`, data.publicUrl);
           uploadedFileCache.set(fingerprint, data.publicUrl);
+          recordOptimizationResult(data.publicUrl, optimization);
           return data.publicUrl;
         } else {
-          console.warn('[IMAGE UPLOAD] Subida completada pero no se pudo obtener publicUrl.');
+          throw new Error('Subida completada pero no se pudo obtener publicUrl en Supabase Storage.');
         }
       } else {
-        console.warn('[IMAGE UPLOAD] Error en upload de Supabase Storage:', uploadError.message, uploadError);
+        console.error('[IMAGE UPLOAD] Error en upload de Supabase Storage:', uploadError.message, uploadError);
+        throw new Error(`Error subiendo imagen a Supabase Storage: ${uploadError.message}`);
       }
-    } catch (e) {
-      console.warn('[IMAGE UPLOAD] Excepción al subir a Supabase storage:', e);
+    } catch (e: any) {
+      console.error('[IMAGE UPLOAD] Excepción al subir a Supabase storage:', e);
+      throw e instanceof Error ? e : new Error(String(e));
     }
-  } else {
-    console.warn('[IMAGE UPLOAD] Supabase no está configurado o falló, usando archivo optimizado en almacenamiento local.');
   }
 
-  // Fallback: Convertir el archivo ya optimizado a DataURL
+  // Fallback exclusivamente local cuando Supabase NO está configurado
+  console.warn('[IMAGE UPLOAD] Supabase no está configurado, usando archivo en almacenamiento local temporal.');
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -1916,15 +1945,47 @@ export const verifyAndSanitizeOrderPayload = async (
     calculatedSubtotal += lineNormalTotal;
     calculatedCashSubtotal += lineCashTotal;
 
+    // Sanitización estricta de imagen: SOLO URLs públicas válidas (http/https), JAMÁS Base64
+    let cleanImageUrl: string | undefined = undefined;
+    const rawSelectedImg = (it as any).selectedImage;
+    const rawImg = (it as any).image;
+    if (typeof rawSelectedImg === 'string' && rawSelectedImg.startsWith('http')) {
+      cleanImageUrl = rawSelectedImg;
+    } else if (typeof rawImg === 'string' && rawImg.startsWith('http')) {
+      cleanImageUrl = rawImg;
+    } else if (prod.images && prod.images[0] && prod.images[0].startsWith('http')) {
+      cleanImageUrl = prod.images[0];
+    }
+
+    const resolvedVariantText =
+      (it as any).variantText ||
+      (it as any).selectedSizeVariant?.name ||
+      (it as any).selectedColor ||
+      ((it as any).selectedVariants ? Object.values((it as any).selectedVariants).join(', ') : '') ||
+      '';
+
     return {
-      ...it,
-      title: prod.title || it.title,
+      id: it.id || `${prod.id}-${Date.now()}`,
+      productId: prod.id,
+      title: prod.title || it.title || 'Producto',
+      image: cleanImageUrl || '',
+      variantText: resolvedVariantText,
       quantity: qty,
       isWholesale,
       unitPrice: normalUnitPrice,
       cashUnitPrice: cashUnitPrice,
       totalPrice: lineNormalTotal,
       totalCashPrice: lineCashTotal,
+      category: prod.category || '',
+      selectedColor: (it as any).selectedColor || undefined,
+      selectedSizeVariant: (it as any).selectedSizeVariant
+        ? {
+            id: (it as any).selectedSizeVariant.id,
+            name: (it as any).selectedSizeVariant.name,
+          }
+        : undefined,
+      selectedVariants: (it as any).selectedVariants || undefined,
+      selectedImage: cleanImageUrl,
     };
   });
 
@@ -2104,7 +2165,12 @@ export const saveOrder = async (
   return newOrder;
 };
 
-export const fetchOrders = async (): Promise<Order[]> => {
+let cachedOrdersList: Order[] | null = null;
+let ordersListCacheTimestamp = 0;
+let inFlightOrdersPromise: Promise<Order[]> | null = null;
+const ORDERS_CACHE_TTL_MS = 15000; // 15s de frescura
+
+export const fetchOrders = async (options?: { force?: boolean; limit?: number }): Promise<Order[]> => {
   // Protección de seguridad estricta: la lista global de órdenes contiene información personal (PII)
   // de todos los clientes (nombres, teléfonos, direcciones, códigos postales).
   // Solo se permite a administradores con sesión activa verificada.
@@ -2113,14 +2179,30 @@ export const fetchOrders = async (): Promise<Order[]> => {
     return [];
   }
 
-  let dbOrders: Order[] | null = null;
+  const now = Date.now();
+  if (!options?.force && cachedOrdersList && cachedOrdersList.length > 0 && now - ordersListCacheTimestamp < ORDERS_CACHE_TTL_MS) {
+    return cachedOrdersList;
+  }
 
-  if (isSupabaseConfigured() && supabaseInstance) {
-    try {
-      const { data, error } = await supabaseInstance
-        .from('orders')
-        .select('*')
-        .order('created_at', { ascending: false });
+  if (inFlightOrdersPromise) {
+    return inFlightOrdersPromise;
+  }
+
+  inFlightOrdersPromise = (async () => {
+    let dbOrders: Order[] | null = null;
+
+    if (isSupabaseConfigured() && supabaseInstance) {
+      try {
+        let query = supabaseInstance
+          .from('orders')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (options?.limit && options.limit > 0) {
+          query = query.limit(options.limit);
+        }
+
+        const { data, error } = await query;
 
       if (error) {
         console.warn('Supabase fetchOrders error, fallback a caché local:', error.message);
@@ -2217,95 +2299,160 @@ export const fetchOrders = async (): Promise<Order[]> => {
     // Actualizar la caché local para que sea exactamente un reflejo fiel de Supabase
     saveLocalOrders(dbOrders);
 
+    cachedOrdersList = dbOrders;
+    ordersListCacheTimestamp = Date.now();
     return dbOrders;
   }
 
   // Fallback de contingencia sólo si Supabase está inalcanzable o sin conexión
-  return getLocalOrders();
+  const fallback = getLocalOrders();
+  cachedOrdersList = fallback;
+  ordersListCacheTimestamp = Date.now();
+  return fallback;
+  })().finally(() => {
+    inFlightOrdersPromise = null;
+  });
+
+  return inFlightOrdersPromise;
 };
+
+// Shared singleton Realtime channels & subscribers to prevent channel leaks and multiple connections
+type OrdersCallback = (orders: Order[]) => void;
+const ordersSubscribers = new Set<OrdersCallback>();
+let sharedOrdersChannel: any = null;
+let debounceOrdersTimer: any = null;
 
 /**
  * Suscribe a eventos en tiempo real en la tabla de pedidos de Supabase.
- * Permite que cualquier pedido creado en un móvil o navegador aparezca de inmediato en todos los demás.
+ * Utiliza un canal compartido singleton con debounce para eliminar suscripciones duplicadas y consultas redundantes.
  */
-export const subscribeToOrders = (onOrdersChanged: (orders: Order[]) => void): (() => void) => {
+export const subscribeToOrders = (onOrdersChanged: OrdersCallback): (() => void) => {
   if (!isSupabaseConfigured() || !supabaseInstance) {
     return () => {};
   }
 
-  const channelName = `realtime_orders_${Math.random().toString(36).substring(2, 9)}`;
-  const channel = supabaseInstance
-    .channel(channelName)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'orders' },
-      async () => {
-        try {
-          const latestOrders = await fetchOrders();
-          onOrdersChanged(latestOrders);
-        } catch (e) {
-          console.warn('Error refrescando pedidos en tiempo real:', e);
+  ordersSubscribers.add(onOrdersChanged);
+
+  if (!sharedOrdersChannel) {
+    sharedOrdersChannel = supabaseInstance
+      .channel('realtime_orders_singleton')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        () => {
+          if (debounceOrdersTimer) clearTimeout(debounceOrdersTimer);
+          debounceOrdersTimer = setTimeout(async () => {
+            try {
+              const latestOrders = await fetchOrders();
+              ordersSubscribers.forEach((cb) => {
+                try {
+                  cb(latestOrders);
+                } catch (e) {}
+              });
+            } catch (e) {
+              console.warn('Error refrescando pedidos en tiempo real:', e);
+            }
+          }, 400);
         }
-      }
-    )
-    .subscribe();
+      )
+      .subscribe();
+  }
 
   return () => {
-    if (supabaseInstance) {
-      supabaseInstance.removeChannel(channel);
+    ordersSubscribers.delete(onOrdersChanged);
+    if (ordersSubscribers.size === 0 && sharedOrdersChannel && supabaseInstance) {
+      try {
+        supabaseInstance.removeChannel(sharedOrdersChannel);
+      } catch (e) {}
+      sharedOrdersChannel = null;
+      if (debounceOrdersTimer) {
+        clearTimeout(debounceOrdersTimer);
+        debounceOrdersTimer = null;
+      }
     }
   };
 };
 
-/**
- * Suscribe a eventos en tiempo real en la tabla 'products' de Supabase.
- * Permite que cualquier cambio en productos, stock, precios, categorías o configuraciones
- * del sistema se propague automáticamente a todos los dispositivos abiertos.
- */
-export const subscribeToProductsAndSystemConfig = (callbacks: {
+type ProductsConfigCallbacks = {
   onProductsChanged?: (products: Product[]) => void;
   onCategoriesChanged?: (categories: Category[]) => void;
   onSystemConfigChanged?: () => void;
-}): (() => void) => {
+};
+const productsConfigSubscribers = new Set<ProductsConfigCallbacks>();
+let sharedProductsChannel: any = null;
+let debounceProductsTimer: any = null;
+let debounceCategoriesTimer: any = null;
+let debounceSystemTimer: any = null;
+
+/**
+ * Suscribe a eventos en tiempo real en la tabla 'products' de Supabase.
+ * Utiliza un canal compartido singleton con debounce y despacha selectivamente por tipo de cambio.
+ */
+export const subscribeToProductsAndSystemConfig = (callbacks: ProductsConfigCallbacks): (() => void) => {
   if (!isSupabaseConfigured() || !supabaseInstance) {
     return () => {};
   }
 
-  const channelName = `realtime_products_${Math.random().toString(36).substring(2, 9)}`;
-  const channel = supabaseInstance
-    .channel(channelName)
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'products' },
-      async (payload) => {
-        try {
-          const changedId = (payload.new as any)?.id || (payload.old as any)?.id;
-          if (changedId === SYSTEM_CATEGORIES_ROW_ID) {
-            if (callbacks.onCategoriesChanged) {
-              const freshCats = await fetchCategories({ force: true });
-              callbacks.onCategoriesChanged(freshCats);
+  productsConfigSubscribers.add(callbacks);
+
+  if (!sharedProductsChannel) {
+    sharedProductsChannel = supabaseInstance
+      .channel('realtime_products_singleton')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'products' },
+        (payload) => {
+          try {
+            const changedId = (payload.new as any)?.id || (payload.old as any)?.id;
+            if (changedId === SYSTEM_CATEGORIES_ROW_ID) {
+              if (debounceCategoriesTimer) clearTimeout(debounceCategoriesTimer);
+              debounceCategoriesTimer = setTimeout(async () => {
+                const freshCats = await fetchCategories({ force: true });
+                productsConfigSubscribers.forEach((sub) => {
+                  if (sub.onCategoriesChanged) {
+                    try { sub.onCategoriesChanged(freshCats); } catch (e) {}
+                  }
+                });
+              }, 400);
+            } else if (typeof changedId === 'string' && changedId.startsWith('__system_')) {
+              if (debounceSystemTimer) clearTimeout(debounceSystemTimer);
+              debounceSystemTimer = setTimeout(() => {
+                productsConfigSubscribers.forEach((sub) => {
+                  if (sub.onSystemConfigChanged) {
+                    try { sub.onSystemConfigChanged(); } catch (e) {}
+                  }
+                });
+              }, 400);
+            } else {
+              // Producto estándar (stock, precio, creación, edición o eliminación)
+              if (debounceProductsTimer) clearTimeout(debounceProductsTimer);
+              debounceProductsTimer = setTimeout(async () => {
+                const freshProducts = await fetchProducts({ force: true });
+                productsConfigSubscribers.forEach((sub) => {
+                  if (sub.onProductsChanged) {
+                    try { sub.onProductsChanged(freshProducts); } catch (e) {}
+                  }
+                });
+              }, 400);
             }
-          } else if (typeof changedId === 'string' && changedId.startsWith('__system_')) {
-            if (callbacks.onSystemConfigChanged) {
-              callbacks.onSystemConfigChanged();
-            }
-          } else {
-            // Producto estándar (stock, precio, creación, edición o eliminación)
-            if (callbacks.onProductsChanged) {
-              const freshProducts = await fetchProducts({ force: true });
-              callbacks.onProductsChanged(freshProducts);
-            }
+          } catch (e) {
+            console.warn('Error en realtime de productos/sistema:', e);
           }
-        } catch (e) {
-          console.warn('Error en realtime de productos/sistema:', e);
         }
-      }
-    )
-    .subscribe();
+      )
+      .subscribe();
+  }
 
   return () => {
-    if (supabaseInstance) {
-      supabaseInstance.removeChannel(channel);
+    productsConfigSubscribers.delete(callbacks);
+    if (productsConfigSubscribers.size === 0 && sharedProductsChannel && supabaseInstance) {
+      try {
+        supabaseInstance.removeChannel(sharedProductsChannel);
+      } catch (e) {}
+      sharedProductsChannel = null;
+      if (debounceProductsTimer) clearTimeout(debounceProductsTimer);
+      if (debounceCategoriesTimer) clearTimeout(debounceCategoriesTimer);
+      if (debounceSystemTimer) clearTimeout(debounceSystemTimer);
     }
   };
 };
@@ -2840,7 +2987,10 @@ export const reorderCategories = async (orderedCategories: Category[]): Promise<
   }
 };
 
-export const uploadCategoryImage = async (file: File): Promise<string> => {
+export const uploadCategoryImage = async (
+  file: File,
+  options?: { onOptimized?: (result: OptimizationResult) => void }
+): Promise<string> => {
   requireAdminAuth('subir imagen de categoría');
 
   const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
@@ -2859,9 +3009,13 @@ export const uploadCategoryImage = async (file: File): Promise<string> => {
     return cachedUrl;
   }
 
-  // Optimizar automáticamente imagen de categoría (1200px, WebP, ~150-250KB)
-  const optimization = await optimizeProductImage(file, { isCover: false, maxDimension: 1200 });
+  // Optimizar automáticamente imagen de categoría (~1000px, WebP, ~180-280KB)
+  const optimization = await optimizeProductImage(file, { isCover: false, maxDimension: 1000, targetMinKB: 180, targetMaxKB: 280 });
   const fileToUpload = optimization.file;
+
+  if (options?.onOptimized) {
+    options.onOptimized(optimization);
+  }
 
   if (isSupabaseConfigured() && supabaseInstance) {
     try {
@@ -2882,11 +3036,17 @@ export const uploadCategoryImage = async (file: File): Promise<string> => {
         const { data } = supabaseInstance.storage.from('product-images').getPublicUrl(filePath);
         if (data?.publicUrl) {
           uploadedFileCache.set(fingerprint, data.publicUrl);
+          recordOptimizationResult(data.publicUrl, optimization);
           return data.publicUrl;
+        } else {
+          throw new Error('No se pudo obtener la URL pública de la categoría en Supabase Storage.');
         }
+      } else {
+        throw new Error(`Error en upload de Supabase Storage para categoría: ${uploadError.message}`);
       }
-    } catch (e) {
-      console.warn('Error uploading category image to Supabase Storage, using data URL:', e);
+    } catch (e: any) {
+      console.error('Error uploading category image to Supabase Storage:', e);
+      throw e instanceof Error ? e : new Error(String(e));
     }
   }
 
@@ -2895,6 +3055,7 @@ export const uploadCategoryImage = async (file: File): Promise<string> => {
     reader.onload = () => {
       const res = reader.result as string;
       uploadedFileCache.set(fingerprint, res);
+      recordOptimizationResult(res, optimization);
       resolve(res);
     };
     reader.onerror = reject;
@@ -2902,7 +3063,10 @@ export const uploadCategoryImage = async (file: File): Promise<string> => {
   });
 };
 
-export const uploadBannerImage = async (file: File): Promise<string> => {
+export const uploadBannerImage = async (
+  file: File,
+  options?: { onOptimized?: (result: OptimizationResult) => void }
+): Promise<string> => {
   requireAdminAuth('subir imagen de banner');
 
   const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
@@ -2922,8 +3086,12 @@ export const uploadBannerImage = async (file: File): Promise<string> => {
   }
 
   // Optimizar automáticamente imagen de banner con alta fidelidad (2560px máximo, sin pixelación, WebP con alta calidad)
-  const optimization = await optimizeProductImage(file, { isBanner: true, isCover: true, maxDimension: 2560 });
+  const optimization = await optimizeProductImage(file, { isBanner: true, isCover: true, maxDimension: 2560, targetMinKB: 350, targetMaxKB: 750 });
   const fileToUpload = optimization.file;
+
+  if (options?.onOptimized) {
+    options.onOptimized(optimization);
+  }
 
   if (isSupabaseConfigured() && supabaseInstance) {
     try {
@@ -2944,13 +3112,17 @@ export const uploadBannerImage = async (file: File): Promise<string> => {
         const { data } = supabaseInstance.storage.from('product-images').getPublicUrl(filePath);
         if (data?.publicUrl) {
           uploadedFileCache.set(fingerprint, data.publicUrl);
+          recordOptimizationResult(data.publicUrl, optimization);
           return data.publicUrl;
+        } else {
+          throw new Error('No se pudo obtener la URL pública del banner en Supabase Storage.');
         }
       } else {
-        console.warn('Error en upload de Supabase Storage para banner:', uploadError.message);
+        throw new Error(`Error en upload de Supabase Storage para banner: ${uploadError.message}`);
       }
-    } catch (e) {
-      console.warn('Error subiendo imagen de banner a Supabase Storage, usando fallback local:', e);
+    } catch (e: any) {
+      console.error('Error subiendo imagen de banner a Supabase Storage:', e);
+      throw e instanceof Error ? e : new Error(String(e));
     }
   }
 
@@ -2959,6 +3131,7 @@ export const uploadBannerImage = async (file: File): Promise<string> => {
     reader.onload = () => {
       const res = reader.result as string;
       uploadedFileCache.set(fingerprint, res);
+      recordOptimizationResult(res, optimization);
       resolve(res);
     };
     reader.onerror = reject;

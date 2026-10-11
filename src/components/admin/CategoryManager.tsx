@@ -11,6 +11,7 @@ import {
 } from '../../services/supabase';
 import { slugifyCategory, countProductsInCategory } from '../../utils/categoryHelpers';
 import { INITIAL_CATEGORIES } from '../../data/initialCategories';
+import { ImageOptimizationBadge } from './ImageOptimizationBadge';
 import {
   Plus,
   Edit2,
@@ -133,13 +134,25 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
     const previousImage = editingCategory.image;
     setIsUploading(true);
     try {
-      const uploadedUrl = await uploadCategoryImage(file);
+      let optInfo: any = null;
+      const uploadedUrl = await uploadCategoryImage(file, {
+        onOptimized: (res) => {
+          optInfo = res;
+        },
+      });
       setEditingCategory({
         ...editingCategory,
         image: uploadedUrl,
       });
       setImageUrlInput(uploadedUrl);
-      showFeedback('success', 'Imagen subida correctamente');
+      if (optInfo) {
+        showFeedback(
+          'success',
+          `✓ Optimizada: ${optInfo.width}×${optInfo.height}px ${optInfo.format.toUpperCase()} • ${optInfo.optimizedSizeKB.toFixed(0)} KB (-${optInfo.savedPercent.toFixed(0)}% de ${optInfo.originalSizeKB >= 1024 ? `${(optInfo.originalSizeKB / 1024).toFixed(1)} MB` : `${optInfo.originalSizeKB.toFixed(0)} KB`})`
+        );
+      } else {
+        showFeedback('success', 'Imagen subida correctamente');
+      }
 
       if (previousImage && previousImage !== uploadedUrl) {
         deleteStorageImageIfUnused(previousImage, products, categories);
@@ -627,15 +640,20 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
 
                 {/* Image Preview & Upload Controls */}
                 <div className="flex items-start gap-4 pt-1">
-                  <div className="w-[84px] aspect-[3/4] rounded-xl overflow-hidden border border-gray-300 bg-white shrink-0 flex items-center justify-center shadow-xs">
-                    {editingCategory.image ? (
-                      <img
-                        src={editingCategory.image}
-                        alt="Preview"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <ImageIcon className="w-8 h-8 text-gray-300" />
+                  <div className="flex flex-col gap-1.5 shrink-0 items-center">
+                    <div className="w-[84px] aspect-[3/4] rounded-xl overflow-hidden border border-gray-300 bg-white flex items-center justify-center shadow-xs">
+                      {editingCategory.image ? (
+                        <img
+                          src={editingCategory.image}
+                          alt="Preview"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <ImageIcon className="w-8 h-8 text-gray-300" />
+                      )}
+                    </div>
+                    {editingCategory.image && (
+                      <ImageOptimizationBadge imageUrl={editingCategory.image} compact align="center" />
                     )}
                   </div>
 

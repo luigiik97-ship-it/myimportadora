@@ -15,12 +15,15 @@ import {
   isProductCompletelyOutOfStock,
   getOptionStock,
   getResolvedProductPrices,
+  getProductCoverImage,
 } from '../utils/variantHelpers';
 import { VariantManager } from './admin/VariantManager';
 import { StandaloneVariantsManager } from './admin/StandaloneVariantsManager';
 import { BulkPriceUpdate } from './admin/BulkPriceUpdate';
 import { CategoryManager } from './admin/CategoryManager';
 import { ClassicStar } from './common/ClassicStar';
+import { ImageOptimizationBadge } from './admin/ImageOptimizationBadge';
+import { ImageOptimizationAuditor } from './admin/ImageOptimizationAuditor';
 import {
   fetchProducts,
   fetchCategories,
@@ -247,19 +250,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
 
   // Product edit/create modal
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [isImageAuditorOpen, setIsImageAuditorOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
-  const [imageInputUrl, setImageInputUrl] = useState('');
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<{
-    current: number;
-    total: number;
-    stats?: OptimizationResult;
-  } | null>(null);
-  const [lastOptimizationSummary, setLastOptimizationSummary] = useState<string | null>(null);
 
   // Additional image & reviews states
   const [additionalImageInputUrl, setAdditionalImageInputUrl] = useState('');
   const [isUploadingAdditionalImage, setIsUploadingAdditionalImage] = useState(false);
+  const [lastOptimizationSummary, setLastOptimizationSummary] = useState<string | null>(null);
   const [newReviewText, setNewReviewText] = useState('');
   const [newReviewAuthor, setNewReviewAuthor] = useState('');
   const [newReviewRating, setNewReviewRating] = useState(5);
@@ -306,8 +303,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     setNewTagLabel('');
     setIsCreatingNewTag(false);
   };
-
-  const MAX_PRODUCT_IMAGES = 6;
 
   // Selected order details modal
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -408,21 +403,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
       },
     });
 
-    // Sondeo de respaldo periódico (cada 12 segundos) para mantener sincronizado en móviles aún si suspenden websockets
-    const pollInterval = setInterval(() => {
-      if (isAuthenticated) {
-        fetchOrders().then((ords) => setOrders(ords));
-      }
-    }, 12000);
+    // Control inteligente de recarga en foco: evita ráfagas innecesarias (mínimo 90s entre chequeos pasivos)
+    let lastFocusFetchTime = Date.now();
 
-    // Refresco inmediato al volver a enfocar la ventana o desbloquear el móvil
     const handleWindowFocus = () => {
       if (isAuthenticated) {
-        fetchOrders().then((ords) => setOrders(ords));
-        fetchProducts({ force: true }).then((prods) => setProducts(prods));
-        fetchCategories({ force: true }).then((cats) => {
-          if (cats && cats.length > 0) setAdminCategories(cats);
-        });
+        const now = Date.now();
+        if (now - lastFocusFetchTime > 90000) {
+          lastFocusFetchTime = now;
+          fetchOrders().then((ords) => setOrders(ords));
+          fetchProducts({ force: true }).then((prods) => setProducts(prods));
+          fetchCategories({ force: true }).then((cats) => {
+            if (cats && cats.length > 0) setAdminCategories(cats);
+          });
+        }
       }
     };
 
@@ -490,7 +484,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     return () => {
       unsubscribeOrders();
       unsubscribeProductsAndConfig();
-      clearInterval(pollInterval);
       window.removeEventListener('focus', handleWindowFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('my_commerce_orders_updated', handleOrdersUpdated);
@@ -736,27 +729,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     );
     console.log(`[VARIANT DEBUG - EDIT] Variantes actualizadas en el estado local del producto:`, newVariantTypes);
 
-    // Asignar automáticamente la imagen de la primera variante como portada principal
-    const firstVariantImage =
-      newVariantTypes?.[0]?.options?.[0]?.images?.[0] ||
-      newVariantTypes?.[0]?.options?.find((opt) => opt.images && opt.images.length > 0)?.images?.[0];
-
-    const currentImages = [...(editingProduct.images || [])];
-    if (firstVariantImage) {
-      if (currentImages.length > 0) {
-        currentImages[0] = firstVariantImage;
-      } else {
-        currentImages.push(firstVariantImage);
-      }
-    }
+    // Portada única obtenida de la primera variante con foto (sin duplicar ni crear campos nuevos)
+    const coverImage = getProductCoverImage({
+      ...editingProduct,
+      variantTypes: newVariantTypes,
+    });
 
     setEditingProduct({
       ...editingProduct,
       variantTypes: newVariantTypes,
       colors,
       sizeVariants,
-      images: currentImages,
-      image: firstVariantImage || currentImages[0] || (editingProduct as any).image,
+      images: coverImage ? [coverImage] : [],
+      image: coverImage,
     });
   };
 
@@ -789,24 +774,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
       targetWholesaleCashPrice
     );
 
-    // Obtener la imagen de la primera variante para fijarla como portada automática
-    const firstVariantImage =
-      currentVariantTypes?.[0]?.options?.[0]?.images?.[0] ||
-      currentVariantTypes?.[0]?.options?.find((opt) => opt.images && opt.images.length > 0)?.images?.[0];
-
-    let finalImages = [...(editingProduct.images || [])];
-    if (firstVariantImage) {
-      if (finalImages.length > 0) {
-        finalImages[0] = firstVariantImage;
-      } else {
-        finalImages = [firstVariantImage];
-      }
-    }
+    // Portada única obtenida de la primera variante con foto (sin duplicar)
+    const coverImage = getProductCoverImage({
+      ...editingProduct,
+      variantTypes: currentVariantTypes,
+    });
 
     const productPayload: Partial<Product> = {
       ...editingProduct,
-      images: finalImages,
-      image: firstVariantImage || finalImages[0] || (editingProduct as any).image,
+      images: coverImage ? [coverImage] : [],
+      image: coverImage,
       cashPrice: targetCashPrice ?? targetRetailCashPrice,
       retailCashPrice: targetRetailCashPrice,
       wholesaleCashPrice: targetWholesaleCashPrice,
@@ -906,144 +883,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     }
   };
 
-  // Image handling in product modal (up to 6 images)
-  const handleAddImageUrl = () => {
-    if (!editingProduct) return;
-    const currentImages = editingProduct.images || [];
-
-    if (currentImages.length >= MAX_PRODUCT_IMAGES) {
-      alert(`Solo se pueden agregar hasta ${MAX_PRODUCT_IMAGES} imágenes por publicación.`);
-      return;
-    }
-
-    if (imageInputUrl.trim()) {
-      setEditingProduct({
-        ...editingProduct,
-        images: [...currentImages, imageInputUrl.trim()],
-      });
-      setImageInputUrl('');
-    }
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0 || !editingProduct) return;
-
-    const currentImages = editingProduct.images || [];
-    const availableSlots = MAX_PRODUCT_IMAGES - currentImages.length;
-
-    if (availableSlots <= 0) {
-      alert(`Ya has alcanzado el límite máximo de ${MAX_PRODUCT_IMAGES} imágenes para esta publicación.`);
-      e.target.value = '';
-      return;
-    }
-
-    const filesArray = (Array.from(files) as File[]).slice(0, availableSlots);
-    if (files.length > availableSlots) {
-      alert(`Solo se subieron las primeras ${availableSlots} imágenes para no superar el límite de ${MAX_PRODUCT_IMAGES}.`);
-    }
-
-    setIsUploadingImage(true);
-    setUploadProgress({ current: 1, total: filesArray.length });
-
-    try {
-      const isFirstCover = currentImages.length === 0;
-      const uploadedUrls = await uploadProductImages(
-        filesArray,
-        (current, total, stats) => {
-          setUploadProgress({ current, total, stats });
-        },
-        {
-          isFirstImageCover: isFirstCover,
-          areAllSecondary: !isFirstCover,
-        }
-      );
-
-      setEditingProduct({
-        ...editingProduct,
-        images: [...currentImages, ...uploadedUrls],
-      });
-      setLastOptimizationSummary(
-        `✓ ${uploadedUrls.length} ${uploadedUrls.length === 1 ? 'imagen procesada y optimizada' : 'imágenes procesadas y optimizadas'} automáticamente en formato WebP antes de guardar.`
-      );
-      setTimeout(() => setLastOptimizationSummary(null), 5000);
-    } catch (err: any) {
-      alert('Error subiendo imágenes a Supabase Storage: ' + err.message);
-    } finally {
-      setIsUploadingImage(false);
-      setUploadProgress(null);
-      e.target.value = '';
-    }
-  };
-
-  const handleSetCoverImage = (index: number) => {
-    if (!editingProduct || !editingProduct.images || index === 0) return;
-    const images = [...editingProduct.images];
-    const [selected] = images.splice(index, 1);
-    images.unshift(selected);
-    setEditingProduct({ ...editingProduct, images });
-  };
-
-  const handleMoveImage = (fromIndex: number, toIndex: number) => {
-    if (!editingProduct || !editingProduct.images) return;
-    if (toIndex < 0 || toIndex >= editingProduct.images.length) return;
-    const images = [...editingProduct.images];
-    const [moved] = images.splice(fromIndex, 1);
-    images.splice(toIndex, 0, moved);
-    setEditingProduct({ ...editingProduct, images });
-  };
-
-  const handleRemoveImage = (index: number) => {
-    if (editingProduct && editingProduct.images) {
-      const removedUrl = editingProduct.images[index];
-      const updatedImages = editingProduct.images.filter((_, i) => i !== index);
-      setEditingProduct({ ...editingProduct, images: updatedImages });
-      if (removedUrl) {
-        deleteStorageImageIfUnused(removedUrl, products, adminCategories);
-      }
-    }
-  };
-
-  const handleReplaceImageFile = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !editingProduct || !editingProduct.images) return;
-
-    const oldUrl = editingProduct.images[index];
-    setIsUploadingImage(true);
-    setUploadProgress({ current: 1, total: 1 });
-
-    try {
-      const isCover = index === 0;
-      const [uploadedUrl] = await uploadProductImages(
-        [file],
-        (current, total, stats) => {
-          setUploadProgress({ current, total, stats });
-        },
-        {
-          isFirstImageCover: isCover,
-          areAllSecondary: !isCover,
-        }
-      );
-      if (uploadedUrl) {
-        const newImages = [...editingProduct.images];
-        newImages[index] = uploadedUrl;
-        setEditingProduct({ ...editingProduct, images: newImages });
-        setLastOptimizationSummary('✓ Imagen reemplazada y optimizada automáticamente en formato WebP.');
-        setTimeout(() => setLastOptimizationSummary(null), 4000);
-
-        if (oldUrl && oldUrl !== uploadedUrl) {
-          deleteStorageImageIfUnused(oldUrl, products, adminCategories);
-        }
-      }
-    } catch (err: any) {
-      alert('Error reemplazando imagen: ' + err.message);
-    } finally {
-      setIsUploadingImage(false);
-      setUploadProgress(null);
-      e.target.value = '';
-    }
-  };
-
   // Additional Image handling (Banner inferior de la publicación)
   const handleUploadAdditionalImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1052,12 +891,27 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     const oldUrl = editingProduct.additionalImage;
     setIsUploadingAdditionalImage(true);
     try {
-      const uploadedUrl = await uploadProductImage(file, { isCover: true, maxDimension: 1600 });
+      let optResult: any = null;
+      const uploadedUrl = await uploadProductImage(file, {
+        isCover: true,
+        maxDimension: 1600,
+        targetMinKB: 200,
+        targetMaxKB: 350,
+        onOptimized: (res) => {
+          optResult = res;
+        },
+      });
       if (uploadedUrl) {
         setEditingProduct({ ...editingProduct, additionalImage: uploadedUrl });
         setAdditionalImageInputUrl(uploadedUrl);
-        setLastOptimizationSummary('✓ Imagen adicional / banner optimizada automáticamente en formato WebP.');
-        setTimeout(() => setLastOptimizationSummary(null), 4000);
+        if (optResult) {
+          setLastOptimizationSummary(
+            `✓ Optimizada: ${optResult.width}×${optResult.height}px ${optResult.format.toUpperCase()} • ${optResult.optimizedSizeKB.toFixed(0)} KB (-${optResult.savedPercent.toFixed(0)}% de ${optResult.originalSizeKB >= 1024 ? `${(optResult.originalSizeKB / 1024).toFixed(1)} MB` : `${optResult.originalSizeKB.toFixed(0)} KB`})`
+          );
+        } else {
+          setLastOptimizationSummary('✓ Imagen adicional optimizada automáticamente en formato WebP.');
+        }
+        setTimeout(() => setLastOptimizationSummary(null), 5000);
 
         if (oldUrl && oldUrl !== uploadedUrl) {
           deleteStorageImageIfUnused(oldUrl, products, adminCategories);
@@ -1774,6 +1628,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
               >
                 <Percent className="w-3.5 h-3.5" />
                 Actualizar Precios Masivamente
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsImageAuditorOpen(true)}
+                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold px-3.5 py-2.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer border border-emerald-200 shadow-xs"
+                title="Auditar y probar en vivo el sistema de optimización de imágenes"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Auditoría de Imágenes</span>
               </button>
 
               <button
@@ -2869,306 +2733,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                 baseStock={editingProduct.stock ?? 10}
               />
 
-              {/* Galería de Imágenes (Supabase Storage / URL - Hasta 6 fotos) */}
-              <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/50 space-y-3.5">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center gap-2">
-                    <ImageIcon className="w-4 h-4 text-[#0058bb]" />
-                    <span className="font-bold text-gray-900 text-xs md:text-sm">
-                      Fotos de la Publicación (Hasta 6 imágenes)
-                    </span>
-                  </div>
-                  <span
-                    className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
-                      (editingProduct.images || []).length === MAX_PRODUCT_IMAGES
-                        ? 'bg-blue-100 text-blue-800'
-                        : (editingProduct.images || []).length > 0
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-amber-100 text-amber-800'
-                    }`}
-                  >
-                    {(editingProduct.images || []).length} / {MAX_PRODUCT_IMAGES} fotos
-                  </span>
-                </div>
-
-                {/* 6 Visual Slots Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
-                  {Array.from({ length: MAX_PRODUCT_IMAGES }).map((_, slotIndex) => {
-                    const currentImages = editingProduct.images || [];
-                    const isCover = slotIndex === 0;
-
-                    // Portada automática obtenida de la primera variante
-                    const firstVariantImg =
-                      editingProduct.variantTypes?.[0]?.options?.[0]?.images?.[0] ||
-                      editingProduct.variantTypes?.[0]?.options?.find((opt) => opt.images && opt.images.length > 0)?.images?.[0];
-                    const firstVariantName =
-                      editingProduct.variantTypes?.[0]?.options?.[0]?.name ||
-                      editingProduct.variantTypes?.[0]?.options?.find((opt) => opt.images && opt.images.length > 0)?.name ||
-                      '1ª Variante';
-
-                    const imgUrl = isCover ? (firstVariantImg || currentImages[0]) : currentImages[slotIndex];
-
-                    if (isCover) {
-                      // Slot 0: Portada automática de la primera variante (sin opción de subida independiente)
-                      return (
-                        <div
-                          key="cover-slot-auto"
-                          className="group relative rounded-lg border-2 border-[#0058bb] ring-2 ring-[#0058bb]/20 bg-white flex flex-col overflow-hidden shadow-2xs transition-all"
-                        >
-                          <div className="absolute top-1.5 left-1.5 z-10">
-                            <span className="bg-[#0058bb] text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-md flex items-center gap-1 shadow-xs">
-                              <Star className="w-2.5 h-2.5 fill-amber-300 text-amber-300" />
-                              Portada (1ª Var.)
-                            </span>
-                          </div>
-
-                          <div className="h-24 w-full bg-white flex items-center justify-center p-1 overflow-hidden">
-                            {imgUrl ? (
-                              <img
-                                src={imgUrl}
-                                alt="Portada automática de la 1ª variante"
-                                className="max-h-full max-w-full object-contain"
-                              />
-                            ) : (
-                              <div className="text-center p-2 text-[10px] text-gray-400 flex flex-col items-center justify-center h-full">
-                                <ImageIcon className="w-5 h-5 mb-1 text-gray-300" />
-                                <span className="font-semibold text-gray-500">Sin foto en 1ª variante</span>
-                                <span className="text-[9px] text-gray-400">Sube foto arriba</span>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="bg-blue-50/90 border-t border-blue-100 p-1 text-center">
-                            <span className="text-[9px] font-bold text-[#0058bb] truncate block" title={`Tomada de la variante: ${firstVariantName}`}>
-                              Auto: {firstVariantName}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    if (imgUrl) {
-                      return (
-                        <div
-                          key={slotIndex}
-                          className="group relative rounded-lg border-2 border-gray-200 hover:border-gray-300 bg-white flex flex-col overflow-hidden shadow-2xs transition-all"
-                        >
-                          {/* Slot Tag */}
-                          <div className="absolute top-1.5 left-1.5 z-10">
-                            <span className="bg-gray-900/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md shadow-xs">
-                              Foto #{slotIndex + 1}
-                            </span>
-                          </div>
-
-                          {/* Image preview */}
-                          <div className="h-24 w-full bg-white flex items-center justify-center p-1 overflow-hidden">
-                            <img
-                              src={imgUrl}
-                              alt={`Foto ${slotIndex + 1}`}
-                              className="max-h-full max-w-full object-contain transition-transform group-hover:scale-105"
-                            />
-                          </div>
-
-                          {/* Action Toolbar */}
-                          <div className="bg-gray-100 border-t border-gray-200 p-1 flex items-center justify-between gap-0.5 text-gray-600">
-                            <div className="flex items-center gap-0.5">
-                              {slotIndex > 1 && (
-                                <button
-                                  type="button"
-                                  title="Mover a la izquierda"
-                                  onClick={() => handleMoveImage(slotIndex, slotIndex - 1)}
-                                  className="p-1 hover:bg-blue-100 hover:text-blue-700 rounded transition-colors cursor-pointer"
-                                >
-                                  <ArrowLeftIcon className="w-3 h-3" />
-                                </button>
-                              )}
-                              {slotIndex < currentImages.length - 1 && (
-                                <button
-                                  type="button"
-                                  title="Mover a la derecha"
-                                  onClick={() => handleMoveImage(slotIndex, slotIndex + 1)}
-                                  className="p-1 hover:bg-blue-100 hover:text-blue-700 rounded transition-colors cursor-pointer"
-                                >
-                                  <ArrowRightIcon className="w-3 h-3" />
-                                </button>
-                              )}
-
-                              {/* Reemplazar imagen secundaria directamente */}
-                              <label
-                                title="Reemplazar esta foto secundaria"
-                                className="p-1 hover:bg-gray-200 hover:text-gray-900 rounded transition-colors cursor-pointer"
-                              >
-                                <Upload className="w-3 h-3 text-[#0058bb]" />
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  onChange={(e) => handleReplaceImageFile(slotIndex, e)}
-                                  disabled={isUploadingImage}
-                                  className="hidden"
-                                />
-                              </label>
-                            </div>
-
-                            <button
-                              type="button"
-                              title="Eliminar imagen secundaria"
-                              onClick={() => handleRemoveImage(slotIndex)}
-                              className="p-1 text-red-500 hover:bg-red-100 hover:text-red-700 rounded transition-colors cursor-pointer"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    // Empty secondary slot
-                    return (
-                      <label
-                        key={slotIndex}
-                        className={`h-32 rounded-lg border-2 border-dashed border-gray-300 hover:border-[#0058bb] bg-white/70 hover:bg-blue-50/30 flex flex-col items-center justify-center p-2 text-center transition-all cursor-pointer group ${
-                          isUploadingImage ? 'opacity-50 pointer-events-none' : ''
-                        }`}
-                      >
-                        <div className="w-7 h-7 rounded-full bg-gray-100 group-hover:bg-blue-100 group-hover:text-[#0058bb] text-gray-400 flex items-center justify-center mb-1 transition-colors">
-                          <Plus className="w-4 h-4" />
-                        </div>
-                        <span className="text-[10px] font-bold text-gray-500 group-hover:text-[#0058bb]">
-                          Foto Secundaria #{slotIndex + 1}
-                        </span>
-                        <span className="text-[9px] text-gray-400">Clic para subir</span>
-                        <input
-                          type="file"
-                          multiple
-                          accept="image/*"
-                          onChange={handleFileUpload}
-                          disabled={isUploadingImage || (editingProduct.images || []).length >= MAX_PRODUCT_IMAGES}
-                          className="hidden"
-                        />
-                      </label>
-                    );
-                  })}
-                </div>
-
-                {/* Upload & Optimization Progress Notification */}
-                {isUploadingImage && (
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2 text-xs text-blue-900">
-                    <div className="flex items-center justify-between font-semibold">
-                      <span className="flex items-center gap-1.5">
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#0058bb]" />
-                        Optimizando y subiendo a Supabase Storage...
-                      </span>
-                      {uploadProgress && (
-                        <span className="font-mono text-[11px] bg-blue-100 px-2 py-0.5 rounded text-blue-800">
-                          {uploadProgress.current} de {uploadProgress.total}
-                        </span>
-                      )}
-                    </div>
-                    <div className="w-full bg-blue-200 h-1.5 rounded-full overflow-hidden">
-                      <div
-                        className="bg-[#0058bb] h-full transition-all duration-300"
-                        style={{
-                          width: uploadProgress
-                            ? `${(uploadProgress.current / uploadProgress.total) * 100}%`
-                            : '50%',
-                        }}
-                      />
-                    </div>
-                    {uploadProgress?.stats && (
-                      <div className="text-[11px] text-blue-700 flex items-center justify-between font-mono bg-white/70 p-1.5 rounded border border-blue-100">
-                        <span>
-                          Foto #{uploadProgress.current}: {uploadProgress.stats.width}x{uploadProgress.stats.height}px ({uploadProgress.stats.format.toUpperCase()})
-                        </span>
-                        <span className="font-bold text-emerald-700">
-                          {uploadProgress.stats.originalSizeKB.toFixed(0)} KB ➔ {uploadProgress.stats.optimizedSizeKB.toFixed(0)} KB
-                          {uploadProgress.stats.savedPercent > 0 && ` (-${uploadProgress.stats.savedPercent.toFixed(0)}%)`}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Last Optimization Success Notification */}
-                {lastOptimizationSummary && !isUploadingImage && (
-                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-900 font-semibold flex items-center justify-between animate-fade-in">
-                    <span className="flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                      {lastOptimizationSummary}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setLastOptimizationSummary(null)}
-                      className="text-emerald-600 hover:text-emerald-800 text-[10px] underline ml-2"
-                    >
-                      Cerrar
-                    </button>
-                  </div>
-                )}
-
-                {/* Add Photo Controls */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
-                  {/* File Upload Button */}
-                  <div>
-                    <label
-                      className={`w-full flex items-center justify-center gap-2 bg-[#0058bb] hover:bg-[#004bb0] text-white px-3 py-2 rounded-lg font-bold text-xs transition-colors cursor-pointer shadow-xs ${
-                        isUploadingImage || (editingProduct.images || []).length >= MAX_PRODUCT_IMAGES
-                          ? 'opacity-50 pointer-events-none'
-                          : ''
-                      }`}
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>
-                        {(editingProduct.images || []).length >= MAX_PRODUCT_IMAGES
-                          ? 'Límite de 6 fotos alcanzado'
-                          : 'Subir fotos desde la PC / Celular (Múltiple)'}
-                      </span>
-                      <input
-                        type="file"
-                        multiple
-                        accept="image/*"
-                        onChange={handleFileUpload}
-                        disabled={isUploadingImage || (editingProduct.images || []).length >= MAX_PRODUCT_IMAGES}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-
-                  {/* Add via URL Input */}
-                  <div className="flex gap-1.5">
-                    <input
-                      type="url"
-                      value={imageInputUrl}
-                      onChange={(e) => setImageInputUrl(e.target.value)}
-                      placeholder="O pega URL de imagen (https://...)"
-                      disabled={(editingProduct.images || []).length >= MAX_PRODUCT_IMAGES}
-                      className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:ring-1 focus:ring-[#0058bb] disabled:bg-gray-100"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddImageUrl}
-                      disabled={!imageInputUrl.trim() || (editingProduct.images || []).length >= MAX_PRODUCT_IMAGES}
-                      className="bg-gray-200 hover:bg-gray-300 disabled:opacity-50 text-gray-800 font-bold px-3 py-1.5 rounded-lg text-xs cursor-pointer transition-colors"
-                    >
-                      Agregar
-                    </button>
-                  </div>
-                </div>
-
-                <div className="p-2 bg-emerald-50/60 border border-emerald-200/80 rounded-lg text-[11px] text-emerald-900 space-y-0.5">
-                  <div className="flex items-center gap-1.5 font-bold text-emerald-800">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Optimización automática de imágenes activa</span>
-                  </div>
-                  <p className="text-[10px] text-emerald-700 leading-relaxed">
-                    Las fotos se redimensionan inteligentemente (1200-1600px) y se convierten a formato WebP de alta fidelidad (portada ~200-300 KB, secundarias ~150-250 KB) antes de guardarse en Supabase Storage. Sin pasos manuales, ahorrando hasta un 80% de almacenamiento y acelerando la tienda.
-                  </p>
-                </div>
-
-                <p className="text-[11px] text-gray-500 italic">
-                  💡 La foto de portada se toma automáticamente de la primera variante del producto para mantener consistencia visual. Las fotos adicionales aquí cargadas corresponden a fotos secundarias de la galería.
-                </p>
-              </div>
-
               {/* Descripción */}
               <div>
                 <label className="font-semibold text-gray-700 block mb-1">Descripción del Producto</label>
@@ -3202,12 +2766,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                   )}
                 </div>
 
+                {lastOptimizationSummary && (
+                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-mono font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>{lastOptimizationSummary}</span>
+                  </div>
+                )}
+
                 <p className="text-[11px] text-gray-500">
                   Esta imagen se exhibe debajo de la descripción en la página del producto. Si no se carga ninguna, se mostrará el banner predeterminado.
                 </p>
 
                 {/* Preview de la imagen adicional */}
                 {editingProduct.additionalImage ? (
+                  <>
                   <div className="relative rounded-xl overflow-hidden border border-gray-300 bg-gray-900 max-h-48 group flex items-center justify-center">
                     <img
                       src={editingProduct.additionalImage}
@@ -3236,6 +2808,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                       </button>
                     </div>
                   </div>
+                  {editingProduct.additionalImage && (
+                    <div className="pt-1.5">
+                      <ImageOptimizationBadge imageUrl={editingProduct.additionalImage} />
+                    </div>
+                  )}
+                  </>
                 ) : (
                   <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center bg-white space-y-1">
                     <p className="text-xs font-semibold text-gray-600">
@@ -4022,6 +3600,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
           </div>
         </div>
       )}
+
+      {/* Modal de Auditoría de Optimización de Imágenes */}
+      <ImageOptimizationAuditor
+        isOpen={isImageAuditorOpen}
+        onClose={() => setIsImageAuditorOpen(false)}
+      />
     </div>
   );
 };

@@ -136,12 +136,13 @@ export const optimizeProductImage = async (
     const mimeType = useFormat === 'webp' ? 'image/webp' : 'image/jpeg';
     const ext = useFormat === 'webp' ? 'webp' : 'jpg';
 
-    // 2. Parámetros de tamaño y resolución según si es banner, principal o secundaria
+    // 2. Parámetros de tamaño y resolución según si es banner, producto principal o variante/secundaria
     const isBanner = options.isBanner ?? false;
-    // Lado mayor: 2560 px para banners de ultra-alta definición, 1600 px para cover, 1400 px para secundarias
-    const targetMaxDimension = options.maxDimension || (isBanner ? 2560 : isCover ? 1600 : 1400);
-    const targetMinKB = options.targetMinKB || (isBanner ? 500 : isCover ? 200 : 150);
-    const targetMaxKB = options.targetMaxKB || (isBanner ? 3200 : isCover ? 300 : 250);
+    // Banners: 2560px max edge, objetivo 350-750 KB (resolución ultra HD nítida en escritorio y móvil sin pixelación)
+    // Productos / Portadas / Variantes: ~1000px max edge, peso ideal 200 - 300 KB cuando sea razonable (sin forzar peso si la imagen es naturalmente simple)
+    const targetMaxDimension = options.maxDimension || (isBanner ? 2560 : 1000);
+    const targetMinKB = options.targetMinKB || (isBanner ? 350 : 200);
+    const targetMaxKB = options.targetMaxKB || (isBanner ? 750 : 300);
 
     // 3. Cargar la imagen en memoria
     const { source, width: origWidth, height: origHeight, cleanup } = await loadImageSource(file);
@@ -187,29 +188,29 @@ export const optimizeProductImage = async (
       ctx.drawImage(source, 0, 0, targetWidth, targetHeight);
 
       // 6. Proceso de compresión inteligente hacia el rango de KB deseado
-      // Calidad inicial alta: 0.94 para banner (sin pixelado), 0.86 para principal, 0.82 para secundarias
-      let quality = isBanner ? 0.94 : isCover ? 0.86 : 0.82;
+      // Calidad inicial alta: 0.88 para banner (nítido sin pixelado), 0.84 para productos y variantes
+      let quality = isBanner ? 0.88 : 0.84;
       let blob = await canvasToBlob(canvas, mimeType, quality);
       let sizeKB = blob ? blob.size / 1024 : originalSizeKB;
 
       // Si el tamaño supera el máximo objetivo, ajustar calidad iterativamente
-      // Para banners, no degradar por debajo de 0.80 ni reducir dimensiones para no pixelar
+      // Para banners, no degradar por debajo de 0.72 ni reducir dimensiones excesivamente
       let iterations = 0;
-      const minQualityThreshold = isBanner ? 0.80 : 0.45;
-      while (blob && sizeKB > targetMaxKB && iterations < 4) {
+      const minQualityThreshold = isBanner ? 0.72 : 0.55;
+      while (blob && sizeKB > targetMaxKB && iterations < 5) {
         iterations++;
         if (sizeKB > targetMaxKB * 1.5) {
-          quality -= isBanner ? 0.05 : 0.12;
+          quality -= isBanner ? 0.04 : 0.10;
         } else if (sizeKB > targetMaxKB * 1.2) {
-          quality -= isBanner ? 0.03 : 0.07;
+          quality -= isBanner ? 0.03 : 0.06;
         } else {
           quality -= isBanner ? 0.02 : 0.04;
         }
 
-        // Si la calidad bajó de 0.55 y aún excede el límite (no aplicable a banners),
-        // reducir ligeramente las dimensiones pero manteniéndola siempre entre 1200 y 1600px
-        if (!isBanner && quality < 0.55 && currentMaxDim > 1200) {
-          currentMaxDim = Math.max(1200, Math.round(currentMaxDim * 0.88));
+        // Si la calidad bajó de 0.60 y aún excede el límite (no aplicable a banners),
+        // reducir ligeramente las dimensiones manteniéndolas en el rango óptimo ~1000px
+        if (!isBanner && quality < 0.60 && currentMaxDim > 1000) {
+          currentMaxDim = Math.max(1000, Math.round(currentMaxDim * 0.90));
           if (origWidth >= origHeight) {
             targetWidth = currentMaxDim;
             targetHeight = Math.round((origHeight * currentMaxDim) / origWidth);
@@ -226,7 +227,7 @@ export const optimizeProductImage = async (
             ctx.fillRect(0, 0, targetWidth, targetHeight);
           }
           ctx.drawImage(source, 0, 0, targetWidth, targetHeight);
-          quality = isCover ? 0.76 : 0.72; // Reiniciar calidad razonable con menor resolución
+          quality = isCover ? 0.78 : 0.74; // Reiniciar calidad razonable con la nueva dimensión
         }
 
         blob = await canvasToBlob(canvas, mimeType, Math.max(minQualityThreshold, quality));
@@ -235,8 +236,8 @@ export const optimizeProductImage = async (
 
       // Si el tamaño es menor al rango mínimo pero la calidad era conservadora y la imagen original es pesada,
       // podemos aprovechar un poco más de calidad para máxima nitidez (sin superar targetMaxKB)
-      if (blob && sizeKB < targetMinKB && originalSizeKB > targetMinKB && quality < 0.90) {
-        const higherQuality = Math.min(0.92, quality + 0.08);
+      if (blob && sizeKB < targetMinKB && originalSizeKB > targetMinKB && quality < 0.88) {
+        const higherQuality = Math.min(0.90, quality + 0.06);
         const testBlob = await canvasToBlob(canvas, mimeType, higherQuality);
         if (testBlob && testBlob.size / 1024 <= targetMaxKB) {
           blob = testBlob;
@@ -405,4 +406,50 @@ export const getOptimizedSrcSet = (
   return widths
     .map((w) => `${getOptimizedImageUrl(src, { width: w })} ${w}w`)
     .join(', ');
+};
+
+// Mapa en memoria de estadísticas de optimización indexadas por URL de imagen
+const statsByUrl = new Map<string, OptimizationResult>();
+
+/**
+ * Registra las métricas de compresión de una imagen tras ser subida a Supabase Storage
+ */
+export const recordOptimizationResult = (url: string, result: OptimizationResult): void => {
+  if (!url || typeof url !== 'string') return;
+  const cleanUrl = url.trim();
+  statsByUrl.set(cleanUrl, result);
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      const stored = JSON.parse(sessionStorage.getItem('my_commerce_opt_stats') || '{}');
+      stored[cleanUrl] = {
+        originalSizeKB: result.originalSizeKB,
+        optimizedSizeKB: result.optimizedSizeKB,
+        savedPercent: result.savedPercent,
+        width: result.width,
+        height: result.height,
+        format: result.format,
+        isCover: result.isCover,
+      };
+      sessionStorage.setItem('my_commerce_opt_stats', JSON.stringify(stored));
+    }
+  } catch {}
+};
+
+/**
+ * Obtiene las métricas de compresión registradas para una URL
+ */
+export const getOptimizationStatsForUrl = (url?: string | null): OptimizationResult | null => {
+  if (!url || typeof url !== 'string') return null;
+  const cleanUrl = url.trim();
+  if (statsByUrl.has(cleanUrl)) return statsByUrl.get(cleanUrl)!;
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      const stored = JSON.parse(sessionStorage.getItem('my_commerce_opt_stats') || '{}');
+      if (stored[cleanUrl]) {
+        statsByUrl.set(cleanUrl, stored[cleanUrl]);
+        return stored[cleanUrl];
+      }
+    }
+  } catch {}
+  return null;
 };

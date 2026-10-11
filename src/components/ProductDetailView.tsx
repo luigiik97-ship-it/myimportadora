@@ -10,6 +10,7 @@ import {
   getOptionStock,
   isProductCompletelyOutOfStock,
   getResolvedProductPrices,
+  getProductCoverImage,
 } from '../utils/variantHelpers';
 import { ClassicStar as Star } from './common/ClassicStar';
 import { MichyOfficialBadge } from './common/MichyOfficialBadge';
@@ -171,12 +172,11 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   // Gallery items including video as second thumbnail if present
   const galleryMedia = useMemo<{ type: 'image' | 'video'; url: string; imageIndex?: number }[]>(() => {
     const items: { type: 'image' | 'video'; url: string; imageIndex?: number }[] = [];
+    const coverFallback = getProductCoverImage(product);
     const baseImages =
       activeImages.length > 0
         ? activeImages
-        : product.images && product.images.length > 0
-        ? product.images
-        : ['https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800'];
+        : [coverFallback || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800'];
 
     // 1st item: First image (principal)
     if (baseImages[0]) {
@@ -197,7 +197,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     }
 
     return items;
-  }, [activeImages, product.id, product.images, product.videoUrl]);
+  }, [activeImages, product, product.id, product.videoUrl]);
 
   // Lightbox media items combining active variant images and associated video
   const lightboxMediaItems = useMemo(() => {
@@ -510,7 +510,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   };
 
   const handleAdd = () => {
-    const activeMainImage = activeImages[activeImageIndex] || activeImages[0] || (product.images && product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
+    const activeMainImage = activeImages[activeImageIndex] || activeImages[0] || getProductCoverImage(product);
     onAddToCart(product, selectedColorName, selectedSizeVariantObj, quantity, activeMainImage, userFriendlySelectedVariants);
     setShowAddedFeedback(true);
     setHasAddedToCart(true);
@@ -518,7 +518,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   };
 
   const handleBuy = () => {
-    const activeMainImage = activeImages[activeImageIndex] || activeImages[0] || (product.images && product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
+    const activeMainImage = activeImages[activeImageIndex] || activeImages[0] || getProductCoverImage(product);
     onBuyNow(product, selectedColorName, selectedSizeVariantObj, quantity, activeMainImage, userFriendlySelectedVariants);
   };
 
@@ -974,8 +974,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     src={
                       galleryMedia[activeMediaIndex]?.url ||
                       activeImages[0] ||
-                      product.images?.[0] ||
-                      'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'
+                      getProductCoverImage(product)
                     }
                     alt={product.title}
                     targetWidth={800}

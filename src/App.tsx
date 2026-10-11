@@ -10,7 +10,7 @@ import { Product, CartItem, Order, SizeVariant, ViewMode, Category, UserProfile 
 import { fetchProducts, fetchCategories, getCachedProducts, getCachedCategories, saveOrder, updateProduct, updateOrderEmailStatus, getSupabase, isSupabaseConfigured, subscribeToProductsAndSystemConfig } from './services/supabase';
 import { getLocalAuthUser, fetchUserProfile } from './services/auth';
 import { sendOrderEmails, fetchEmailTemplatesFromSupabase } from './services/emailjs';
-import { getActiveVariantImages, getItemEffectiveNormalPrice, getSelectedVariantStock, deductStockFromProduct } from './utils/variantHelpers';
+import { getActiveVariantImages, getItemEffectiveNormalPrice, getSelectedVariantStock, deductStockFromProduct, getProductCoverImage } from './utils/variantHelpers';
 import { slugifyCategory, reconcileCategoriesWithProducts } from './utils/categoryHelpers';
 import { recordSiteVisit } from './services/analytics';
 import { isQuickBuyCustomLinkActive, fetchQuickBuyLinkConfigFromSupabase } from './services/quickBuyLink';
@@ -509,7 +509,7 @@ export default function App() {
           true
         );
 
-        const resolvedImage = selectedImage || (product.images && product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
+        const resolvedImage = selectedImage || getProductCoverImage(product);
 
         const finalQty = maxAvailableStock > 0 ? Math.min(quantity, maxAvailableStock) : quantity;
 
@@ -545,7 +545,7 @@ export default function App() {
         selectedSizeVariant,
         true
       );
-      const resolvedImage = selectedImage || (product.images && product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
+      const resolvedImage = selectedImage || getProductCoverImage(product);
       const finalQty = maxAvailableStock > 0 ? Math.min(quantity, maxAvailableStock) : quantity;
 
       let variantSummary = '';
@@ -649,7 +649,7 @@ export default function App() {
           undefined,
           true
         );
-        const resolvedImage = selectedImage || (product.images && product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
+        const resolvedImage = selectedImage || getProductCoverImage(product);
         const newItem: CartItem = {
           id: itemId,
           productId: product.id,

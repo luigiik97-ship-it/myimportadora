@@ -3,7 +3,7 @@ import { CartItem, Order, UserProfile } from '../types';
 import { ShieldCheck, ArrowLeft, Loader2, Truck, Store, CreditCard, Banknote, AlertCircle, MapPin, Zap, User } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getShippingZoneInfo, ShippingOption } from '../utils/shipping';
-import { getItemEffectiveCashPrice, getItemEffectiveNormalPrice } from '../utils/variantHelpers';
+import { getItemEffectiveCashPrice, getItemEffectiveNormalPrice, getProductCoverImage } from '../utils/variantHelpers';
 import { AuthModal } from './AuthModal';
 import {
   buildShortOrderWhatsAppMessage,
@@ -434,7 +434,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           productId: item.productId,
           title: item.product.title,
           image: getOptimizedImageUrl(
-            item.selectedImage || (item.product.images && item.product.images[0]),
+            item.selectedImage || getProductCoverImage(item.product),
             { width: 300, quality: 70 }
           ),
           variantText: item.variantText,
@@ -1012,7 +1012,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                 <div key={item.id} className="flex items-start gap-2.5 sm:gap-3">
                   <img
                     src={getOptimizedImageUrl(
-                      item.selectedImage || (item.product.images && item.product.images[0]),
+                      item.selectedImage || getProductCoverImage(item.product),
                       { width: 160, quality: 70 }
                     )}
                     alt={item.product.title}

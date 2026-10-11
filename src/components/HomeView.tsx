@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Category } from '../types';
-import { isProductCompletelyOutOfStock } from '../utils/variantHelpers';
+import { isProductCompletelyOutOfStock, getProductCoverImage } from '../utils/variantHelpers';
 import { getStorefrontCategories } from '../utils/categoryHelpers';
 import { Truck, ArrowRight, ArrowLeftRight, Banknote, MapPin, Building2, Store, ChevronLeft, ChevronRight, Sparkles, ShieldCheck, Tag, Rocket } from 'lucide-react';
 import { ImageWithSkeleton } from './common/ImageWithSkeleton';
@@ -689,7 +689,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     {/* Product Thumbnail */}
                     <div className="relative aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
                       <ImageWithSkeleton
-                        src={(product.images && product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'}
+                        src={getProductCoverImage(product)}
                         alt={product.title}
                         priority={idx < 4}
                         fetchPriority={idx < 2 ? 'high' : 'auto'}
@@ -806,7 +806,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     {/* Thumbnail */}
                     <div className="relative aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
                       <ImageWithSkeleton
-                        src={(product.images && product.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'}
+                        src={getProductCoverImage(product)}
                         alt={product.title}
                         priority={itemIdx < 4}
                         fetchPriority={itemIdx < 2 ? 'high' : 'auto'}
