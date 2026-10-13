@@ -25,6 +25,10 @@ import {
   getLocalStoreVideos,
 } from '../../services/storeVideos';
 import { updateProduct } from '../../services/supabase';
+import {
+  optimizeCloudinaryVideoUrl,
+  getCloudinaryVideoPosterUrl,
+} from '../../utils/cloudinaryVideoOptimizer';
 
 interface VideoManagerProps {
   products: Product[];
@@ -344,7 +348,8 @@ export const VideoManager: React.FC<VideoManagerProps> = ({
               <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
                 <div className="w-14 aspect-[9/16] rounded-lg overflow-hidden bg-black shrink-0 relative border border-gray-300 shadow-2xs">
                   <video
-                    src={newUrl.trim()}
+                    src={optimizeCloudinaryVideoUrl(newUrl.trim(), { width: 480 })}
+                    poster={getCloudinaryVideoPosterUrl(newUrl.trim(), { width: 480 }) || undefined}
                     muted
                     autoPlay
                     loop
@@ -420,11 +425,12 @@ export const VideoManager: React.FC<VideoManagerProps> = ({
                 {/* 9:16 Video Thumbnail Box */}
                 <div className="aspect-[9/16] w-full bg-black relative overflow-hidden">
                   <video
-                    src={vid.videoUrl}
+                    src={optimizeCloudinaryVideoUrl(vid.videoUrl, { width: 480 })}
+                    poster={getCloudinaryVideoPosterUrl(vid.videoUrl, { width: 480 }) || undefined}
                     muted
                     loop
                     playsInline
-                    preload="metadata"
+                    preload="none"
                     className="w-full h-full object-cover"
                     onMouseEnter={(e) => {
                       try {
@@ -549,10 +555,12 @@ export const VideoManager: React.FC<VideoManagerProps> = ({
                 {/* Video mini preview */}
                 <div className="w-12 aspect-[9/16] rounded-lg overflow-hidden bg-black shrink-0 relative border border-gray-300">
                   <video
-                    src={prod.videoUrl}
+                    src={optimizeCloudinaryVideoUrl(prod.videoUrl, { width: 320 })}
+                    poster={getCloudinaryVideoPosterUrl(prod.videoUrl, { width: 320 }) || undefined}
                     muted
                     loop
                     playsInline
+                    preload="none"
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -606,7 +614,8 @@ export const VideoManager: React.FC<VideoManagerProps> = ({
             <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
               <div className="w-12 aspect-[9/16] rounded-lg overflow-hidden bg-black shrink-0 relative border border-gray-300">
                 <video
-                  src={videoToDelete.videoUrl}
+                  src={optimizeCloudinaryVideoUrl(videoToDelete.videoUrl, { width: 320 })}
+                  poster={getCloudinaryVideoPosterUrl(videoToDelete.videoUrl, { width: 320 }) || undefined}
                   muted
                   autoPlay
                   loop
@@ -763,7 +772,8 @@ export const VideoManager: React.FC<VideoManagerProps> = ({
                 <div className="pt-2">
                   <div className="aspect-[9/16] w-28 rounded-lg overflow-hidden bg-black mx-auto border border-gray-300 shadow-sm">
                     <video
-                      src={editingVideo.videoUrl}
+                      src={optimizeCloudinaryVideoUrl(editingVideo.videoUrl.trim(), { width: 480 })}
+                      poster={getCloudinaryVideoPosterUrl(editingVideo.videoUrl.trim(), { width: 480 }) || undefined}
                       muted
                       autoPlay
                       loop

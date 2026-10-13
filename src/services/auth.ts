@@ -54,6 +54,12 @@ export const saveLocalProfile = (profile: UserProfile) => {
  * Fetch profile from Supabase with local storage fallback
  */
 export const fetchUserProfile = async (userId: string, email?: string): Promise<UserProfile | null> => {
+  const localAuth = getLocalAuthUser();
+  if (localAuth && localAuth.id !== userId && (!email || localAuth.email.toLowerCase() !== email.toLowerCase())) {
+    console.warn('[SEGURIDAD] Intento no autorizado de consultar el perfil de otro usuario.');
+    return null;
+  }
+
   const supabase = getSupabase();
 
   if (isSupabaseConfigured() && supabase) {

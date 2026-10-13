@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { X, ChevronLeft, ChevronRight, Play } from 'lucide-react';
+import {
+  getCloudinaryVideoPosterUrl,
+  optimizeCloudinaryVideoUrl,
+} from '../../utils/cloudinaryVideoOptimizer';
 
 export interface LightboxMediaItem {
   type: 'image' | 'video';
@@ -379,13 +383,26 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
                   transition: isDragging ? 'none' : 'transform 250ms ease-out',
                 }}
               >
-                <video
-                  src={`${currentItem.url}#t=0.001`}
-                  preload="metadata"
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover select-none pointer-events-none"
-                />
+                {(() => {
+                  const posterUrl = getCloudinaryVideoPosterUrl(currentItem.url, { width: 720 });
+                  const optimizedUrl = optimizeCloudinaryVideoUrl(currentItem.url, { width: 720 });
+
+                  return posterUrl ? (
+                    <img
+                      src={posterUrl}
+                      alt="Vista previa de video"
+                      className="w-full h-full object-cover select-none pointer-events-none"
+                    />
+                  ) : (
+                    <video
+                      src={optimizedUrl || `${currentItem.url}#t=0.001`}
+                      preload="none"
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover select-none pointer-events-none"
+                    />
+                  );
+                })()}
                 {/* Play Button Overlay */}
                 <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 transition-colors flex flex-col items-center justify-center gap-3">
                   <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/95 group-hover:bg-white text-gray-950 flex items-center justify-center shadow-2xl transition-transform group-hover:scale-110 active:scale-95">

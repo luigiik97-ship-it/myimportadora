@@ -14,6 +14,11 @@ import { ProductCardPrice } from './ProductCardPrice';
 import { ImageWithSkeleton } from './ImageWithSkeleton';
 import { isProductCompletelyOutOfStock } from '../../utils/variantHelpers';
 import { ShareModal } from './ShareModal';
+import {
+  optimizeCloudinaryVideoUrl,
+  getCloudinaryVideoPosterUrl,
+  preloadVideo,
+} from '../../utils/cloudinaryVideoOptimizer';
 
 interface VideoViewerModalProps {
   isOpen: boolean;
@@ -143,6 +148,21 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
     }
   }, [currentIndex, isOpen, isMuted]);
 
+  // Precarga suave en segundo plano del video siguiente (y anterior) para que el deslizamiento vertical sea 100% instantáneo
+  useEffect(() => {
+    if (!isOpen || videos.length <= 1) return;
+    const nextIdx = (currentIndex + 1) % videos.length;
+    if (videos[nextIdx]?.videoUrl) {
+      preloadVideo(videos[nextIdx].videoUrl, 720);
+    }
+    if (videos.length > 2) {
+      const prevIdx = (currentIndex - 1 + videos.length) % videos.length;
+      if (videos[prevIdx]?.videoUrl) {
+        preloadVideo(videos[prevIdx].videoUrl, 720);
+      }
+    }
+  }, [currentIndex, isOpen, videos]);
+
   // Touch swipe handling for Reels navigation: ONLY vertical swipe is allowed
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
@@ -209,16 +229,24 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* HTML5 Video Element (Loops continuously, audio on by default) */}
-        <video
-          ref={videoRef}
-          key={currentVideo.videoUrl}
-          src={currentVideo.videoUrl}
-          playsInline
-          preload="metadata"
-          loop={true}
-          className="w-full h-full object-cover cursor-pointer"
-          onClick={togglePlay}
-        />
+        {(() => {
+          const optimizedVideoUrl = optimizeCloudinaryVideoUrl(currentVideo.videoUrl, { width: 720 });
+          const posterUrl = getCloudinaryVideoPosterUrl(currentVideo.videoUrl, { width: 720 });
+
+          return (
+            <video
+              ref={videoRef}
+              key={optimizedVideoUrl}
+              src={optimizedVideoUrl}
+              poster={posterUrl || undefined}
+              playsInline
+              preload="auto"
+              loop={true}
+              className="w-full h-full object-cover cursor-pointer"
+              onClick={togglePlay}
+            />
+          );
+        })()}
 
         {/* Top Gradient Overlay */}
         <div className="absolute top-0 inset-x-0 h-28 bg-gradient-to-b from-black/80 via-black/30 to-transparent pointer-events-none z-10" />

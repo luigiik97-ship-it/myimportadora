@@ -21,6 +21,11 @@ import { VideoViewerModal } from './common/VideoViewerModal';
 import { ProductCardBadge } from './common/ProductCardBadge';
 import { ShareModal } from './common/ShareModal';
 import { StoreVideo } from '../types';
+import {
+  optimizeCloudinaryVideoUrl,
+  getCloudinaryVideoPosterUrl,
+  isCloudinaryVideoUrl,
+} from '../utils/cloudinaryVideoOptimizer';
 import { usePurchaseMode } from '../context/PurchaseModeContext';
 import { getStoreSettings, StoreSettings } from '../services/storeSettings';
 import { getLocalStoreVideos } from '../services/storeVideos';
@@ -843,6 +848,8 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 const isActive = activeMediaIndex === idx;
 
                 if (item.type === 'video') {
+                  const posterThumbUrl = getCloudinaryVideoPosterUrl(item.url, { width: 160 });
+
                   return (
                     <button
                       key="thumb-video-item"
@@ -858,13 +865,23 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                       }`}
                       title="Ver video del producto (pantalla completa Reels)"
                     >
-                      <video
-                        src={`${item.url}#t=0.001`}
-                        preload="metadata"
-                        playsInline
-                        muted
-                        className="w-full h-full object-cover rounded-sm pointer-events-none"
-                      />
+                      {posterThumbUrl ? (
+                        <img
+                          src={posterThumbUrl}
+                          alt="Miniatura video"
+                          loading="lazy"
+                          decoding="async"
+                          className="w-full h-full object-cover rounded-sm pointer-events-none"
+                        />
+                      ) : (
+                        <video
+                          src={`${item.url}#t=0.001`}
+                          preload="none"
+                          playsInline
+                          muted
+                          className="w-full h-full object-cover rounded-sm pointer-events-none"
+                        />
+                      )}
                       <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
                         <div className="w-6 h-6 rounded-full bg-white/90 text-gray-900 flex items-center justify-center shadow-xs">
                           <Play className="w-3.5 h-3.5 ml-0.5 fill-gray-900 text-gray-900" />
@@ -948,17 +965,26 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               </button>
               {galleryMedia[activeMediaIndex]?.type === 'video' ? (
                 <div className="relative aspect-[9/16] h-full max-h-[390px] sm:max-h-[440px] md:max-h-[460px] max-w-full bg-black rounded-none sm:rounded-xl overflow-hidden shadow-md flex items-center justify-center">
-                  <video
-                    ref={showcaseVideoRef}
-                    src={galleryMedia[activeMediaIndex].url}
-                    autoPlay
-                    muted
-                    playsInline
-                    onEnded={() => setIsShowcaseVideoPlaying(false)}
-                    onPause={() => setIsShowcaseVideoPlaying(false)}
-                    onPlay={() => setIsShowcaseVideoPlaying(true)}
-                    className="w-full h-full object-cover cursor-pointer"
-                  />
+                  {(() => {
+                    const videoSrc = galleryMedia[activeMediaIndex].url;
+                    const optimizedUrl = optimizeCloudinaryVideoUrl(videoSrc, { width: 720 });
+                    const posterUrl = getCloudinaryVideoPosterUrl(videoSrc, { width: 720 });
+
+                    return (
+                      <video
+                        ref={showcaseVideoRef}
+                        src={optimizedUrl}
+                        poster={posterUrl || undefined}
+                        autoPlay
+                        muted
+                        playsInline
+                        onEnded={() => setIsShowcaseVideoPlaying(false)}
+                        onPause={() => setIsShowcaseVideoPlaying(false)}
+                        onPlay={() => setIsShowcaseVideoPlaying(true)}
+                        className="w-full h-full object-cover cursor-pointer"
+                      />
+                    );
+                  })()}
                   {!isShowcaseVideoPlaying && (
                     <div className="absolute inset-0 bg-black/35 flex items-center justify-center pointer-events-none">
                       <div className="w-14 h-14 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-xs border border-white/20 shadow-xl">

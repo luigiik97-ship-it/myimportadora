@@ -7,9 +7,8 @@ import {
   useLocation,
 } from 'react-router-dom';
 import { Product, CartItem, Order, SizeVariant, ViewMode, Category, UserProfile } from './types';
-import { fetchProducts, fetchCategories, getCachedProducts, getCachedCategories, saveOrder, updateProduct, updateOrderEmailStatus, getSupabase, isSupabaseConfigured, subscribeToProductsAndSystemConfig } from './services/supabase';
+import { fetchProducts, fetchCategories, getCachedProducts, getCachedCategories, saveOrder, updateProduct, getSupabase, isSupabaseConfigured, subscribeToProductsAndSystemConfig } from './services/supabase';
 import { getLocalAuthUser, fetchUserProfile } from './services/auth';
-import { sendOrderEmails, fetchEmailTemplatesFromSupabase } from './services/emailjs';
 import { getActiveVariantImages, getItemEffectiveNormalPrice, getSelectedVariantStock, deductStockFromProduct, getProductCoverImage } from './utils/variantHelpers';
 import { slugifyCategory, reconcileCategoriesWithProducts } from './utils/categoryHelpers';
 import { recordSiteVisit } from './services/analytics';
@@ -416,7 +415,6 @@ export default function App() {
       },
       onSystemConfigChanged: () => {
         fetchQuickBuyLinkConfigFromSupabase().catch(() => {});
-        fetchEmailTemplatesFromSupabase().catch(() => {});
         fetchStoreBannersFromSupabase().catch(() => {});
         fetchStoreVideosFromSupabase().catch(() => {});
         fetchShippingConfigFromSupabase().catch(() => {});
@@ -446,10 +444,9 @@ export default function App() {
     loadData(false);
   }, [location.pathname]);
 
-  // Cargar configuraciones compartidas desde Supabase (Compra Rápida, Plantillas, Banners, Videos, Envíos, Ajustes de Tienda y Próximos Lanzamientos)
+  // Cargar configuraciones compartidas desde Supabase (Compra Rápida, Banners, Videos, Envíos, Ajustes de Tienda y Próximos Lanzamientos)
   useEffect(() => {
     fetchQuickBuyLinkConfigFromSupabase().catch(() => {});
-    fetchEmailTemplatesFromSupabase().catch(() => {});
     fetchStoreBannersFromSupabase().catch(() => {});
     fetchStoreVideosFromSupabase().catch(() => {});
     fetchShippingConfigFromSupabase().catch(() => {});
@@ -740,17 +737,6 @@ export default function App() {
     } catch (err) {
       console.warn('Error actualizando stock tras guardar pedido:', err);
     }
-
-    // 3. Envío asíncrono en segundo plano de EmailJS para no bloquear la redirección ni el enlace de WhatsApp
-    sendOrderEmails(savedOrder)
-      .then(async (emailResult) => {
-        savedOrder.emailSentToCustomer = emailResult.customerSuccess;
-        savedOrder.emailSentToAdmin = emailResult.adminSuccess;
-        await updateOrderEmailStatus(savedOrder.id, emailResult.customerSuccess, emailResult.adminSuccess);
-      })
-      .catch((e) => {
-        console.warn('Error enviando correos con EmailJS en segundo plano:', e);
-      });
 
     return savedOrder;
   };

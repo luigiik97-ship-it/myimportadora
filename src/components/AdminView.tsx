@@ -38,7 +38,6 @@ import {
   subscribeToOrders,
   subscribeToProductsAndSystemConfig,
   updateOrderStatus,
-  updateOrderEmailStatus,
   updateOrder,
   deleteOrder,
   isSupabaseConfigured,
@@ -46,15 +45,13 @@ import {
   SUPABASE_MIGRATION_SQL,
   testSupabaseImagesPersistence,
 } from '../services/supabase';
-import {
-  isEmailJsConfigured,
-  sendOrderEmails,
-} from '../services/emailjs';
-import { OptimizationResult } from '../utils/imageOptimizer';
-import { EmailTemplateManager } from './admin/EmailTemplateManager';
 import { AnalyticsDashboard } from './admin/AnalyticsDashboard';
 import { BannerManager } from './admin/BannerManager';
 import { VideoManager } from './admin/VideoManager';
+import {
+  optimizeCloudinaryVideoUrl,
+  getCloudinaryVideoPosterUrl,
+} from '../utils/cloudinaryVideoOptimizer';
 import { isLaunchesSectionVisible, fetchLaunchesVisibilityFromSupabase, LAUNCHES_VISIBILITY_EVENT } from '../services/launches';
 import { ShippingConfigManager } from './admin/ShippingConfigManager';
 import { QuickBuyLinkManager, OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
@@ -176,6 +173,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return isAdminAuthenticated();
   });
+  const [adminUserInput, setAdminUserInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -319,7 +317,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     message: string;
   } | null>(null);
   const [isTestingDiagnostic, setIsTestingDiagnostic] = useState(false);
-  const [isResendingOrderEmail, setIsResendingOrderEmail] = useState(false);
 
   // In-app deletion modals (reliable, replaces blocked window.confirm)
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
@@ -333,11 +330,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     if (lockoutRemaining > 0) return;
 
     try {
-      const result = await authenticateAdmin(passwordInput);
+      const result = await authenticateAdmin(adminUserInput, passwordInput);
       if (result.success) {
         setIsAuthenticated(true);
         setAuthError(null);
         setPasswordInput('');
+        setAdminUserInput('');
         setFailedAttempts(0);
       } else {
         const nextAttempts = failedAttempts + 1;
@@ -382,9 +380,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
-      loadData();
-    }
+    if (!isAuthenticated) return;
+
+    loadData();
 
     // Suscripción en tiempo real a la tabla 'orders' de Supabase (cross-device instantáneo)
     const unsubscribeOrders = subscribeToOrders((latestOrders) => {
@@ -1213,6 +1211,25 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="text-xs font-semibold text-gray-700 block mb-1">
+                Usuario o Correo de Administrador
+              </label>
+              <input
+                id="admin-username-input"
+                type="text"
+                required
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck="false"
+                disabled={lockoutRemaining > 0}
+                value={adminUserInput}
+                onChange={(e) => setAdminUserInput(e.target.value)}
+                placeholder="admin@myimportadora.com o admin"
+                className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-gray-700 block mb-1">
                 Contraseña de Administrador
               </label>
               <div className="relative">
@@ -1291,11 +1308,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
               <span className="flex items-center gap-1">
                 <Database className="w-3.5 h-3.5 text-[#0058bb]" />
                 Supabase: {isSupabaseConfigured() ? 'Conectado ✓' : 'Modo Local / Storage'}
-              </span>
-              <span>•</span>
-              <span className="flex items-center gap-1">
-                <Mail className="w-3.5 h-3.5 text-[#00a650]" />
-                EmailJS: {isEmailJsConfigured() ? 'Activo ✓' : 'Simulación Activa'}
               </span>
             </div>
           </div>
@@ -1600,7 +1612,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
           }`}
         >
           <Settings className="w-4 h-4" />
-          Supabase & EmailJS
+          Integración Supabase
         </button>
       </div>
 
@@ -2183,9 +2195,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
         </div>
       )}
 
-      {/* TAB 3: INTEGRACIONES SUPABASE & EMAILJS */}
+      {/* TAB 3: INTEGRACIÓN SUPABASE */}
       {activeTab === 'integrations' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="max-w-3xl">
           {/* Supabase Box */}
           <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
@@ -2307,9 +2319,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
               )}
             </div>
           </div>
-
-          {/* EmailJS Modern Template Manager */}
-          <EmailTemplateManager orders={orders} products={products} />
         </div>
       )}
 
@@ -2905,7 +2914,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                   <div className="flex items-center gap-3 pt-1">
                     <div className="aspect-[9/16] w-20 rounded-lg overflow-hidden bg-black border border-gray-300 relative shrink-0">
                       <video
-                        src={editingProduct.videoUrl.trim()}
+                        src={optimizeCloudinaryVideoUrl(editingProduct.videoUrl.trim(), { width: 480 })}
+                        poster={getCloudinaryVideoPosterUrl(editingProduct.videoUrl.trim(), { width: 480 }) || undefined}
                         muted
                         autoPlay
                         loop
@@ -3439,27 +3449,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                   <MessageSquare className="w-3.5 h-3.5" />
                   WhatsApp Cliente
                 </a>
-
-                <button
-                  type="button"
-                  disabled={isResendingOrderEmail}
-                  onClick={async () => {
-                    setIsResendingOrderEmail(true);
-                    try {
-                      const emailResult = await sendOrderEmails(selectedOrder);
-                      await updateOrderEmailStatus(selectedOrder.id, emailResult.customerSuccess, emailResult.adminSuccess);
-                      alert(`✓ Emails de notificación reenviados para el Pedido #${selectedOrder.orderNumber}`);
-                    } catch (err: any) {
-                      alert(`✕ Error al reenviar: ${err.message}`);
-                    } finally {
-                      setIsResendingOrderEmail(false);
-                    }
-                  }}
-                  className="bg-blue-50 hover:bg-blue-100 text-[#0058bb] border border-blue-200 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  <Mail className="w-3.5 h-3.5" />
-                  {isResendingOrderEmail ? 'Reenviando...' : 'Reenviar Notificaciones'}
-                </button>
               </div>
 
               <button

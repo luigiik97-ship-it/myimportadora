@@ -1,6 +1,11 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Play, ChevronLeft, ChevronRight } from 'lucide-react';
 import { StoreVideo } from '../types';
+import {
+  optimizeCloudinaryVideoUrl,
+  getCloudinaryVideoPosterUrl,
+  preloadVideo,
+} from '../utils/cloudinaryVideoOptimizer';
 
 interface HomeReelsCarouselProps {
   videos: StoreVideo[];
@@ -91,6 +96,16 @@ export const HomeReelsCarousel: React.FC<HomeReelsCarouselProps> = ({
     setActivePlayingIndex(nextIndex);
     scrollToCard(nextIndex);
   };
+
+  // Precargar activamente el siguiente video en la cadena para transición continua y sin latencia
+  useEffect(() => {
+    if (!isCarouselInView || videos.length <= 1) return;
+    const nextIdx = (activePlayingIndex + 1) % videos.length;
+    const nextVid = videos[nextIdx];
+    if (nextVid?.videoUrl) {
+      preloadVideo(nextVid.videoUrl, 720);
+    }
+  }, [activePlayingIndex, isCarouselInView, videos]);
 
   const scrollToCard = (index: number) => {
     const container = containerRef.current;
@@ -184,6 +199,14 @@ export const HomeReelsCarousel: React.FC<HomeReelsCarouselProps> = ({
       >
         {videos.map((vid, idx) => {
           const isActive = idx === activePlayingIndex && isCarouselInView;
+          const isNextInChain = idx === (activePlayingIndex + 1) % videos.length;
+          const isPrev = idx === (activePlayingIndex - 1 + videos.length) % videos.length;
+          // Optimizar resolución canónica a 720p y poster estático para cero consumo en reposo
+          const optimizedUrl = optimizeCloudinaryVideoUrl(vid.videoUrl, { width: 720 });
+          const posterUrl = getCloudinaryVideoPosterUrl(vid.videoUrl, { width: 480 });
+          const preloadMode = isCarouselInView
+            ? (isActive || isNextInChain ? 'auto' : isPrev ? 'metadata' : 'none')
+            : 'none';
 
           return (
             <div
@@ -195,9 +218,10 @@ export const HomeReelsCarousel: React.FC<HomeReelsCarouselProps> = ({
               {/* Cloudinary MP4 Video Element (Always muted on Home) */}
               <video
                 ref={(el) => (videoRefs.current[idx] = el)}
-                src={vid.videoUrl}
+                src={optimizedUrl}
+                poster={posterUrl || undefined}
                 playsInline
-                preload="metadata"
+                preload={preloadMode}
                 loop={false}
                 muted={true}
                 onEnded={() => handleVideoEnded(idx)}

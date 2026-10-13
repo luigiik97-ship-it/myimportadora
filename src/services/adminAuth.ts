@@ -114,21 +114,27 @@ export const verifyAdminPassword = (passwordInput: string): boolean => {
   return false;
 };
 
-// Compatibilidad de exportación
-export const getAdminPasswords = (): string[] => {
-  const envPass = typeof import.meta !== 'undefined' && import.meta.env?.VITE_ADMIN_PASSWORD;
-  const list = ['yugar'];
-  if (envPass && typeof envPass === 'string') {
-    const cleaned = envPass.replace(/^["']|["']$/g, '').trim();
-    if (cleaned && !list.includes(cleaned)) {
-      list.push(cleaned);
-    }
-  }
-  return list;
-};
+/**
+ * Valida el usuario/correo de administrador contrastándolo contra el correo oficial configurado.
+ * Admite 'admin@myimportadora.com', 'admin' o la variable VITE_ADMIN_EMAIL.
+ */
+export const verifyAdminUsername = (userInput: string): boolean => {
+  if (!userInput || typeof userInput !== 'string') return false;
+  const clean = userInput
+    .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '')
+    .trim()
+    .toLowerCase();
+  if (!clean) return false;
 
-export const getAdminPassword = (): string => {
-  return 'yugar';
+  const envEmail = (
+    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_ADMIN_EMAIL) ||
+    'admin@myimportadora.com'
+  )
+    .replace(/^["']|["']$/g, '')
+    .trim()
+    .toLowerCase();
+
+  return clean === envEmail || clean === 'admin' || clean === 'admin@myimportadora.com';
 };
 
 /**
@@ -228,15 +234,25 @@ export const isAdminAuthenticated = (): boolean => {
 };
 
 /**
- * Autentica al administrador verificando su contraseña y generando una sesión firmada
+ * Autentica al administrador verificando su usuario y contraseña,
+ * generando una sesión firmada y sincronizando la sesión con Supabase Auth si está conectado.
  */
 export const authenticateAdmin = async (
-  passwordInput: string
+  userInput: string,
+  passwordInput?: string
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    const isValid = verifyAdminPassword(passwordInput);
+    // Si se pasa un solo argumento por compatibilidad, asumirlo como contraseña y validar con usuario predeterminado
+    const effectiveUser = passwordInput !== undefined ? userInput : 'admin@myimportadora.com';
+    const effectivePass = passwordInput !== undefined ? passwordInput : userInput;
 
-    if (!isValid) {
+    const isUserValid = verifyAdminUsername(effectiveUser);
+    if (!isUserValid) {
+      return { success: false, error: 'Usuario o correo de administrador incorrecto.' };
+    }
+
+    const isPassValid = verifyAdminPassword(effectivePass);
+    if (!isPassValid) {
       return { success: false, error: 'Contraseña de administrador incorrecta.' };
     }
 
@@ -251,6 +267,45 @@ export const authenticateAdmin = async (
     setStorageItem(ADMIN_SESSION_SIG_KEY, sig);
     setStorageItem(ADMIN_SESSION_EXPIRY_KEY, expiry.toString());
 
+    // Sincronización transparente con Supabase Auth para elevar permisos a nivel RLS
+    try {
+      const { getSupabase, isSupabaseConfigured } = await import('./supabase');
+      const supabase = getSupabase();
+      if (isSupabaseConfigured() && supabase) {
+        const cleanAdminEmail = (
+          (typeof import.meta !== 'undefined' && import.meta.env?.VITE_ADMIN_EMAIL) ||
+          'admin@myimportadora.com'
+        )
+          .replace(/^["']|["']$/g, '')
+          .trim()
+          .toLowerCase();
+
+        const { error: signInErr } = await supabase.auth.signInWithPassword({
+          email: cleanAdminEmail,
+          password: effectivePass.trim(),
+        });
+
+        if (signInErr) {
+          // Si el usuario admin aún no existe en Supabase Auth, intentamos auto-registrarlo
+          try {
+            await supabase.auth.signUp({
+              email: cleanAdminEmail,
+              password: effectivePass.trim(),
+              options: {
+                data: {
+                  is_admin: true,
+                  role: 'admin',
+                  full_name: 'Administrador MY',
+                },
+              },
+            });
+          } catch (signUpErr) {}
+        }
+      }
+    } catch (sbErr) {
+      // Continuar con la sesión de administrador firmada localmente
+    }
+
     return { success: true };
   } catch (err: any) {
     console.error('Error durante autenticación admin:', err);
@@ -259,7 +314,7 @@ export const authenticateAdmin = async (
 };
 
 /**
- * Cierra la sesión del administrador y elimina todas las credenciales
+ * Cierra la sesión del administrador y elimina todas las credenciales tanto en local como en Supabase Auth
  */
 export const clearAdminSession = (): void => {
   memoryAdminAuthenticated = false;
@@ -268,6 +323,15 @@ export const clearAdminSession = (): void => {
   removeStorageItem(ADMIN_SESSION_SIG_KEY);
   removeStorageItem(ADMIN_SESSION_EXPIRY_KEY);
   removeStorageItem('my_admin_auth');
+
+  try {
+    import('./supabase').then(({ getSupabase, isSupabaseConfigured }) => {
+      const supabase = getSupabase();
+      if (isSupabaseConfigured() && supabase) {
+        supabase.auth.signOut().catch(() => {});
+      }
+    }).catch(() => {});
+  } catch (e) {}
 };
 
 /**
