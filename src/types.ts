@@ -9,6 +9,8 @@ export interface VariantOption {
   retailCashPrice?: number; // Optional retail cash price override
   wholesaleCashPrice?: number; // Optional wholesale cash price override
   sku?: string;
+  outOfStockBadge?: 'none' | 'sin_stock' | 'proximamente' | 'custom_date';
+  customBadgeText?: string; // e.g. "Disponible 25/10" o texto personalizado
 }
 
 export interface VariantType {
@@ -28,6 +30,8 @@ export interface SizeVariant {
   retailCashPrice?: number; // Optional retail cash price override
   wholesaleCashPrice?: number; // Optional wholesale cash price override
   sku?: string;
+  outOfStockBadge?: 'none' | 'sin_stock' | 'proximamente' | 'custom_date';
+  customBadgeText?: string;
 }
 
 export interface ProductSpec {
@@ -286,5 +290,19 @@ export interface LaunchCustomerProposal {
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
   adminNotes?: string;
+}
+
+export interface StockNotification {
+  id: string;
+  productId: string;
+  productTitle: string;
+  variantId?: string;
+  variantName: string;
+  phone: string;
+  customerName?: string;
+  userId?: string;
+  status: 'pending' | 'notified';
+  createdAt: string;
+  notifiedAt?: string;
 }
 

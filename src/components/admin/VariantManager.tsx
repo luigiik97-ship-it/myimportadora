@@ -15,6 +15,8 @@ import {
   Check,
   RefreshCw,
   X,
+  Tag,
+  Calendar,
 } from 'lucide-react';
 import { ImageOptimizationBadge } from './ImageOptimizationBadge';
 
@@ -677,6 +679,68 @@ export const VariantManager: React.FC<VariantManagerProps> = ({
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
+                      </div>
+
+                      {/* Configuración de Estado Visual sobre la Imagen (Sin stock / Próximamente / Fecha de llegada) */}
+                      <div className="mt-2 pt-2 border-t border-gray-200/80 flex flex-wrap items-center justify-between gap-2 text-xs bg-amber-50/40 rounded-lg p-2 border border-amber-200/60">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[11px] font-bold text-gray-700 flex items-center gap-1">
+                            <Tag className="w-3 h-3 text-amber-600" />
+                            Etiqueta en imagen (sin stock):
+                          </span>
+                          <select
+                            value={option.outOfStockBadge || 'sin_stock'}
+                            onChange={(e) => {
+                              const val = e.target.value as 'sin_stock' | 'proximamente' | 'custom_date' | 'none';
+                              handleUpdateOption(vtIdx, optIdx, 'outOfStockBadge', val);
+                              if (val === 'custom_date' && !option.customBadgeText) {
+                                handleUpdateOption(vtIdx, optIdx, 'customBadgeText', 'Disponible 25/10');
+                              }
+                            }}
+                            className="text-xs border border-amber-300 rounded px-2 py-1 bg-white font-semibold text-gray-800 focus:ring-1 focus:ring-amber-500 cursor-pointer"
+                          >
+                            <option value="sin_stock">🔴 "Sin stock"</option>
+                            <option value="proximamente">🟠 "Próximamente"</option>
+                            <option value="custom_date">🔵 Fecha estimada / Personalizado</option>
+                            <option value="none">⚪ Sin etiqueta</option>
+                          </select>
+
+                          {option.outOfStockBadge === 'custom_date' && (
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                              <input
+                                type="text"
+                                placeholder="Ej: Disponible 25/10"
+                                value={option.customBadgeText || ''}
+                                onChange={(e) =>
+                                  handleUpdateOption(vtIdx, optIdx, 'customBadgeText', e.target.value)
+                                }
+                                className="w-36 text-xs border border-blue-300 rounded px-2 py-1 bg-white font-bold text-blue-900 placeholder:font-normal placeholder:text-gray-400 focus:ring-1 focus:ring-blue-500"
+                                title="Texto que aparecerá sobre la imagen (ej: Disponible 25/10)"
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Vista previa en miniatura de la etiqueta */}
+                        <div className="flex items-center gap-1.5 text-[11px]">
+                          <span className="text-gray-400 font-medium">Muestra:</span>
+                          {option.outOfStockBadge === 'proximamente' ? (
+                            <span className="bg-black text-white font-black px-2 py-0.5 rounded text-[10px] tracking-wide uppercase shadow-2xs">
+                              Próximamente
+                            </span>
+                          ) : option.outOfStockBadge === 'custom_date' ? (
+                            <span className="bg-black text-white font-black px-2 py-0.5 rounded text-[10px] tracking-wide uppercase shadow-2xs">
+                              {option.customBadgeText?.trim() || 'Disponible 25/10'}
+                            </span>
+                          ) : option.outOfStockBadge === 'none' ? (
+                            <span className="text-gray-400 italic text-[10px]">Sin etiqueta</span>
+                          ) : (
+                            <span className="bg-black text-white font-black px-2 py-0.5 rounded text-[10px] tracking-wide uppercase shadow-2xs">
+                              Sin stock
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Expandable Image Gallery for this specific Variant Option */}

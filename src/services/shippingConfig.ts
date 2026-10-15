@@ -31,11 +31,26 @@ export interface CustomPostalCodeRule {
   note?: string;
 }
 
+export interface ShippingCutoffTimes {
+  uber_moto: string; // ej. "12:00"
+  envio_flex: string; // ej. "14:00"
+  correo_argentino: string; // ej. "16:00"
+  correo_sucursal: string; // ej. "16:00"
+}
+
+export const DEFAULT_CUTOFF_TIMES: ShippingCutoffTimes = {
+  uber_moto: '12:00',
+  envio_flex: '14:00',
+  correo_argentino: '16:00',
+  correo_sucursal: '16:00',
+};
+
 export interface ShippingConfig {
   version: number;
   lastUpdated: string;
   zones: Record<ShippingZoneId, ShippingZoneConfig>;
   customPostalCodeRules: CustomPostalCodeRule[];
+  cutoffTimes?: ShippingCutoffTimes;
 }
 
 export const STORAGE_KEY_SHIPPING_CONFIG = 'my_commerce_shipping_config_v1';
@@ -44,6 +59,7 @@ export const SYSTEM_SHIPPING_CONFIG_ROW_ID = '__system_shipping_config_v1__';
 export const DEFAULT_SHIPPING_CONFIG: ShippingConfig = {
   version: 1,
   lastUpdated: new Date().toISOString(),
+  cutoffTimes: { ...DEFAULT_CUTOFF_TIMES },
   zones: {
     caba: {
       id: 'caba',
@@ -251,6 +267,10 @@ export const getShippingConfig = (): ShippingConfig => {
           customPostalCodeRules: Array.isArray(parsed.customPostalCodeRules)
             ? parsed.customPostalCodeRules
             : [],
+          cutoffTimes: {
+            ...DEFAULT_CUTOFF_TIMES,
+            ...(parsed.cutoffTimes || {}),
+          },
         };
       }
     }
@@ -391,6 +411,10 @@ export const fetchShippingConfigFromSupabase = async (force = false): Promise<Sh
                 customPostalCodeRules: Array.isArray(parsed.customPostalCodeRules)
                   ? parsed.customPostalCodeRules
                   : [],
+                cutoffTimes: {
+                  ...DEFAULT_CUTOFF_TIMES,
+                  ...(parsed.cutoffTimes || {}),
+                },
               };
               cachedShippingConfig = merged;
               lastShippingFetchTime = Date.now();

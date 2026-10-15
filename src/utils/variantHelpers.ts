@@ -42,6 +42,8 @@ export function normalizeVariantTypes(product: Partial<Product> | any): VariantT
           retailCashPrice: opt.retailCashPrice !== undefined && opt.retailCashPrice !== null && !isNaN(Number(opt.retailCashPrice)) ? Number(opt.retailCashPrice) : undefined,
           wholesaleCashPrice: opt.wholesaleCashPrice !== undefined && opt.wholesaleCashPrice !== null && !isNaN(Number(opt.wholesaleCashPrice)) ? Number(opt.wholesaleCashPrice) : undefined,
           sku: opt.sku || undefined,
+          outOfStockBadge: opt.outOfStockBadge || undefined,
+          customBadgeText: opt.customBadgeText || undefined,
         })),
       }));
 
@@ -171,8 +173,9 @@ export function normalizeVariantTypes(product: Partial<Product> | any): VariantT
         retailPrice: sv.retailPrice !== undefined ? Number(sv.retailPrice) : undefined,
         cashPrice: sv.cashPrice !== undefined && sv.cashPrice !== null ? Number(sv.cashPrice) : undefined,
         retailCashPrice: sv.retailCashPrice !== undefined && sv.retailCashPrice !== null ? Number(sv.retailCashPrice) : undefined,
-        wholesaleCashPrice: sv.wholesaleCashPrice !== undefined && sv.wholesaleCashPrice !== null ? Number(sv.wholesaleCashPrice) : undefined,
         sku: sv.sku || undefined,
+        outOfStockBadge: sv.outOfStockBadge || undefined,
+        customBadgeText: sv.customBadgeText || undefined,
       })),
     });
   }
@@ -275,6 +278,8 @@ export function syncLegacyFields(
         retailCashPrice: o.retailCashPrice !== undefined ? o.retailCashPrice : fallbackRetailCashPrice,
         wholesaleCashPrice: o.wholesaleCashPrice !== undefined ? o.wholesaleCashPrice : fallbackWholesaleCashPrice,
         sku: o.sku,
+        outOfStockBadge: o.outOfStockBadge,
+        customBadgeText: o.customBadgeText,
       }));
       colors = [];
     } else {
@@ -291,6 +296,8 @@ export function syncLegacyFields(
         retailCashPrice: o.retailCashPrice !== undefined ? o.retailCashPrice : fallbackRetailCashPrice,
         wholesaleCashPrice: o.wholesaleCashPrice !== undefined ? o.wholesaleCashPrice : fallbackWholesaleCashPrice,
         sku: o.sku,
+        outOfStockBadge: o.outOfStockBadge,
+        customBadgeText: o.customBadgeText,
       }));
     }
   } else if (variantTypes.length >= 2) {
@@ -312,6 +319,8 @@ export function syncLegacyFields(
         retailCashPrice: o.retailCashPrice !== undefined ? o.retailCashPrice : fallbackRetailCashPrice,
         wholesaleCashPrice: o.wholesaleCashPrice !== undefined ? o.wholesaleCashPrice : fallbackWholesaleCashPrice,
         sku: o.sku,
+        outOfStockBadge: o.outOfStockBadge,
+        customBadgeText: o.customBadgeText,
       }));
     }
   }
@@ -509,6 +518,87 @@ export function getSelectedVariantStock(
 
   // If no variant options defined a specific stock, return product general stock
   return Math.max(0, Number(product.stock ?? 0));
+}
+
+/**
+ * Resolves the visual badge to display over the product image when the actively selected variant is out of stock.
+ * Supports per-variant settings:
+ * - "Sin stock" (red #dc2626)
+ * - "Próximamente" (amber #d97706)
+ * - "Disponible 25/10" / Custom arrival date (indigo/blue #2563eb)
+ * Returns null if the selected variant is in stock.
+ */
+export function getActiveVariantOutOfStockBadge(
+  product: Product | Partial<Product> | null | undefined,
+  selectedOptionNames: Record<string, string> = {}
+): { label: string; color: string; badgeType: 'sin_stock' | 'proximamente' | 'custom_date' } | null {
+  if (!product) return null;
+
+  const currentStock = getSelectedVariantStock(product, selectedOptionNames);
+  if (currentStock > 0) {
+    return null; // In stock: no out-of-stock badge
+  }
+
+  // Find the controlling or selected variant options
+  const variantTypes = normalizeVariantTypes(product);
+  for (const vt of variantTypes) {
+    const selectedName =
+      selectedOptionNames[vt.id] ||
+      selectedOptionNames[vt.name] ||
+      Object.entries(selectedOptionNames).find(
+        ([k]) => k.toLowerCase() === vt.id.toLowerCase() || k.toLowerCase() === vt.name.toLowerCase()
+      )?.[1];
+
+    if (selectedName) {
+      const opt = vt.options.find(
+        (o) =>
+          o.name.toLowerCase() === selectedName.toLowerCase() ||
+          o.id.toLowerCase() === selectedName.toLowerCase()
+      );
+      if (opt && isOptionOutOfStock(product, opt, vt.id)) {
+        if (opt.outOfStockBadge === 'none') {
+          return null;
+        }
+        if (opt.outOfStockBadge === 'proximamente') {
+          return { label: 'Próximamente', color: '#000000', badgeType: 'proximamente' };
+        }
+        if (opt.outOfStockBadge === 'custom_date' && opt.customBadgeText && opt.customBadgeText.trim()) {
+          return { label: opt.customBadgeText.trim(), color: '#000000', badgeType: 'custom_date' };
+        }
+        return { label: 'Sin stock', color: '#000000', badgeType: 'sin_stock' };
+      }
+    }
+  }
+
+  // Legacy sizeVariants check
+  if (product.sizeVariants && product.sizeVariants.length > 0) {
+    const selectedSizeName =
+      selectedOptionNames['vt-size'] ||
+      selectedOptionNames['Tamaño / Medida'] ||
+      selectedOptionNames['size'];
+    if (selectedSizeName) {
+      const sv = product.sizeVariants.find(
+        (s) =>
+          s.name.toLowerCase() === selectedSizeName.toLowerCase() ||
+          s.id.toLowerCase() === selectedSizeName.toLowerCase()
+      );
+      if (sv && (sv.stock === undefined || sv.stock <= 0)) {
+        if (sv.outOfStockBadge === 'none') {
+          return null;
+        }
+        if (sv.outOfStockBadge === 'proximamente') {
+          return { label: 'Próximamente', color: '#000000', badgeType: 'proximamente' };
+        }
+        if (sv.outOfStockBadge === 'custom_date' && sv.customBadgeText && sv.customBadgeText.trim()) {
+          return { label: sv.customBadgeText.trim(), color: '#000000', badgeType: 'custom_date' };
+        }
+        return { label: 'Sin stock', color: '#000000', badgeType: 'sin_stock' };
+      }
+    }
+  }
+
+  // Default out of stock badge
+  return { label: 'Sin stock', color: '#000000', badgeType: 'sin_stock' };
 }
 
 /**

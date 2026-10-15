@@ -79,30 +79,63 @@ export const PostPurchaseModal: React.FC<PostPurchaseModalProps> = ({
 
   // Preparar datos para el generador nativo de comprobantes PDF multipágina
   const buildReceiptData = (): ReceiptData => {
+    const isCash = order.paymentMethod === 'cash';
+
+    const resolvedItems = safeItems.map((it) => {
+      let appliedUnitPrice = it.unitPrice;
+      if (isCash) {
+        if (it.cashUnitPrice !== undefined && it.cashUnitPrice !== null && it.cashUnitPrice > 0) {
+          appliedUnitPrice = it.cashUnitPrice;
+        } else if ((it as any).wholesaleCashPrice && it.isWholesale) {
+          appliedUnitPrice = (it as any).wholesaleCashPrice;
+        } else if ((it as any).retailCashPrice && !it.isWholesale) {
+          appliedUnitPrice = (it as any).retailCashPrice;
+        }
+      }
+
+      const appliedTotalPrice = (isCash && it.totalCashPrice !== undefined && it.totalCashPrice !== null && it.totalCashPrice > 0)
+        ? it.totalCashPrice
+        : (it.totalPrice !== undefined && it.totalPrice !== null && !isCash)
+        ? it.totalPrice
+        : appliedUnitPrice * (it.quantity || 1);
+
+      return {
+        title: it.title,
+        quantity: it.quantity,
+        unitPrice: appliedUnitPrice,
+        cashUnitPrice: it.cashUnitPrice,
+        totalPrice: appliedTotalPrice,
+        totalCashPrice: it.totalCashPrice,
+        variantText: normalizeVariantText(it.variantText),
+        image: it.image,
+        isWholesale: it.isWholesale,
+      };
+    });
+
+    const calculatedSubtotal = resolvedItems.reduce((acc, it) => acc + it.totalPrice, 0);
+    const effectiveSubtotal = isCash && calculatedSubtotal > 0
+      ? calculatedSubtotal
+      : (order.subtotal || calculatedSubtotal);
+
     return {
       orderNumber: order.orderNumber,
       total: order.total,
-      subtotal: order.subtotal,
+      subtotal: effectiveSubtotal,
       totalUnits,
       itemsCount,
       paymentMethod: order.paymentMethod,
       deliveryOption: order.deliveryOption,
       shippingMethodName: order.shippingMethodName,
+      correoBranch: order.correoBranch || order.deliveryAddress?.correoBranch,
       shippingCost: order.shippingCost,
       cashDiscount: order.cashDiscount,
       customerName: order.customerName,
       customerWhatsapp: order.customerWhatsapp,
+      customerEmail: order.customerEmail,
       deliveryAddress: order.deliveryAddress,
       createdAt: order.createdAt,
-      items: safeItems.map((it) => ({
-        title: it.title,
-        quantity: it.quantity,
-        unitPrice: it.unitPrice,
-        totalPrice: it.totalPrice,
-        variantText: normalizeVariantText(it.variantText),
-        image: it.image,
-        isWholesale: it.isWholesale,
-      })),
+      source: (order as any).source,
+      items: resolvedItems,
     };
   };
 

@@ -167,7 +167,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="bg-[#0058bb] text-white">
         <div
           id="main-nav-primary-row"
-          className="max-w-[1240px] mx-auto px-2 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-3 md:gap-6"
+          className="max-w-[1240px] mx-auto px-2.5 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between md:justify-start gap-2.5 sm:gap-3 md:gap-4 lg:gap-5"
         >
           {isMobileSearchOpen ? (
             /* Active Search Bar for Mobile */
@@ -209,43 +209,40 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           ) : (
             <>
-              {/* Left Group: Logo + Compra Rápida */}
-              <div className="flex items-center gap-2 sm:gap-2.5 md:gap-3 shrink-0">
-                {/* Logo "MY" */}
-                <button
-                  type="button"
-                  id="brand-logo-btn"
-                  onClick={onGoHome}
-                  aria-label="Ir a la página principal"
-                  title="Ir a la página principal"
-                  className="flex items-center gap-1.5 focus:outline-none group cursor-pointer select-none shrink-0"
-                >
-                  <span className="font-black text-3xl md:text-4xl tracking-tighter text-white drop-shadow-sm font-['Montserrat']">
-                    MY
-                  </span>
-                </button>
+              {/* Logo "MY" */}
+              <button
+                type="button"
+                id="brand-logo-btn"
+                onClick={onGoHome}
+                aria-label="Ir a la página principal"
+                title="Ir a la página principal"
+                className="flex items-center justify-center focus:outline-none group cursor-pointer select-none shrink-0"
+              >
+                <span className="font-black text-2xl sm:text-3xl md:text-4xl tracking-tighter text-white drop-shadow-sm font-['Montserrat'] leading-none">
+                  MY
+                </span>
+              </button>
 
-                {/* ⚡ Compra Rápida Button (Visible on all pages) */}
-                <button
-                  type="button"
-                  id="header-quick-buy-btn"
-                  onClick={onOpenQuickBuy}
-                  className={`flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 md:py-2 rounded-full font-black text-xs md:text-sm transition-all cursor-pointer select-none shrink-0 shadow-sm border border-yellow-300/40 min-h-[38px] ${
-                    isQuickBuyActive
-                      ? 'bg-yellow-400 text-gray-950 ring-2 ring-white shadow-md'
-                      : 'bg-yellow-400 hover:bg-yellow-300 text-gray-950 hover:shadow-md active:scale-95'
-                  }`}
-                  title="Ir a Compra Rápida por Mayor"
-                >
-                  <Zap className="w-3.5 h-3.5 md:w-4 md:h-4 fill-current text-gray-950 shrink-0" />
-                  <span className="font-extrabold tracking-tight whitespace-nowrap">
-                    <span className="hidden">⚡ </span>Compra Rápida
-                  </span>
-                </button>
-              </div>
+              {/* ⚡ Compra Rápida Button (Visible on all pages) */}
+              <button
+                type="button"
+                id="header-quick-buy-btn"
+                onClick={onOpenQuickBuy}
+                className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-3.5 py-1.5 md:py-2 rounded-full font-black text-xs md:text-sm transition-all cursor-pointer select-none shrink-0 shadow-sm border border-yellow-300/40 min-h-[38px] ${
+                  isQuickBuyActive
+                    ? 'bg-yellow-400 text-gray-950 ring-2 ring-white shadow-md'
+                    : 'bg-yellow-400 hover:bg-yellow-300 text-gray-950 hover:shadow-md active:scale-95'
+                }`}
+                title="Ir a Compra Rápida por Mayor"
+              >
+                <Zap className="w-3.5 h-3.5 md:w-4 md:h-4 fill-current text-gray-950 shrink-0" />
+                <span className="font-extrabold tracking-tight whitespace-nowrap">
+                  <span className="hidden">⚡ </span>Compra Rápida
+                </span>
+              </button>
 
               {/* Desktop Search Bar (Hidden on Mobile) */}
-              <div className="hidden md:block flex-1 max-w-2xl relative">
+              <div className="hidden md:block flex-1 relative">
                 <div className="relative flex items-center">
                   <input
                     id="header-search-input"
@@ -268,79 +265,76 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
               </div>
 
-              {/* Right Actions: Search Icon (Mobile Only) + Auth / Account + Cart */}
-              <div className="flex items-center gap-2 sm:gap-2.5 md:gap-3 shrink-0">
-                {/* Mobile Search Icon Button */}
+              {/* Mobile Search Icon Button */}
+              <button
+                type="button"
+                id="mobile-search-toggle-btn"
+                onClick={() => setIsMobileSearchOpen(true)}
+                aria-label="Abrir buscador"
+                title="Buscar productos"
+                className="md:hidden p-2 min-w-[38px] min-h-[38px] sm:min-w-[40px] sm:min-h-[40px] justify-center text-white hover:bg-white/10 rounded-full transition-colors flex items-center cursor-pointer shrink-0"
+              >
+                <Search className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2]" />
+              </button>
+
+              {/* Iniciar sesión / Mi cuenta Button */}
+              {currentUser ? (
+                <button
+                  id="header-account-btn"
+                  onClick={onOpenAccount}
+                  className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 min-h-[38px] bg-white/10 hover:bg-white/20 border border-white/25 rounded-full transition-all text-xs md:text-sm font-semibold cursor-pointer shrink-0"
+                  title="Mi Cuenta"
+                >
+                  <div className="w-6 h-6 rounded-full bg-white text-[#0058bb] flex items-center justify-center font-bold text-xs">
+                    {currentUser.fullName ? currentUser.fullName.charAt(0).toUpperCase() : 'U'}
+                  </div>
+                  <span className="hidden md:inline max-w-[100px] truncate">
+                    {currentUser.fullName ? currentUser.fullName.split(' ')[0] : 'Mi Cuenta'}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  id="header-login-btn"
+                  onClick={onOpenAuth}
+                  className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 min-h-[38px] bg-white/10 hover:bg-white/20 border border-white/25 rounded-full transition-all text-xs md:text-sm font-medium cursor-pointer shrink-0"
+                  title="Iniciar Sesión"
+                >
+                  <User className="w-4 h-4 md:w-4.5 md:h-4.5" />
+                  <span className="hidden sm:inline font-medium">Iniciar sesión</span>
+                </button>
+              )}
+
+              {/* Desktop: Current Cart Total (displayed to the left of the cart icon in normal shopping mode) */}
+              {!isQuickBuyActive && cartTotal > 0 && (
                 <button
                   type="button"
-                  id="mobile-search-toggle-btn"
-                  onClick={() => setIsMobileSearchOpen(true)}
-                  aria-label="Abrir buscador"
-                  title="Buscar productos"
-                  className="md:hidden p-2 min-w-[40px] min-h-[40px] justify-center text-white hover:bg-white/10 rounded-full transition-colors flex items-center cursor-pointer"
-                >
-                  <Search className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2]" />
-                </button>
-
-                {/* Iniciar sesión / Mi cuenta Button */}
-                {currentUser ? (
-                  <button
-                    id="header-account-btn"
-                    onClick={onOpenAccount}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 min-h-[38px] bg-white/10 hover:bg-white/20 border border-white/25 rounded-full transition-all text-xs md:text-sm font-semibold cursor-pointer"
-                    title="Mi Cuenta"
-                  >
-                    <div className="w-6 h-6 rounded-full bg-white text-[#0058bb] flex items-center justify-center font-bold text-xs">
-                      {currentUser.fullName ? currentUser.fullName.charAt(0).toUpperCase() : 'U'}
-                    </div>
-                    <span className="hidden md:inline max-w-[100px] truncate">
-                      {currentUser.fullName ? currentUser.fullName.split(' ')[0] : 'Mi Cuenta'}
-                    </span>
-                  </button>
-                ) : (
-                  <button
-                    id="header-login-btn"
-                    onClick={onOpenAuth}
-                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 min-h-[38px] bg-white/10 hover:bg-white/20 border border-white/25 rounded-full transition-all text-xs md:text-sm font-medium cursor-pointer"
-                    title="Iniciar Sesión"
-                  >
-                    <User className="w-4 h-4 md:w-4.5 md:h-4.5" />
-                    <span className="hidden sm:inline font-medium">Iniciar sesión</span>
-                  </button>
-                )}
-
-                {/* Desktop: Current Cart Total (displayed to the left of the cart icon in normal shopping mode) */}
-                {!isQuickBuyActive && cartTotal > 0 && (
-                  <button
-                    type="button"
-                    id="desktop-header-cart-total"
-                    onClick={onOpenCart}
-                    className="hidden md:flex items-center gap-1.5 px-3 py-1.5 min-h-[38px] rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all cursor-pointer select-none group"
-                    title="Ver Carrito de Compras - Total actual"
-                    aria-label={`Total del carrito: $${cartTotal.toLocaleString('es-AR')}`}
-                  >
-                    <span className="text-white/75 text-xs font-normal">Total:</span>
-                    <span className="font-bold text-white text-sm tracking-tight font-['Montserrat']">
-                      ${cartTotal.toLocaleString('es-AR')}
-                    </span>
-                  </button>
-                )}
-
-                {/* Cart Button */}
-                <button
-                  id="header-cart-btn"
+                  id="desktop-header-cart-total"
                   onClick={onOpenCart}
-                  className="relative p-2 min-w-[40px] min-h-[40px] justify-center text-white hover:bg-white/10 rounded-full transition-colors flex items-center cursor-pointer"
-                  title="Ver Carrito de Compras"
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 min-h-[38px] rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all cursor-pointer select-none group shrink-0"
+                  title="Ver Carrito de Compras - Total actual"
+                  aria-label={`Total del carrito: $${cartTotal.toLocaleString('es-AR')}`}
                 >
-                  <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 stroke-[2.2]" />
-                  {totalCartCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-600 text-white font-bold text-xs rounded-full min-w-[20px] h-[20px] flex items-center justify-center px-1 shadow-md border-2 border-[#0058bb] animate-in zoom-in">
-                      {totalCartCount}
-                    </span>
-                  )}
+                  <span className="text-white/75 text-xs font-normal">Total:</span>
+                  <span className="font-bold text-white text-sm tracking-tight font-['Montserrat']">
+                    ${cartTotal.toLocaleString('es-AR')}
+                  </span>
                 </button>
-              </div>
+              )}
+
+              {/* Cart Button */}
+              <button
+                id="header-cart-btn"
+                onClick={onOpenCart}
+                className="relative p-2 min-w-[38px] min-h-[38px] sm:min-w-[40px] sm:min-h-[40px] justify-center text-white hover:bg-white/10 rounded-full transition-colors flex items-center cursor-pointer shrink-0"
+                title="Ver Carrito de Compras"
+              >
+                <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 stroke-[2.2]" />
+                {totalCartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-600 text-white font-bold text-xs rounded-full min-w-[20px] h-[20px] flex items-center justify-center px-1 shadow-md border-2 border-[#0058bb] animate-in zoom-in">
+                    {totalCartCount}
+                  </span>
+                )}
+              </button>
             </>
           )}
         </div>

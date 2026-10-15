@@ -2058,12 +2058,11 @@ export const saveOrder = async (
 
   if (isSupabaseConfigured() && supabaseInstance) {
     try {
-      // Carga útil estrictamente compatible con la tabla 'orders' de Supabase:
-      // - No incluye 'user_id' ya que no existe en el esquema remoto (evita error PGRST204)
-      // - 'delivery_address' siempre es un objeto JSON (nunca null, respeta constraint NOT NULL)
+      // Carga útil compatible con la tabla 'orders' de Supabase (con vinculación a user_id y rescate automático)
       const dbPayload: any = {
         id: newOrder.id,
         order_number: String(newOrder.orderNumber),
+        user_id: newOrder.userId || null,
         customer_name: String(newOrder.customerName || `Cliente #${newOrder.orderNumber}`),
         customer_email: String(newOrder.customerEmail ?? ''),
         customer_whatsapp: String(newOrder.customerWhatsapp ?? 'WhatsApp'),
@@ -3367,11 +3366,16 @@ DROP POLICY IF EXISTS "Eliminación de imágenes por admin" ON storage.objects;
 CREATE POLICY "Lectura pública de imágenes" ON storage.objects 
 FOR SELECT USING (bucket_id = 'product-images');
 
--- Subida validando que sea estrictamente formato imagen en el bucket product-images
-CREATE POLICY "Subida de imágenes autorizadas" ON storage.objects 
+-- Subida de imágenes estrictamente restringida al administrador autenticado
+CREATE POLICY "Subida de imágenes por admin" ON storage.objects 
 FOR INSERT WITH CHECK (
   bucket_id = 'product-images' AND
-  lower(storage.extension(name)) IN ('jpg', 'jpeg', 'png', 'webp', 'gif', 'avif')
+  lower(storage.extension(name)) IN ('jpg', 'jpeg', 'png', 'webp', 'gif', 'avif') AND (
+    auth.role() = 'service_role' OR
+    auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+    auth.jwt()->'app_metadata'->>'role' = 'admin' OR
+    auth.jwt()->'user_metadata'->>'is_admin' = 'true'
+  )
 );
 
 -- Modificación y eliminación restringida a administradores
@@ -3652,10 +3656,16 @@ DROP POLICY IF EXISTS "Eliminación de imágenes por admin" ON storage.objects;
 CREATE POLICY "Lectura pública de imágenes" ON storage.objects 
 FOR SELECT USING (bucket_id = 'product-images');
 
-CREATE POLICY "Subida de imágenes autorizadas" ON storage.objects 
+-- Subida de imágenes estrictamente restringida al administrador autenticado
+CREATE POLICY "Subida de imágenes por admin" ON storage.objects 
 FOR INSERT WITH CHECK (
   bucket_id = 'product-images' AND
-  lower(storage.extension(name)) IN ('jpg', 'jpeg', 'png', 'webp', 'gif', 'avif')
+  lower(storage.extension(name)) IN ('jpg', 'jpeg', 'png', 'webp', 'gif', 'avif') AND (
+    auth.role() = 'service_role' OR
+    auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+    auth.jwt()->'app_metadata'->>'role' = 'admin' OR
+    auth.jwt()->'user_metadata'->>'is_admin' = 'true'
+  )
 );
 
 CREATE POLICY "Modificación de imágenes por admin" ON storage.objects 

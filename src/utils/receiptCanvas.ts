@@ -25,10 +25,13 @@ export interface ReceiptData {
   paymentMethod?: 'transfer' | 'cash';
   deliveryOption?: 'pickup' | 'delivery' | null;
   shippingMethodName?: string;
+  correoBranch?: string;
   shippingCost?: number;
   cashDiscount?: number;
   customerName?: string;
   customerWhatsapp?: string;
+  customerEmail?: string;
+  source?: string;
   createdAt?: string;
   deliveryAddress?: {
     street?: string;
@@ -44,7 +47,9 @@ export interface ReceiptData {
     title: string;
     quantity: number;
     unitPrice: number;
+    cashUnitPrice?: number;
     totalPrice?: number;
+    totalCashPrice?: number;
     variantText?: string;
     image?: string;
     isWholesale?: boolean;
@@ -336,7 +341,35 @@ export const generateReceiptPdfBlob = async (
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8.5);
       const docBadgeTitle = mode === 'detail' ? 'DETALLE DE PEDIDO' : 'RESUMEN DE PEDIDO';
-      doc.text(docBadgeTitle, PAD, currentY + 12);
+      doc.text(docBadgeTitle, PAD, currentY + 11);
+
+      // Datos del cliente según el flujo utilizado (sin inventar datos)
+      const hasRealCustomerName = data.customerName && !data.customerName.startsWith('Cliente #');
+      const hasRealWhatsapp = data.customerWhatsapp && data.customerWhatsapp !== 'WhatsApp';
+
+      if (hasRealCustomerName) {
+        doc.setTextColor('#0f172a');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.text(truncateText(doc, `Cliente: ${data.customerName}`, 160), PAD, currentY + 22);
+
+        if (hasRealWhatsapp) {
+          doc.setTextColor('#64748b');
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7);
+          doc.text(`WhatsApp: ${data.customerWhatsapp}`, PAD, currentY + 32);
+        } else if (data.customerEmail && !data.customerEmail.includes('@comprarapida')) {
+          doc.setTextColor('#64748b');
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7);
+          doc.text(truncateText(doc, `${data.customerEmail}`, 160), PAD, currentY + 32);
+        }
+      } else if (data.source === 'quick_buy') {
+        doc.setTextColor('#0058bb');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.text('Compra rápida WhatsApp', PAD, currentY + 22);
+      }
 
       // Centro: Logo 'M' estilizado
       const logoSize = 28;
@@ -387,13 +420,16 @@ export const generateReceiptPdfBlob = async (
 
       currentY += headerHeightP1;
 
-      // Título de la sección de productos
+      // Título de la sección de productos con indicación de modalidad
       doc.setTextColor('#0f172a');
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9.5);
+      doc.setFontSize(9);
       const itemsLabel = `${data.itemsCount} ${data.itemsCount === 1 ? 'producto' : 'productos'}`;
       const unitsLabel = `${data.totalUnits} ${data.totalUnits === 1 ? 'unidad' : 'unidades'}`;
-      doc.text(`PRODUCTOS (${itemsLabel} • ${unitsLabel})`, PAD, currentY + 6);
+      const hasWholesale = items.some((it) => it.isWholesale);
+      const hasRetail = items.some((it) => !it.isWholesale);
+      const modalityBadge = hasWholesale && !hasRetail ? ' • MAYORISTA' : !hasWholesale && hasRetail ? ' • MINORISTA' : hasWholesale && hasRetail ? ' • MIXTO' : '';
+      doc.text(`PRODUCTOS (${itemsLabel} • ${unitsLabel}${modalityBadge})`, PAD, currentY + 6);
 
       currentY += titleHeight;
     } else {
@@ -487,9 +523,19 @@ export const generateReceiptPdfBlob = async (
         }
 
         // Textos
+        const isCash = data.paymentMethod === 'cash';
+        const appliedUnitPrice = (isCash && item.cashUnitPrice !== undefined && item.cashUnitPrice !== null && item.cashUnitPrice > 0)
+          ? item.cashUnitPrice
+          : item.unitPrice;
+
+        const appliedItemTotal = (isCash && item.totalCashPrice !== undefined && item.totalCashPrice !== null && item.totalCashPrice > 0)
+          ? item.totalCashPrice
+          : (item.totalPrice !== undefined && item.totalPrice !== null && !isCash)
+          ? item.totalPrice
+          : appliedUnitPrice * item.quantity;
+
         const textStartX = cardX + 38;
-        const itemTotal = item.totalPrice ?? item.unitPrice * item.quantity;
-        const formattedTotal = `$${Math.round(itemTotal).toLocaleString('es-AR')}`;
+        const formattedTotal = `$${Math.round(appliedItemTotal).toLocaleString('es-AR')}`;
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(10);
@@ -519,13 +565,14 @@ export const generateReceiptPdfBlob = async (
         doc.setTextColor('#0f172a');
         doc.text(truncateText(doc, badgeText, badgeW - 4), textStartX + 4, badgeY + 8);
 
-        // Renglón 3: Detalle de precio unitario
+        // Renglón 3: Detalle de precio unitario y modalidad exacta
         doc.setTextColor('#64748b');
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(6.5);
-        const unitPriceFormatted = Math.round(item.unitPrice).toLocaleString('es-AR');
-        const priceType = item.isWholesale ? 'precio mayorista' : 'precio minorista';
-        const detailText = `a $${unitPriceFormatted} · ${priceType}`;
+        const unitPriceFormatted = Math.round(appliedUnitPrice).toLocaleString('es-AR');
+        const paymentLabel = isCash ? 'en efectivo' : 'por transferencia';
+        const modalityLabel = item.isWholesale ? 'precio mayorista' : 'precio minorista';
+        const detailText = `a $${unitPriceFormatted} · ${modalityLabel} ${paymentLabel}`;
         doc.text(truncateText(doc, detailText, maxTextWidth), textStartX, cardY + cardHeight - 4);
 
         // Precio total a la derecha
@@ -541,9 +588,17 @@ export const generateReceiptPdfBlob = async (
 
     // C. BLOQUES DE CIERRE (Totales, Modalidad, Pago)
     if (pagePlan.hasBottomBlocks) {
+      const isCash = data.paymentMethod === 'cash';
+      const isPickup = data.deliveryOption === 'pickup';
+      const isBranchPickup = !isPickup && Boolean(
+        data.correoBranch ||
+        data.deliveryAddress?.correoBranch ||
+        (data.shippingMethodName && data.shippingMethodName.toLowerCase().includes('sucursal'))
+      );
+
       const totalsBoxHeight = 68;
       const modalityBoxHeight = 48;
-      const paymentBoxHeight = data.paymentMethod === 'transfer' ? 52 : 44;
+      const paymentBoxHeight = isCash ? 44 : 52;
       const spacing = 7;
 
       // 1. BLOQUE DE TOTALES
@@ -552,23 +607,41 @@ export const generateReceiptPdfBlob = async (
       doc.setLineWidth(0.8);
       doc.roundedRect(PAD, currentY, contentWidth, totalsBoxHeight, 6, 6, 'FD');
 
+      // Calcular subtotal real de los productos mostrado en el documento
+      const calculatedItemsSubtotal = items.reduce((acc, it) => {
+        const uPrice = (isCash && it.cashUnitPrice !== undefined && it.cashUnitPrice !== null && it.cashUnitPrice > 0)
+          ? it.cashUnitPrice
+          : it.unitPrice;
+        const lineTotal = (isCash && it.totalCashPrice !== undefined && it.totalCashPrice !== null && it.totalCashPrice > 0)
+          ? it.totalCashPrice
+          : (it.totalPrice !== undefined && it.totalPrice !== null && !isCash)
+          ? it.totalPrice
+          : uPrice * it.quantity;
+        return acc + lineTotal;
+      }, 0);
+
+      const subtotalVal = (isCash && calculatedItemsSubtotal > 0)
+        ? calculatedItemsSubtotal
+        : (data.subtotal !== undefined && data.subtotal !== null ? data.subtotal : calculatedItemsSubtotal);
+
       doc.setTextColor('#64748b');
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
-      doc.text('Subtotal productos:', PAD + 10, currentY + 14);
+      const subtotalLabel = isCash ? 'Subtotal productos (efectivo):' : 'Subtotal productos:';
+      doc.text(subtotalLabel, PAD + 10, currentY + 14);
 
       doc.setTextColor('#0f172a');
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
-      const subtotalVal = data.subtotal || data.total;
       doc.text(`$${Math.round(subtotalVal).toLocaleString('es-AR')}`, PAGE_WIDTH - PAD - 10, currentY + 14, { align: 'right' });
 
       doc.setTextColor('#64748b');
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
-      doc.text('Envío:', PAD + 10, currentY + 30);
+      const shippingLabel = isPickup ? 'Envío:' : (data.shippingMethodName ? `Envío (${data.shippingMethodName}):` : 'Envío:');
+      doc.text(truncateText(doc, shippingLabel, contentWidth - 120), PAD + 10, currentY + 30);
 
-      const isFreeShipping = !data.shippingCost || data.shippingCost === 0 || data.deliveryOption === 'pickup';
+      const isFreeShipping = isPickup || !data.shippingCost || data.shippingCost === 0;
       doc.setTextColor(isFreeShipping ? '#00a650' : '#0f172a');
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
@@ -588,7 +661,8 @@ export const generateReceiptPdfBlob = async (
       doc.setTextColor('#0f172a');
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9.5);
-      doc.text('TOTAL A PAGAR:', PAD + 10, currentY + 54);
+      const totalLabel = isCash ? 'TOTAL A PAGAR (EFECTIVO):' : 'TOTAL A PAGAR:';
+      doc.text(totalLabel, PAD + 10, currentY + 54);
 
       doc.setTextColor('#00a650');
       doc.setFont('helvetica', 'bold');
@@ -597,39 +671,64 @@ export const generateReceiptPdfBlob = async (
 
       currentY += totalsBoxHeight + spacing;
 
-      // 2. BLOQUE DE MODALIDAD
+      // 2. BLOQUE DE FORMA DE ENTREGA
       doc.setFillColor('#f8fbff');
       doc.setDrawColor('#bfdbfe');
       doc.setLineWidth(1);
       doc.roundedRect(PAD, currentY, contentWidth, modalityBoxHeight, 6, 6, 'FD');
 
-      const isPickup = data.deliveryOption === 'pickup';
-      doc.setTextColor('#0058bb');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      doc.text(
-        isPickup ? 'MODALIDAD: RETIRO EN EL LOCAL' : 'MODALIDAD: ENVÍO A DOMICILIO',
-        PAD + 10,
-        currentY + 11
-      );
-
       if (isPickup) {
+        doc.setTextColor('#0058bb');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('FORMA DE ENTREGA: RETIRO EN EL LOCAL (GRATIS)', PAD + 10, currentY + 11);
+
         doc.setTextColor('#334155');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
-        doc.text('Local Flores: Av. San Pedrito 28, CABA', PAD + 10, currentY + 25);
+        doc.text('Local Flores: Av. San Pedrito 28 local 4, CABA', PAD + 10, currentY + 25);
 
         doc.setTextColor('#64748b');
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7.5);
-        doc.text('Horario: Lunes a sábados de 11:00 hs a 17:00 hs', PAD + 10, currentY + 37);
+        const pickupReceiver = data.customerName && !data.customerName.startsWith('Cliente #') ? ` • Retira: ${data.customerName}` : '';
+        doc.text(truncateText(doc, `Horario: Lunes a sábados de 11:00 hs a 17:00 hs${pickupReceiver}`, contentWidth - 20), PAD + 10, currentY + 37);
+      } else if (isBranchPickup) {
+        const branchName = data.correoBranch || data.deliveryAddress?.correoBranch || 'Sucursal Correo Argentino';
+        doc.setTextColor('#0058bb');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('FORMA DE ENTREGA: RETIRO EN SUCURSAL DE CORREO ARGENTINO', PAD + 10, currentY + 11);
+
+        doc.setTextColor('#334155');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text(truncateText(doc, `Sucursal de retiro: ${branchName}`, contentWidth - 20), PAD + 10, currentY + 25);
+
+        doc.setTextColor('#64748b');
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        const recipient = data.deliveryAddress?.receiverName || (data.customerName && !data.customerName.startsWith('Cliente #') ? data.customerName : '');
+        const recipientStr = recipient ? `Destinatario: ${recipient}` : '';
+        const phoneStr = data.customerWhatsapp && data.customerWhatsapp !== 'WhatsApp' ? ` • WA: ${data.customerWhatsapp}` : '';
+        const methodStr = data.shippingMethodName || 'Correo Argentino a Sucursal';
+        doc.text(truncateText(doc, `${methodStr}${recipientStr ? ` • ${recipientStr}` : ''}${phoneStr}`, contentWidth - 20), PAD + 10, currentY + 37);
       } else {
         const addr = data.deliveryAddress;
-        const addressStr = addr?.correoBranch
-          ? `Sucursal Correo: ${addr.correoBranch}`
-          : addr
-          ? `${addr.street || ''} ${addr.number || ''}${addr.floor ? ' ' + addr.floor : ''}, ${addr.city || ''}, ${addr.province || ''}`
-          : 'Dirección a coordinar';
+        const methodName = data.shippingMethodName || 'Envío a domicilio';
+        doc.setTextColor('#0058bb');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text(`FORMA DE ENTREGA: ${methodName.toUpperCase()}`, PAD + 10, currentY + 11);
+
+        const addressParts = [
+          addr?.street ? `${addr.street} ${addr.number || ''}${addr.floor ? ' ' + addr.floor : ''}` : '',
+          addr?.city || '',
+          addr?.province || '',
+          addr?.postalCode ? `CP ${addr.postalCode}` : '',
+        ].filter(Boolean).join(', ');
+
+        const addressStr = addressParts || 'Dirección a coordinar por WhatsApp';
         doc.setTextColor('#334155');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
@@ -638,14 +737,15 @@ export const generateReceiptPdfBlob = async (
         doc.setTextColor('#64748b');
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7.5);
-        const methodStr = data.shippingMethodName || 'Envío por correo/mensajería';
-        doc.text(truncateText(doc, methodStr, contentWidth - 20), PAD + 10, currentY + 37);
+        const recipient = addr?.receiverName || (data.customerName && !data.customerName.startsWith('Cliente #') ? data.customerName : '');
+        const recipientStr = recipient ? `Recibe: ${recipient}` : '';
+        const phoneStr = data.customerWhatsapp && data.customerWhatsapp !== 'WhatsApp' ? ` • WA: ${data.customerWhatsapp}` : '';
+        doc.text(truncateText(doc, `${recipientStr}${phoneStr}`, contentWidth - 20), PAD + 10, currentY + 37);
       }
 
       currentY += modalityBoxHeight + spacing;
 
       // 3. BLOQUE FORMA DE PAGO
-      const isCash = data.paymentMethod === 'cash';
       doc.setFillColor('#ffffff');
       doc.setDrawColor('#e2e8f0');
       doc.setLineWidth(0.8);
@@ -654,7 +754,7 @@ export const generateReceiptPdfBlob = async (
       doc.setTextColor('#0f172a');
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
-      doc.text(isCash ? 'FORMA DE PAGO: EFECTIVO' : 'FORMA DE PAGO: TRANSFERENCIA', PAD + 10, currentY + 11);
+      doc.text(isCash ? 'FORMA DE PAGO: EFECTIVO' : 'FORMA DE PAGO: TRANSFERENCIA BANCARIA', PAD + 10, currentY + 11);
 
       if (isCash) {
         doc.setTextColor('#00a650');
@@ -665,12 +765,12 @@ export const generateReceiptPdfBlob = async (
         doc.setTextColor('#0058bb');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
-        doc.text('Alias: hola.retiro • Nombre: Silvia Lembo', PAD + 10, currentY + 25);
+        doc.text('Alias: hola.retiro • Titular: Silvia Lembo', PAD + 10, currentY + 25);
 
         doc.setTextColor('#64748b');
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7.5);
-        doc.text('CVU: 0000003100087788243612', PAD + 10, currentY + 38);
+        doc.text('CVU: 0000003100087788243612 • Enviar comprobante al WhatsApp 1166904678', PAD + 10, currentY + 38);
       }
     }
 

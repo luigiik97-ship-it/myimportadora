@@ -14,7 +14,7 @@ const ADMIN_SESSION_EXPIRY_KEY = 'my_admin_session_expiry';
 const ADMIN_SESSION_DURATION_MS = 12 * 60 * 60 * 1000; // 12 horas de sesión máxima
 const ADMIN_SALT = 'michy_admin_secure_salt_v1_2026';
 
-// Hash SHA-256 oficial calculado con salt para 'yugar' (previene exposición en texto plano en el bundle)
+// Hash criptográfico SHA-256 precalculado con salt para la contraseña de administración (previene exposición en el bundle)
 const EXPECTED_ADMIN_HASH = '12133ccc7860451c524e5f5f2f928718fb960b6fb1859876d8d57313204bb676';
 
 /**

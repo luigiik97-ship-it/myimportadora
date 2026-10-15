@@ -11,6 +11,7 @@ import {
   isProductCompletelyOutOfStock,
   getResolvedProductPrices,
   getProductCoverImage,
+  getActiveVariantOutOfStockBadge,
 } from '../utils/variantHelpers';
 import { ClassicStar as Star } from './common/ClassicStar';
 import { MichyOfficialBadge } from './common/MichyOfficialBadge';
@@ -20,6 +21,7 @@ import { ProductImageLightbox } from './common/ProductImageLightbox';
 import { VideoViewerModal } from './common/VideoViewerModal';
 import { ProductCardBadge } from './common/ProductCardBadge';
 import { ShareModal } from './common/ShareModal';
+import { StockNotificationModal } from './common/StockNotificationModal';
 import { StoreVideo } from '../types';
 import {
   optimizeCloudinaryVideoUrl,
@@ -30,7 +32,8 @@ import { usePurchaseMode } from '../context/PurchaseModeContext';
 import { getStoreSettings, StoreSettings } from '../services/storeSettings';
 import { getLocalStoreVideos } from '../services/storeVideos';
 import { getShippingZoneInfo, ShippingOption } from '../utils/shipping';
-import { getLocalAuthUser, getLocalProfiles } from '../services/auth';
+import { getLocalAuthUser, getLocalProfiles, fetchUserProfile } from '../services/auth';
+import { registerStockNotification, sanitizePhoneNumber } from '../services/stockNotifications';
 import {
   Truck,
   ShieldCheck,
@@ -48,11 +51,12 @@ import {
   ShoppingBag,
   ArrowRight as ArrowRightIcon,
   Play,
-  Maximize2,
   Video as VideoIcon,
   Share2,
   ChevronDown,
   X,
+  Bell,
+  Clock,
 } from 'lucide-react';
 
 interface ProductDetailViewProps {
@@ -213,34 +217,27 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     }));
   }, [galleryMedia, product.title]);
 
-  // List of videos for the full-screen 9:16 VideoViewerModal
-  const productReelsVideos = useMemo<StoreVideo[]>(() => {
-    if (!product.videoUrl || !product.videoUrl.trim()) return [];
-    const list: StoreVideo[] = [
+  // Video exclusivo de este producto para el visor a pantalla completa
+  const currentProductVideo = useMemo<StoreVideo[]>(() => {
+    const currentVid =
+      (product.videoUrl && product.videoUrl.trim()) ||
+      getLocalStoreVideos().find((v) => v.productId === product.id)?.videoUrl?.trim();
+
+    if (!currentVid) return [];
+
+    return [
       {
         id: `prod-vid-${product.id}`,
-        productId: product.id,
-        videoUrl: product.videoUrl.trim(),
+        videoUrl: currentVid,
         title: product.title,
+        productId: product.id,
+        productTitle: product.title,
+        productPrice: product.wholesalePrice,
+        productImage: (product.images && product.images[0]) || getProductCoverImage(product),
         createdAt: product.createdAt || new Date().toISOString(),
       },
     ];
-
-    // Include other products that have video
-    allProducts.forEach((p) => {
-      if (p.id !== product.id && p.videoUrl && p.videoUrl.trim()) {
-        list.push({
-          id: `prod-vid-${p.id}`,
-          productId: p.id,
-          videoUrl: p.videoUrl.trim(),
-          title: p.title,
-          createdAt: p.createdAt || new Date().toISOString(),
-        });
-      }
-    });
-
-    return list;
-  }, [product, allProducts]);
+  }, [product]);
 
   // Precarga rápida en segundo plano de imágenes secundarias de galería y variantes
   // Elimina tiempos de espera de 1-2 segundos al cambiar de foto o seleccionar variantes
@@ -296,6 +293,114 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
   const isCurrentSelectionOutOfStock = currentSelectionStock <= 0;
 
+  // Etiqueta visual sobre la imagen cuando la variante seleccionada no tiene stock
+  const activeVariantBadge = useMemo(() => {
+    if (!isCurrentSelectionOutOfStock) return null;
+    return getActiveVariantOutOfStockBadge(product, selectedOptions);
+  }, [isCurrentSelectionOutOfStock, product, selectedOptions]);
+
+  // Estado del modal de aviso de stock
+  const [stockModalData, setStockModalData] = useState<{
+    isOpen: boolean;
+    alreadyRegisteredDirectly: boolean;
+    variantId?: string;
+    variantName: string;
+    phone: string;
+    customerName: string;
+    userId: string;
+  }>({
+    isOpen: false,
+    alreadyRegisteredDirectly: false,
+    variantId: undefined,
+    variantName: '',
+    phone: '',
+    customerName: '',
+    userId: '',
+  });
+
+  const handleOpenStockNotification = async () => {
+    const authUser = getLocalAuthUser();
+    let userPhone = '';
+    let userName = '';
+    let uid = '';
+
+    if (authUser) {
+      uid = authUser.id;
+      const profiles = getLocalProfiles();
+      const profile = profiles[authUser.id] || (authUser.email ? profiles[authUser.email.toLowerCase()] : undefined);
+      if (profile?.phone && sanitizePhoneNumber(profile.phone).replace(/\D/g, '').length >= 6) {
+        userPhone = sanitizePhoneNumber(profile.phone);
+        userName = profile.fullName || '';
+      } else {
+        try {
+          const fresh = await fetchUserProfile(authUser.id, authUser.email);
+          if (fresh?.phone && sanitizePhoneNumber(fresh.phone).replace(/\D/g, '').length >= 6) {
+            userPhone = sanitizePhoneNumber(fresh.phone);
+            userName = fresh.fullName || '';
+          }
+        } catch (e) {}
+      }
+    }
+
+    // Nombre descriptivo y búsqueda del ID de la variante seleccionada
+    const selectedValues = Object.entries(selectedOptions)
+      .map(([_, val]) => val)
+      .filter(Boolean);
+
+    const variantLabel =
+      selectedValues.length > 0
+        ? selectedValues.join(' / ')
+        : 'Estándar';
+
+    let matchedVariantId: string | undefined = undefined;
+    for (const vt of variantTypes) {
+      const selectedName = selectedOptions[vt.id] || selectedOptions[vt.name];
+      if (selectedName) {
+        const opt = vt.options.find(
+          (o) => o.name.toLowerCase() === selectedName.toLowerCase() || o.id.toLowerCase() === selectedName.toLowerCase()
+        );
+        if (opt) {
+          matchedVariantId = opt.id;
+          break;
+        }
+      }
+    }
+
+    if (userPhone) {
+      // Cliente con sesión iniciada y teléfono registrado: registrar sin pedir de nuevo
+      await registerStockNotification({
+        productId: product.id,
+        productTitle: product.title,
+        variantId: matchedVariantId,
+        variantName: variantLabel,
+        phone: userPhone,
+        customerName: userName,
+        userId: uid,
+      });
+
+      setStockModalData({
+        isOpen: true,
+        alreadyRegisteredDirectly: true,
+        variantId: matchedVariantId,
+        variantName: variantLabel,
+        phone: userPhone,
+        customerName: userName,
+        userId: uid,
+      });
+    } else {
+      // Cliente sin teléfono disponible: solicitar número de WhatsApp
+      setStockModalData({
+        isOpen: true,
+        alreadyRegisteredDirectly: false,
+        variantId: matchedVariantId,
+        variantName: variantLabel,
+        phone: '',
+        customerName: userName,
+        userId: uid,
+      });
+    }
+  };
+
   // Reset or initialize variant selections & active image when product or initial selection changes
   useEffect(() => {
     const initial = resolveInitialOptions(product, initialSelectedVariants);
@@ -350,14 +455,17 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   }, []);
 
   useEffect(() => {
-    if (galleryMedia[activeMediaIndex]?.type === 'video') {
+    const currentMedia = galleryMedia[activeMediaIndex];
+    if (currentMedia?.type === 'video') {
       setIsShowcaseVideoPlaying(true);
       if (showcaseVideoRef.current) {
-        showcaseVideoRef.current.currentTime = 0;
-        showcaseVideoRef.current.play().catch(() => {});
+        const vid = showcaseVideoRef.current;
+        if (vid.paused) {
+          vid.play().catch(() => {});
+        }
       }
     }
-  }, [activeMediaIndex, galleryMedia]);
+  }, [activeMediaIndex]);
 
   // Selected Size Variant / Price Modifiers
   const selectedSizeOption = useMemo(() => {
@@ -492,13 +600,8 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   const [showAddedFeedback, setShowAddedFeedback] = useState(false);
   const [hasAddedToCart, setHasAddedToCart] = useState(false);
 
-  // Handler for selecting an option in any variant type
+  // Handler for selecting an option in any variant type (variantes sin stock permanecen seleccionables)
   const handleSelectOption = (variantType: VariantType, option: VariantOption) => {
-    // If the clicked option is out of stock, do not select it
-    if (isOptionOutOfStock(product, option, variantType.id)) {
-      return;
-    }
-
     setLastSelectedTypeId(variantType.id);
     const updatedOptions = {
       ...selectedOptions,
@@ -855,15 +958,18 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                       key="thumb-video-item"
                       id="thumb-btn-video"
                       onClick={() => {
-                        setActiveMediaIndex(idx);
-                        setIsVideoModalOpen(true);
+                        if (activeMediaIndex === idx) {
+                          setIsVideoModalOpen(true);
+                        } else {
+                          setActiveMediaIndex(idx);
+                        }
                       }}
                       className={`w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border-2 transition-all shrink-0 bg-black relative p-0.5 md:p-0 cursor-pointer group ${
                         isActive
                           ? 'border-[#0058bb] shadow-sm ring-2 ring-[#0058bb]/20'
                           : 'border-gray-200 hover:border-gray-400 opacity-90 hover:opacity-100'
                       }`}
-                      title="Ver video del producto (pantalla completa Reels)"
+                      title="Ver video del producto"
                     >
                       {posterThumbUrl ? (
                         <img
@@ -907,7 +1013,9 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                       alt={`Vista ${idx + 1}`}
                       loading="lazy"
                       decoding="async"
-                      className="w-full h-full object-contain md:object-cover"
+                      className={`w-full h-full object-contain md:object-cover transition-all duration-300 ${
+                        isCurrentSelectionOutOfStock ? 'brightness-[0.80]' : ''
+                      }`}
                     />
                   </button>
                 );
@@ -936,7 +1044,22 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               onTouchStart={handleTouchStart}
               onTouchEnd={handleTouchEnd}
             >
-              <ProductCardBadge product={product} className="!top-2.5 !left-2.5 sm:!top-4 sm:!left-4 text-xs sm:text-sm px-2.5 sm:px-3 py-1" />
+              {/* Etiqueta del Producto en la esquina superior izquierda */}
+              <ProductCardBadge product={product} className="!top-2.5 !left-2.5 sm:!top-4 sm:!left-4 text-xs sm:text-sm px-2.5 sm:px-3 py-1 z-20" />
+
+              {/* Etiqueta Dinámica sobre la Imagen en el centro de la imagen con fondo negro, letras e icono blancos */}
+              {activeVariantBadge && (
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none select-none animate-in fade-in zoom-in-95 duration-200 max-w-[92%]">
+                  <span className="px-5 py-2.5 sm:px-6 sm:py-3.5 rounded-xl sm:rounded-2xl text-sm sm:text-base font-black tracking-wider uppercase shadow-2xl flex items-center gap-2 sm:gap-2.5 text-white bg-black border border-white/25 whitespace-nowrap flex-nowrap leading-none">
+                    {activeVariantBadge.badgeType === 'sin_stock' ? (
+                      <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white shrink-0" />
+                    ) : (
+                      <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-white shrink-0" />
+                    )}
+                    <span className="whitespace-nowrap leading-none text-white">{activeVariantBadge.label}</span>
+                  </span>
+                </div>
+              )}
               {/* Botón Compartir en la esquina superior derecha, superpuesto */}
               <button
                 type="button"
@@ -964,7 +1087,16 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 <Share2 className="w-4 h-4 md:w-5 md:h-5 text-gray-700 hover:text-gray-950 pointer-events-none" />
               </button>
               {galleryMedia[activeMediaIndex]?.type === 'video' ? (
-                <div className="relative aspect-[9/16] h-full max-h-[390px] sm:max-h-[440px] md:max-h-[460px] max-w-full bg-black rounded-none sm:rounded-xl overflow-hidden shadow-md flex items-center justify-center">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsVideoModalOpen(true);
+                  }}
+                  className="relative aspect-[9/16] h-full max-h-[390px] sm:max-h-[440px] md:max-h-[460px] max-w-full bg-black rounded-none sm:rounded-xl overflow-hidden shadow-md flex items-center justify-center cursor-pointer group/showcase-video select-none"
+                  title="Ver video del producto"
+                >
                   {(() => {
                     const videoSrc = galleryMedia[activeMediaIndex].url;
                     const optimizedUrl = optimizeCloudinaryVideoUrl(videoSrc, { width: 720 });
@@ -973,28 +1105,36 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     return (
                       <video
                         ref={showcaseVideoRef}
-                        src={optimizedUrl}
+                        key={optimizedUrl || videoSrc}
+                        src={optimizedUrl || videoSrc}
                         poster={posterUrl || undefined}
                         autoPlay
                         muted
                         playsInline
-                        onEnded={() => setIsShowcaseVideoPlaying(false)}
+                        preload="auto"
+                        onEnded={() => {
+                          setIsShowcaseVideoPlaying(false);
+                        }}
                         onPause={() => setIsShowcaseVideoPlaying(false)}
                         onPlay={() => setIsShowcaseVideoPlaying(true)}
-                        className="w-full h-full object-cover cursor-pointer"
+                        className={`w-full h-full object-cover pointer-events-none transition-all duration-300 ${
+                          isCurrentSelectionOutOfStock ? 'brightness-[0.75] contrast-[0.95]' : ''
+                        }`}
                       />
                     );
                   })()}
+
+                  {/* Play icon overlay when video has ended or is paused */}
                   {!isShowcaseVideoPlaying && (
-                    <div className="absolute inset-0 bg-black/35 flex items-center justify-center pointer-events-none">
-                      <div className="w-14 h-14 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-xs border border-white/20 shadow-xl">
+                    <div className="absolute inset-0 bg-black/35 flex items-center justify-center pointer-events-none z-10">
+                      <div className="w-14 h-14 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-xs border border-white/20 shadow-xl transition-transform group-hover/showcase-video:scale-110">
                         <Play className="w-7 h-7 ml-1 fill-white text-white" />
                       </div>
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="w-full h-full aspect-square flex items-center justify-center overflow-hidden">
+                <div className="w-full h-full aspect-square flex items-center justify-center overflow-hidden relative">
                   <ImageWithSkeleton
                     id="main-product-image"
                     src={
@@ -1007,18 +1147,17 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     quality={82}
                     aspectRatio="aspect-square"
                     className="w-full h-full flex items-center justify-center"
-                    imgClassName="w-full h-full object-contain md:object-cover aspect-square transition-transform duration-300 ease-out md:group-hover:scale-105 select-none"
+                    imgClassName={`w-full h-full object-contain md:object-cover aspect-square select-none ${
+                      isCurrentSelectionOutOfStock ? 'brightness-[0.74] contrast-[0.95]' : 'brightness-100'
+                    }`}
                     priority={true}
                     fetchPriority="high"
                   />
+                  {isCurrentSelectionOutOfStock && (
+                    <div className="absolute inset-0 bg-black/15 pointer-events-none transition-opacity duration-300 z-10" />
+                  )}
                 </div>
               )}
-
-              {/* Minimalist expand cue on hover for desktop */}
-              <div className="hidden md:flex items-center gap-1.5 absolute bottom-3 right-3 bg-black/60 backdrop-blur-xs text-white text-[11px] font-medium px-2.5 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-xs">
-                <Maximize2 className="w-3.5 h-3.5" />
-                <span>Ampliar</span>
-              </div>
 
               {/* Mobile image/video dots indicator */}
               {galleryMedia.length > 1 && (
@@ -1214,14 +1353,15 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                               key={option.id || option.name}
                               id={`variant-opt-${vt.id}-${option.name.toLowerCase().replace(/\s+/g, '-')}`}
                               type="button"
-                              disabled={isOptOutOfStock}
                               onClick={() => handleSelectOption(vt, option)}
-                              className={`px-2 py-1.5 sm:px-2.5 sm:py-2 rounded-xl text-sm sm:text-base font-medium transition-all flex items-center gap-1 sm:gap-1.5 ${
+                              className={`px-2 py-1.5 sm:px-2.5 sm:py-2 rounded-xl text-sm sm:text-base font-medium transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer ${
                                 isOptOutOfStock
-                                  ? 'border border-dashed border-gray-300 bg-gray-100/80 text-gray-400 opacity-60 cursor-not-allowed select-none'
+                                  ? isSelected
+                                    ? 'border-2 border-gray-400 bg-gray-100 text-gray-800 font-bold shadow-xs'
+                                    : 'border border-dashed border-gray-300 bg-gray-50/80 text-gray-500 hover:bg-gray-100/90 hover:text-gray-700'
                                   : isSelected
-                                  ? 'border-2 border-[#0058bb] bg-blue-50/60 text-[#0058bb] font-bold shadow-xs cursor-pointer'
-                                  : 'border border-gray-300 bg-white text-gray-700 hover:border-gray-400 cursor-pointer'
+                                  ? 'border-2 border-[#0058bb] bg-blue-50/60 text-[#0058bb] font-bold shadow-xs'
+                                  : 'border border-gray-300 bg-white text-gray-700 hover:border-gray-400'
                               }`}
                             >
                               {/* Option thumbnail if available */}
@@ -1229,17 +1369,15 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                 <img
                                   src={optionThumb}
                                   alt={option.name}
-                                  className={`w-6 h-6 sm:w-6.5 sm:h-6.5 rounded object-cover border border-gray-200 shrink-0 ${
-                                    isOptOutOfStock ? 'grayscale opacity-40' : ''
+                                  className={`w-6 h-6 sm:w-6.5 sm:h-6.5 rounded object-cover border border-gray-300 shrink-0 transition-all ${
+                                    isOptOutOfStock ? 'brightness-[0.78] contrast-[0.9]' : ''
                                   }`}
                                 />
                               )}
 
-                              <div className="flex flex-col items-start leading-tight">
-                                <span className={`${isOptOutOfStock ? 'line-through text-gray-400' : ''}`}>
-                                  {option.name}
-                                </span>
-                              </div>
+                              <span className="leading-tight">
+                                {option.name}
+                              </span>
                             </button>
                           );
                         })}
@@ -1289,7 +1427,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     {/* Estado inicial compacto: título y debajo en una sola línea Código postal + Calcular, sin textos adicionales */}
                     <div className="flex items-center gap-2">
                       <Truck className="w-4 h-4 sm:w-5 sm:h-5 text-[#16a34a] shrink-0" />
-                      <span className="font-medium text-gray-900 text-sm sm:text-base">
+                      <span className="font-bold text-gray-900 text-sm sm:text-base">
                         Envíos a domicilio
                       </span>
                     </div>
@@ -1334,7 +1472,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <Truck className="w-4 h-4 sm:w-5 sm:h-5 text-[#16a34a] shrink-0" />
-                        <span className="font-medium text-gray-900 text-sm sm:text-base truncate">
+                        <span className="font-bold text-gray-900 text-sm sm:text-base truncate">
                           Envíos a domicilio
                         </span>
                       </div>
@@ -1439,14 +1577,15 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             <div className="order-5 lg:order-5 space-y-2 sm:space-y-2.5 pt-1.5 sm:pt-2 border-t border-gray-100 md:border-gray-200">
               {/* Stock status indicator */}
               {isCurrentSelectionOutOfStock ? (
-                <div className="p-2 sm:p-2.5 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-xs md:text-sm text-red-700 font-bold">
-                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-                  <span>
-                    {variantTypes.length > 0
-                      ? 'Esta variante se encuentra sin stock disponible.'
-                      : 'Este producto se encuentra sin stock disponible.'}
-                  </span>
-                </div>
+                <button
+                  type="button"
+                  id="btn-stock-notification"
+                  onClick={handleOpenStockNotification}
+                  className="w-full py-2.5 px-4 bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-900 rounded-xl flex items-center justify-center gap-2 text-xs md:text-sm font-bold shadow-xs transition-all cursor-pointer active:scale-[0.99]"
+                >
+                  <Bell className="w-4 h-4 text-white shrink-0" />
+                  <span>Avísame cuando esté disponible</span>
+                </button>
               ) : currentSelectionStock === 1 ? (
                 <div className="p-1.5 sm:p-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-xs md:text-sm text-amber-800 font-bold">
                   <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
@@ -1541,7 +1680,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                         : 'bg-[#0058bb] hover:bg-[#004bb0] text-white cursor-pointer active:scale-[0.99]'
                     }`}
                   >
-                    {isCurrentSelectionOutOfStock ? 'Sin stock disponible' : 'Comprar ahora'}
+                    {isCurrentSelectionOutOfStock ? 'Sin stock' : 'Comprar ahora'}
                   </button>
                 )}
 
@@ -1763,18 +1902,14 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
         }}
       />
 
-      {/* Visor de Pantalla Completa 9:16 con Sonido Activado y Deslizable (Reels) */}
+      {/* Visor de Pantalla Completa 9:16 con Sonido Activado para el video del producto */}
       <VideoViewerModal
         isOpen={isVideoModalOpen}
         onClose={() => setIsVideoModalOpen(false)}
-        videos={productReelsVideos}
+        videos={currentProductVideo}
         initialIndex={0}
         products={allProducts}
         showAssociatedProduct={false}
-        onSelectProduct={(targetId) => {
-          const target = allProducts.find((p) => p.id === targetId);
-          if (target) onSelectRelated(target);
-        }}
       />
 
       {/* Share Modal para el detalle de producto */}
@@ -1782,6 +1917,20 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
         isOpen={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}
         product={product}
+      />
+
+      {/* Modal de Aviso de Stock cuando la variante no tiene stock */}
+      <StockNotificationModal
+        isOpen={stockModalData.isOpen}
+        onClose={() => setStockModalData((prev) => ({ ...prev, isOpen: false }))}
+        productId={product.id}
+        productTitle={product.title}
+        variantId={stockModalData.variantId}
+        variantName={stockModalData.variantName}
+        userId={stockModalData.userId}
+        defaultPhone={stockModalData.phone}
+        defaultName={stockModalData.customerName}
+        alreadyRegisteredDirectly={stockModalData.alreadyRegisteredDirectly}
       />
     </div>
   );

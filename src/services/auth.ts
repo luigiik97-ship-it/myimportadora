@@ -119,6 +119,12 @@ export const fetchUserProfile = async (userId: string, email?: string): Promise<
  * Save / Update user profile
  */
 export const saveUserProfile = async (profile: UserProfile): Promise<UserProfile> => {
+  const localAuth = getLocalAuthUser();
+  if (localAuth && localAuth.id !== profile.id && localAuth.email.toLowerCase() !== profile.email.toLowerCase()) {
+    console.warn('[SEGURIDAD] Intento no autorizado de modificar el perfil de otro usuario.');
+    throw new Error('No tienes permiso para modificar el perfil de otro usuario.');
+  }
+
   const supabase = getSupabase();
   const now = new Date().toISOString();
   const fullProfile: UserProfile = {
@@ -404,14 +410,17 @@ export const fetchUserOrders = async (userId: string, email: string): Promise<Or
 
   // Comprobar sesión de usuario activo para evitar consultas cruzadas no autorizadas
   const localAuth = getLocalAuthUser();
-  if (localAuth) {
-    const isOwner =
-      (localAuth.email && localAuth.email.toLowerCase() === cleanEmail) ||
-      (localAuth.id && localAuth.id === cleanUserId);
-    if (!isOwner) {
-      console.warn('[SEGURIDAD] Intento no autorizado de consultar pedidos ajenos.');
-      return [];
-    }
+  if (!localAuth) {
+    console.warn('[SEGURIDAD] Se requiere sesión iniciada de cliente para consultar pedidos.');
+    return [];
+  }
+
+  const isOwner =
+    (localAuth.email && localAuth.email.toLowerCase() === cleanEmail) ||
+    (localAuth.id && localAuth.id === cleanUserId);
+  if (!isOwner) {
+    console.warn('[SEGURIDAD] Intento no autorizado de consultar pedidos ajenos.');
+    return [];
   }
 
   const supabase = getSupabase();

@@ -100,11 +100,31 @@ export const optimizeCloudinaryVideoUrl = (
     const rest = trimmed.substring(uploadIndex + uploadMarker.length);
     const contentPath = cleanCloudinaryPath(rest);
 
-    // Construir transformaciones optimizadas canónicas
+    // Para videos MP4 y WebM en Cloudinary, devolver la URL canónica directa limpia (https)
+    // Las transformaciones dinámicas de video excesivas (f_auto, vc_auto) eliminan 'Accept-Ranges: bytes',
+    // obligan a transcodificación al vuelo y devuelven WebM VP9 bajo extensión .mp4, provocando
+    // que el elemento <video> del navegador se trabe o congele durante el buffering.
+    const lowerContentPath = contentPath.toLowerCase();
+    const isStandardWebVideo = lowerContentPath.endsWith('.mp4') || lowerContentPath.endsWith('.webm');
+    if (isStandardWebVideo) {
+      const canonicalUrl = `${prefix}${contentPath}`;
+      videoUrlCache.set(cacheKey, canonicalUrl);
+      return canonicalUrl;
+    }
+
+    // Si es un archivo de video de iPhone / cámara (.mov, .m4v, .avi, etc.), solicitar contenedor .mp4 canónico
+    // para garantizar streaming HTTP 206 instantáneo y reproducción sin trabas en todos los navegadores
+    if (/\.(mov|m4v|avi|mkv|wmv)$/i.test(contentPath)) {
+      const mp4Path = contentPath.replace(/\.(mov|m4v|avi|mkv|wmv)$/i, '.mp4');
+      const canonicalMp4 = `${prefix}${mp4Path}`;
+      videoUrlCache.set(cacheKey, canonicalMp4);
+      return canonicalMp4;
+    }
+
+    // Construir transformaciones optimizadas canónicas para otros formatos
     const transforms: string[] = [
       `f_${targetFormat}`,
       typeof targetQuality === 'number' ? `q_${targetQuality}` : `q_${targetQuality}`,
-      'vc_auto',
     ];
 
     if (targetWidth > 0) {

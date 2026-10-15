@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 340" width="100%" height="100%" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <!-- Filtros y sombras -->
+    <filter id="map-drop-shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.18" flood-color="#0f172a" />
+    </filter>
+    <filter id="pin-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="2.5" flood-opacity="0.25" flood-color="#000000" />
+    </filter>
+  </defs>
+
+  <!-- Fondo base de mapa (estilo cartografía moderna) -->
+  <rect width="600" height="340" fill="#f4f3f0" />
+
+  <!-- Manzanas / Bloques urbanos de Flores -->
+  <!-- Manzana Noroeste (Yerbal a Rivadavia / Varela a San Pedrito) -->
+  <rect x="30" y="25" width="210" height="85" rx="6" fill="#eae8e3" stroke="#dfdbd4" stroke-width="1.5" />
+  <!-- Manzana Noreste (Yerbal a Rivadavia / Nazca a Pedernera) -->
+  <rect x="290" y="25" width="280" height="85" rx="6" fill="#eae8e3" stroke="#dfdbd4" stroke-width="1.5" />
+  <!-- Manzana Sudoeste (Rivadavia a Falcón / Varela a San Pedrito) -->
+  <rect x="30" y="160" width="210" height="150" rx="6" fill="#eae8e3" stroke="#dfdbd4" stroke-width="1.5" />
+  <!-- Manzana Sudeste (Rivadavia a Falcón / San Pedrito a Pedernera) -->
+  <rect x="290" y="160" width="280" height="150" rx="6" fill="#eae8e3" stroke="#dfdbd4" stroke-width="1.5" />
+
+  <!-- Calles y Avenidas principales -->
+  <!-- Vía de tren / Yerbal (borde superior) -->
+  <line x1="0" y1="18" x2="600" y2="18" stroke="#ffffff" stroke-width="14" />
+  <line x1="0" y1="18" x2="600" y2="18" stroke="#d5d0c8" stroke-width="1" stroke-dasharray="8,6" />
+  <text x="50" y="15" fill="#78716c" font-size="9" font-weight="600" letter-spacing="0.5">YERBAL</text>
+
+  <!-- Calle Varela (borde oeste) -->
+  <line x1="20" y1="0" x2="20" y2="340" stroke="#ffffff" stroke-width="18" />
+  <text x="24" y="240" fill="#78716c" font-size="9" font-weight="600" transform="rotate(-90 24 240)">VARELA</text>
+
+  <!-- Ramón L. Falcón (borde sur) -->
+  <line x1="0" y1="320" x2="600" y2="320" stroke="#ffffff" stroke-width="18" />
+  <line x1="0" y1="311" x2="600" y2="311" stroke="#e7e5e4" stroke-width="1" />
+  <line x1="0" y1="329" x2="600" y2="329" stroke="#e7e5e4" stroke-width="1" />
+  <text x="320" y="323" fill="#78716c" font-size="9" font-weight="600">RAMÓN L. FALCÓN</text>
+
+  <!-- Av. Rivadavia (Eje Este-Oeste principal) -->
+  <line x1="0" y1="135" x2="600" y2="135" stroke="#ffffff" stroke-width="38" />
+  <line x1="0" y1="116" x2="600" y2="116" stroke="#d6d3d1" stroke-width="1.2" />
+  <line x1="0" y1="154" x2="600" y2="154" stroke="#d6d3d1" stroke-width="1.2" />
+  <!-- Línea divisoria central punteada de Rivadavia -->
+  <line x1="0" y1="135" x2="600" y2="135" stroke="#fed7aa" stroke-width="1.5" stroke-dasharray="10,8" />
+  <text x="70" y="139" fill="#44403c" font-size="11" font-weight="700" letter-spacing="0.8">AV. RIVADAVIA (al 7400)</text>
+
+  <!-- Av. San Pedrito (hacia el Sur) / Av. Nazca (hacia el Norte) -->
+  <line x1="265" y1="0" x2="265" y2="340" stroke="#ffffff" stroke-width="38" />
+  <line x1="246" y1="0" x2="246" y2="340" stroke="#d6d3d1" stroke-width="1.2" />
+  <line x1="284" y1="0" x2="284" y2="340" stroke="#d6d3d1" stroke-width="1.2" />
+  <line x1="265" y1="0" x2="265" y2="340" stroke="#fed7aa" stroke-width="1.5" stroke-dasharray="10,8" />
+
+  <!-- Nombres de las avenidas norte/sur -->
+  <text x="260" y="65" fill="#78716c" font-size="10" font-weight="700" transform="rotate(-90 260 65)" text-anchor="middle">AV. NAZCA</text>
+  <text x="260" y="240" fill="#44403c" font-size="11" font-weight="700" transform="rotate(-90 260 240)" text-anchor="middle">AV. SAN PEDRITO</text>
+
+  <!-- Cruce de sendas peatonales en Rivadavia y San Pedrito -->
+  <rect x="248" y="118" width="34" height="6" fill="#f5f5f4" stroke="#e7e5e4" stroke-width="0.5" />
+  <rect x="248" y="146" width="34" height="6" fill="#f5f5f4" stroke="#e7e5e4" stroke-width="0.5" />
+  <rect x="240" y="126" width="6" height="18" fill="#f5f5f4" stroke="#e7e5e4" stroke-width="0.5" />
+  <rect x="284" y="126" width="6" height="18" fill="#f5f5f4" stroke="#e7e5e4" stroke-width="0.5" />
+
+  <!-- Indicador Subte Línea A - Estación San Pedrito -->
+  <g transform="translate(195, 122)">
+    <rect x="0" y="0" width="138" height="24" rx="12" fill="#0284c7" stroke="#ffffff" stroke-width="1.5" filter="url(#map-drop-shadow)" />
+    <!-- Círculo con letra A del Subte -->
+    <circle cx="12" cy="12" r="8.5" fill="#ffffff" />
+    <text x="12" y="16" fill="#0284c7" font-size="10.5" font-weight="900" text-anchor="middle">A</text>
+    <text x="27" y="16" fill="#ffffff" font-size="9.5" font-weight="700" letter-spacing="0.2">Estación San Pedrito</text>
+  </g>
+
+  <!-- Edificio / Parcela San Pedrito 28 -->
+  <rect x="285" y="170" width="38" height="30" rx="3" fill="#fee2e2" stroke="#ef4444" stroke-width="1.5" />
+
+  <!-- PIN ROJO DE UBICACIÓN - Av. San Pedrito 28 -->
+  <g transform="translate(294, 168)" filter="url(#pin-shadow)">
+    <!-- Pin Icon -->
+    <path d="M12 0C5.37 0 0 5.37 0 12c0 9 12 22 12 22s12-13 12-22c0-6.63-5.37-12-12-12z" fill="#dc2626" stroke="#b91c1c" stroke-width="1" />
+    <circle cx="12" cy="11" r="4.5" fill="#ffffff" />
+    <circle cx="12" cy="11" r="2" fill="#dc2626" />
+  </g>
+
+  <!-- Cartel flotante / Callout Av. San Pedrito 28 · Local 4 -->
+  <g transform="translate(325, 172)" filter="url(#map-drop-shadow)">
+    <rect x="0" y="0" width="195" height="42" rx="7" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.2" />
+    <!-- Flecha hacia el pin -->
+    <polygon points="-7,14 0,9 0,19" fill="#ffffff" />
+    <circle cx="16" cy="15" r="4" fill="#dc2626" />
+    <text x="26" y="17" fill="#0f172a" font-size="10.5" font-weight="800">Av. San Pedrito 28</text>
+    <rect x="136" y="7" width="50" height="15" rx="3" fill="#f1f5f9" />
+    <text x="161" y="18" fill="#475569" font-size="9" font-weight="700" text-anchor="middle">Local 4</text>
+    <text x="26" y="32" fill="#0284c7" font-size="8.5" font-weight="600">A 20m de Rivadavia y Subte A</text>
+  </g>
+
+  <!-- Leyenda de orientación -->
+  <g transform="translate(540, 20)">
+    <circle cx="14" cy="14" r="13" fill="#ffffff" stroke="#e2e8f0" stroke-width="1" filter="url(#map-drop-shadow)" />
+    <polygon points="14,4 18,14 14,12 10,14" fill="#dc2626" />
+    <polygon points="14,24 18,14 14,16 10,14" fill="#94a3b8" />
+    <text x="14" y="3" fill="#64748b" font-size="7" font-weight="800" text-anchor="middle">N</text>
+  </g>
+</svg>

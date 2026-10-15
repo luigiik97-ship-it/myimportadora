@@ -97,7 +97,10 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
   // Play / Pause toggler
   const togglePlay = useCallback(() => {
     if (!videoRef.current) return;
-    if (videoRef.current.paused) {
+    if (videoRef.current.paused || videoRef.current.ended) {
+      if (videoRef.current.ended) {
+        videoRef.current.currentTime = 0;
+      }
       videoRef.current.play().catch(() => {});
       setIsPlaying(true);
     } else {
@@ -241,7 +244,12 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
               poster={posterUrl || undefined}
               playsInline
               preload="auto"
-              loop={true}
+              loop={false}
+              onEnded={() => {
+                setIsPlaying(false);
+              }}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
               className="w-full h-full object-cover cursor-pointer"
               onClick={togglePlay}
             />

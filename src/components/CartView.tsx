@@ -11,6 +11,7 @@ import { slugifyCategory } from '../utils/categoryHelpers';
 interface CartViewProps {
   cartItems: CartItem[];
   onUpdateQuantity: (id: string, delta: number) => void;
+  onSetQuantity?: (id: string, qty: number) => void;
   onRemoveItem: (id: string) => void;
   onProceedToCheckout: () => void;
   onContinueShopping: () => void;
@@ -19,9 +20,92 @@ interface CartViewProps {
   showCashEquivalent?: boolean;
 }
 
+interface CartQuantityInputProps {
+  itemId: string;
+  quantity: number;
+  availableStock: number;
+  onUpdateQuantity: (id: string, delta: number) => void;
+  onSetQuantity?: (id: string, qty: number) => void;
+}
+
+const CartQuantityInput: React.FC<CartQuantityInputProps> = ({
+  itemId,
+  quantity,
+  availableStock,
+  onUpdateQuantity,
+  onSetQuantity,
+}) => {
+  const [localVal, setLocalVal] = React.useState<string>(quantity.toString());
+
+  React.useEffect(() => {
+    setLocalVal(quantity.toString());
+  }, [quantity]);
+
+  const commitValue = (valStr: string) => {
+    const parsed = parseInt(valStr, 10);
+    if (isNaN(parsed) || parsed < 1) {
+      setLocalVal(quantity.toString());
+      return;
+    }
+
+    let finalQty = parsed;
+    if (availableStock > 0 && finalQty > availableStock) {
+      finalQty = availableStock;
+    }
+
+    setLocalVal(finalQty.toString());
+    if (finalQty !== quantity) {
+      if (onSetQuantity) {
+        onSetQuantity(itemId, finalQty);
+      } else {
+        onUpdateQuantity(itemId, finalQty - quantity);
+      }
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setLocalVal(val);
+    const parsed = parseInt(val, 10);
+    if (!isNaN(parsed) && parsed >= 1) {
+      let finalQty = parsed;
+      if (availableStock > 0 && finalQty > availableStock) {
+        finalQty = availableStock;
+      }
+      if (onSetQuantity) {
+        onSetQuantity(itemId, finalQty);
+      } else {
+        onUpdateQuantity(itemId, finalQty - quantity);
+      }
+    }
+  };
+
+  return (
+    <input
+      type="number"
+      id={`cart-qty-input-${itemId}`}
+      min={1}
+      max={availableStock > 0 ? availableStock : 9999}
+      value={localVal}
+      onFocus={(e) => e.target.select()}
+      onChange={handleChange}
+      onBlur={() => commitValue(localVal)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.currentTarget.blur();
+        }
+      }}
+      className="w-8 sm:w-10 h-8 sm:h-8 text-center text-sm sm:text-base font-bold text-gray-900 focus:outline-none focus:bg-blue-50/50 bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none cursor-text select-all"
+      aria-label="Cantidad del producto"
+      title="Escribe la cantidad"
+    />
+  );
+};
+
 export const CartView: React.FC<CartViewProps> = ({
   cartItems,
   onUpdateQuantity,
+  onSetQuantity,
   onRemoveItem,
   onProceedToCheckout,
   onContinueShopping,
@@ -329,15 +413,22 @@ export const CartView: React.FC<CartViewProps> = ({
                               <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                                 <div className="flex items-center border border-gray-300 rounded-xl bg-white overflow-hidden shadow-2xs shrink-0">
                                   <button
+                                    type="button"
                                     onClick={() => onUpdateQuantity(item.id, -1)}
                                     className="w-8 h-8 sm:w-8 sm:h-8 text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer flex items-center justify-center active:bg-gray-200"
+                                    title="Disminuir cantidad"
                                   >
                                     <Minus className="w-3.5 h-3.5" />
                                   </button>
-                                  <span className="px-2.5 text-sm sm:text-base font-bold text-gray-900 min-w-[28px] text-center">
-                                    {item.quantity}
-                                  </span>
+                                  <CartQuantityInput
+                                    itemId={item.id}
+                                    quantity={item.quantity}
+                                    availableStock={item.availableStock}
+                                    onUpdateQuantity={onUpdateQuantity}
+                                    onSetQuantity={onSetQuantity}
+                                  />
                                   <button
+                                    type="button"
                                     onClick={() => onUpdateQuantity(item.id, 1)}
                                     disabled={item.availableStock > 0 && item.quantity >= item.availableStock}
                                     className={`w-8 h-8 sm:w-8 sm:h-8 text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer flex items-center justify-center active:bg-gray-200 ${

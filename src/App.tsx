@@ -602,6 +602,27 @@ export default function App() {
     );
   };
 
+  const handleSetCartItemDirectQuantity = (id: string, targetQty: number) => {
+    if (targetQty <= 0) {
+      handleRemoveCartItem(id);
+      return;
+    }
+    setCart((prev) =>
+      prev.map((item) => {
+        if (item.id === id) {
+          const maxStock = getSelectedVariantStock(item.product, item.selectedVariants || {});
+          const finalQty = maxStock > 0 ? Math.min(targetQty, maxStock) : targetQty;
+          return {
+            ...item,
+            quantity: finalQty,
+            totalPrice: item.unitPrice * finalQty,
+          };
+        }
+        return item;
+      })
+    );
+  };
+
   const handleRemoveCartItem = (id: string) => {
     setCart((prev) => prev.filter((item) => item.id !== id));
   };
@@ -1005,6 +1026,7 @@ export default function App() {
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
                 onUpdateQuantity={handleUpdateCartQuantity}
+                onSetQuantity={handleSetCartItemDirectQuantity}
                 onRemoveItem={handleRemoveCartItem}
                 onProceedToCheckout={() => {
                   navigate('/checkout');

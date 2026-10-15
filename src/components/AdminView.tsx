@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Product, Order, SizeVariant, VariantType, ProductReview, Category, ProductTag } from '../types';
 import {
   TAG_COLOR_PALETTE,
@@ -58,9 +58,11 @@ import { QuickBuyLinkManager, OfficialWhatsAppIcon } from './admin/QuickBuyLinkM
 import { LaunchesManager } from './admin/LaunchesManager';
 import { BestSellersManager } from './admin/BestSellersManager';
 import { StoreSettingsManager } from './admin/StoreSettingsManager';
+import { StockNotificationsManager } from './admin/StockNotificationsManager';
 import { getStoreSettings, fetchStoreSettingsFromSupabase, StoreSettings } from '../services/storeSettings';
 import { isQuickBuyOrder } from '../services/quickBuyLink';
 import { isAdminAuthenticated, authenticateAdmin, clearAdminSession } from '../services/adminAuth';
+import { fetchStockNotifications } from '../services/stockNotifications';
 import {
   Lock,
   Package,
@@ -103,6 +105,8 @@ import {
   Video,
   Rocket,
   SlidersHorizontal,
+  Bell,
+  X,
 } from 'lucide-react';
 
 export const resolveOrderItemPrices = (
@@ -189,8 +193,48 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
   }, [lockoutRemaining]);
 
   // Tab state
-  const [activeTab, setActiveTab] = useState<'products' | 'standalone_variants' | 'categories' | 'best_sellers' | 'banners' | 'videos' | 'orders' | 'bulk_price_update' | 'integrations' | 'analytics' | 'quick_buy_link' | 'shipping' | 'launches' | 'store_settings'>('products');
+  const [activeTab, setActiveTab] = useState<
+    | 'products'
+    | 'standalone_variants'
+    | 'categories'
+    | 'best_sellers'
+    | 'banners'
+    | 'videos'
+    | 'orders'
+    | 'bulk_price_update'
+    | 'integrations'
+    | 'analytics'
+    | 'quick_buy_link'
+    | 'shipping'
+    | 'launches'
+    | 'store_settings'
+    | 'stock_notifications'
+  >('products');
   const [updatingBestSellerId, setUpdatingBestSellerId] = useState<string | null>(null);
+
+  // Avisos de stock pendientes y alerta de reposición
+  const [pendingStockCount, setPendingStockCount] = useState<number>(0);
+  const [initialFilterForStockNotifications, setInitialFilterForStockNotifications] = useState<string>('');
+  const [restockAlert, setRestockAlert] = useState<{
+    productTitle: string;
+    variantName: string;
+    count: number;
+    productId: string;
+  } | null>(null);
+
+  const refreshPendingStockCount = useCallback(async () => {
+    try {
+      const list = await fetchStockNotifications();
+      const count = list.filter((n) => n.status === 'pending').length;
+      setPendingStockCount(count);
+    } catch (e) {
+      // Ignorar en caso de error de conexión
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshPendingStockCount();
+  }, [refreshPendingStockCount, activeTab]);
 
   // Visibilidad configurable de botones de tienda (Comprar ahora)
   const [storeSettings, setStoreSettings] = useState<StoreSettings>(() => getStoreSettings());
@@ -799,11 +843,63 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
 
     try {
       if (productPayload.id) {
+        // Detectar si alguna variante pasa de SIN STOCK -> CON STOCK
+        const oldProduct = products.find((p) => p.id === productPayload.id);
+        const restockedVariantNames: string[] = [];
+
+        if (oldProduct) {
+          const oldVariantTypes = oldProduct.variantTypes || normalizeVariantTypes(oldProduct);
+          const newVariantTypes = currentVariantTypes;
+
+          newVariantTypes.forEach((newVt) => {
+            const oldVt = oldVariantTypes.find((ov) => ov.id === newVt.id || ov.name === newVt.name);
+            newVt.options.forEach((newOpt) => {
+              const oldOpt = oldVt?.options.find((oo) => oo.id === newOpt.id || oo.name === newOpt.name);
+              const oldStock = oldOpt?.stock ?? oldProduct.stock ?? 0;
+              const newStock = newOpt.stock ?? productPayload.stock ?? 0;
+              if (oldStock <= 0 && newStock > 0) {
+                restockedVariantNames.push(newOpt.name);
+              }
+            });
+          });
+
+          // Caso de producto único sin variantes
+          if (newVariantTypes.length === 0 && (oldProduct.stock ?? 0) <= 0 && (productPayload.stock ?? 0) > 0) {
+            restockedVariantNames.push('Estándar');
+          }
+        }
+
         // Update
         console.log('[AdminView handleSaveProduct] Ejecutando UPDATE para ID:', productPayload.id);
         const updated = await updateProduct(productPayload.id, productPayload);
         console.log('[AdminView handleSaveProduct] Producto actualizado retornado:', updated);
         setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+
+        // Si alguna variante recuperó stock, comprobar si hay personas esperando ESA variante
+        if (restockedVariantNames.length > 0) {
+          try {
+            const allNotifs = await fetchStockNotifications();
+            for (const vName of restockedVariantNames) {
+              const waiting = allNotifs.filter(
+                (n) =>
+                  n.productId === productPayload.id &&
+                  n.status === 'pending' &&
+                  (n.variantName.toLowerCase().trim() === vName.toLowerCase().trim() || vName === 'Estándar')
+              );
+              if (waiting.length > 0) {
+                setRestockAlert({
+                  productTitle: productPayload.title || 'Producto',
+                  variantName: vName,
+                  count: waiting.length,
+                  productId: productPayload.id,
+                });
+                break;
+              }
+            }
+          } catch (notifErr) {
+            console.warn('Error comprobando avisos de stock al reponer:', notifErr);
+          }
+        }
       } else {
         // Create
         console.log('[AdminView handleSaveProduct] Ejecutando CREATE');
@@ -811,6 +907,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
         console.log('[AdminView handleSaveProduct] Producto creado retornado:', created);
         setProducts((prev) => [created, ...prev]);
       }
+      refreshPendingStockCount();
       setIsProductModalOpen(false);
       setEditingProduct(null);
     } catch (err: any) {
@@ -1424,6 +1521,47 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
         </button>
       </div>
 
+      {/* Alerta de Restock / Reposición de Variantes con clientes esperando */}
+      {restockAlert && (
+        <div className="bg-amber-50 border-2 border-amber-400 text-amber-950 rounded-2xl p-4 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
+              <Bell className="w-5 h-5 animate-bounce" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm sm:text-base text-amber-950">
+                ¡Variante con stock disponible!
+              </h4>
+              <p className="text-xs sm:text-sm text-amber-900 leading-snug">
+                Esta variante volvió a tener stock: <strong>{restockAlert.productTitle} ({restockAlert.variantName})</strong>. Hay <strong>{restockAlert.count}</strong> {restockAlert.count === 1 ? 'cliente esperando' : 'clientes esperando'}. Recordá avisarles.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setInitialFilterForStockNotifications(restockAlert.variantName);
+                setActiveTab('stock_notifications');
+                setRestockAlert(null);
+              }}
+              className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              <span>Ver clientes esperando</span>
+              <ArrowRightIcon className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setRestockAlert(null)}
+              className="text-amber-800 hover:text-amber-950 p-2 rounded-xl hover:bg-amber-100 transition-colors cursor-pointer"
+              title="Cerrar alerta"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Navigation Tabs */}
       <div className="flex border-b border-gray-200 gap-2 overflow-x-auto">
         <button
@@ -1535,6 +1673,30 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
         >
           <ShoppingBag className="w-4 h-4" />
           Pedidos Finalizados ({orders.length})
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('stock_notifications');
+            setInitialFilterForStockNotifications('');
+          }}
+          className={`pb-3 px-4 text-sm font-bold flex items-center gap-2 cursor-pointer transition-colors border-b-2 whitespace-nowrap ${
+            activeTab === 'stock_notifications'
+              ? 'border-emerald-600 text-emerald-700'
+              : 'border-transparent text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <Bell className="w-4 h-4 text-emerald-600" />
+          <span>Avisos de Stock</span>
+          {pendingStockCount > 0 ? (
+            <span className="text-[10px] bg-red-500 text-white font-extrabold px-1.5 py-0.5 rounded-full animate-pulse shadow-2xs">
+              {pendingStockCount}
+            </span>
+          ) : (
+            <span className="text-[10px] bg-gray-100 text-gray-600 font-bold px-1.5 py-0.5 rounded-full">
+              0
+            </span>
+          )}
         </button>
 
         <button
@@ -2383,6 +2545,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
       {/* TAB 9: CONFIGURACIÓN DE BOTONES Y FUNCIONES DE TIENDA */}
       {activeTab === 'store_settings' && (
         <StoreSettingsManager />
+      )}
+
+      {/* TAB 10: AVISOS DE STOCK PENDIENTES */}
+      {activeTab === 'stock_notifications' && (
+        <StockNotificationsManager
+          initialFilterVariant={initialFilterForStockNotifications}
+        />
       )}
 
       {/* ---------------- EDIT / CREATE PRODUCT MODAL ---------------- */}

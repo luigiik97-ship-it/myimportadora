@@ -20,6 +20,8 @@ import {
   ShippingConfig,
   ShippingOptionConfig,
   ShippingZoneId,
+  ShippingCutoffTimes,
+  DEFAULT_CUTOFF_TIMES,
   DEFAULT_SHIPPING_CONFIG,
   getShippingConfig,
   saveShippingConfig,
@@ -128,6 +130,21 @@ export const ShippingConfigManager: React.FC = () => {
         },
       };
     });
+  };
+
+  // Actualizar horario de corte de despacho independiente
+  const handleUpdateCutoffTime = (
+    key: keyof ShippingCutoffTimes,
+    value: string
+  ) => {
+    setConfig((prev) => ({
+      ...prev,
+      cutoffTimes: {
+        ...DEFAULT_CUTOFF_TIMES,
+        ...(prev.cutoffTimes || {}),
+        [key]: value,
+      },
+    }));
   };
 
   // Guardar configuración completa
@@ -408,6 +425,139 @@ export const ShippingConfigManager: React.FC = () => {
               Ingresa un código postal válido arriba para simular las opciones.
             </div>
           )}
+        </div>
+      </div>
+
+      {/* HORARIOS DE CORTE INDEPENDIENTES (ESTIMACIÓN DE ENTREGA) */}
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs">
+        <div className="bg-gray-50/80 px-5 py-3.5 border-b border-gray-200">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#0058bb] text-white text-xs font-bold">
+              <Clock className="w-3.5 h-3.5" />
+            </span>
+            <h3 className="text-base font-bold text-gray-900">
+              Horarios de Corte de Despacho (Estimación de Entrega)
+            </h3>
+          </div>
+          <p className="text-xs text-gray-500 mt-1 max-w-3xl">
+            Configura la hora límite diaria de cada servicio de entrega. Los pedidos realizados antes de esa hora se consideran para despacho el mismo día hábil (lunes a sábados); después de esa hora, la estimación avanzará automáticamente al siguiente día hábil. Estos horarios se guardan de forma persistente y no se muestran al cliente (el cliente solo ve las fechas estimadas).
+          </p>
+        </div>
+
+        <div className="p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Uber Moto */}
+            <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-gray-900 uppercase tracking-wide">
+                  Uber Moto
+                </span>
+                <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
+                  Mismo día
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500">
+                Hora de corte para compras con entrega en el día.
+              </p>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                  Hora de corte:
+                </label>
+                <div className="relative">
+                  <input
+                    type="time"
+                    value={config.cutoffTimes?.uber_moto || '12:00'}
+                    onChange={(e) => handleUpdateCutoffTime('uber_moto', e.target.value)}
+                    className="w-full px-3 py-1.5 text-sm font-bold text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0058bb] shadow-2xs"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Envío Flex */}
+            <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-gray-900 uppercase tracking-wide">
+                  Envío Flex
+                </span>
+                <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                  Reparto 24 hs
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500">
+                Hora de corte para reparto express puerta a puerta.
+              </p>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                  Hora de corte:
+                </label>
+                <div className="relative">
+                  <input
+                    type="time"
+                    value={config.cutoffTimes?.envio_flex || '14:00'}
+                    onChange={(e) => handleUpdateCutoffTime('envio_flex', e.target.value)}
+                    className="w-full px-3 py-1.5 text-sm font-bold text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0058bb] shadow-2xs"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Correo Argentino a domicilio */}
+            <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-gray-900 uppercase tracking-wide">
+                  Correo a Domicilio
+                </span>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                  1 a 4 días
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500">
+                Hora de corte para despacho hacia el domicilio.
+              </p>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                  Hora de corte:
+                </label>
+                <div className="relative">
+                  <input
+                    type="time"
+                    value={config.cutoffTimes?.correo_argentino || '16:00'}
+                    onChange={(e) => handleUpdateCutoffTime('correo_argentino', e.target.value)}
+                    className="w-full px-3 py-1.5 text-sm font-bold text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0058bb] shadow-2xs"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Correo Argentino a sucursal */}
+            <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-gray-900 uppercase tracking-wide">
+                  Correo a Sucursal
+                </span>
+                <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">
+                  1 a 4 días
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500">
+                Hora de corte para despacho a retiro en sucursal.
+              </p>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                  Hora de corte:
+                </label>
+                <div className="relative">
+                  <input
+                    type="time"
+                    value={config.cutoffTimes?.correo_sucursal || '16:00'}
+                    onChange={(e) => handleUpdateCutoffTime('correo_sucursal', e.target.value)}
+                    className="w-full px-3 py-1.5 text-sm font-bold text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0058bb] shadow-2xs"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
