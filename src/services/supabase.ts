@@ -52,7 +52,14 @@ let supabaseInstance: SupabaseClient | null = null;
 
 if (supabaseUrl && supabaseAnonKey && !supabaseUrl.includes('your-project')) {
   try {
-    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey);
+    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+      },
+    });
   } catch (error) {
     console.warn('Error inicializando cliente de Supabase:', error);
   }

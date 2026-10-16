@@ -216,11 +216,32 @@ export default function App() {
   // Authentication & Account state
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalInitialMode, setAuthModalInitialMode] = useState<'login' | 'register' | 'forgot_password' | 'reset_password'>('login');
+  const [authModalPrefilledEmail, setAuthModalPrefilledEmail] = useState('');
+  const [authModalUrlError, setAuthModalUrlError] = useState<string | null>(null);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [targetInfoSection, setTargetInfoSection] = useState<string | null>(null);
 
-  // Check and restore user session on mount
+  // Check and restore user session on mount + handle password recovery redirects from Vercel / email
   useEffect(() => {
+    // 1. Detectar si el usuario llegó a través de un enlace de recuperación de contraseña
+    const hash = typeof window !== 'undefined' ? window.location.hash : '';
+    const search = typeof window !== 'undefined' ? window.location.search : '';
+
+    if (hash.includes('type=recovery') || search.includes('type=recovery')) {
+      setAuthModalInitialMode('reset_password');
+      setAuthModalUrlError(null);
+      setIsAuthModalOpen(true);
+    } else if (hash.includes('error_description') || search.includes('error_description') || hash.includes('otp_expired')) {
+      setAuthModalUrlError('El enlace de recuperación es inválido o ha expirado. Por favor solicita uno nuevo.');
+      setAuthModalInitialMode('forgot_password');
+      setIsAuthModalOpen(true);
+      if (typeof window !== 'undefined') {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+    }
+
+    // 2. Restaurar sesión existente
     const initAuthSession = async () => {
       const supabase = getSupabase();
       if (isSupabaseConfigured() && supabase) {
@@ -249,6 +270,29 @@ export default function App() {
     };
 
     initAuthSession();
+
+    // 3. Suscripción a eventos de autenticación de Supabase (recuperación de contraseña, login, logout)
+    const supabase = getSupabase();
+    if (isSupabaseConfigured() && supabase) {
+      const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          setAuthModalInitialMode('reset_password');
+          setAuthModalUrlError(null);
+          setIsAuthModalOpen(true);
+        } else if (event === 'SIGNED_IN' && session?.user) {
+          const profile = await fetchUserProfile(session.user.id, session.user.email);
+          if (profile) {
+            setCurrentUser(profile);
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setCurrentUser(null);
+        }
+      });
+
+      return () => {
+        authListener?.subscription?.unsubscribe();
+      };
+    }
   }, []);
 
   // Sync cart to local storage in a lightweight, quota-safe format
@@ -1184,10 +1228,17 @@ export default function App() {
       {/* Global Auth Modal */}
       <AuthModal
         isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
+        onClose={() => {
+          setIsAuthModalOpen(false);
+          setAuthModalUrlError(null);
+        }}
+        initialMode={authModalInitialMode}
+        prefilledEmail={authModalPrefilledEmail}
+        errorMessageFromUrl={authModalUrlError}
         onAuthSuccess={(profile) => {
           setCurrentUser(profile);
           setIsAuthModalOpen(false);
+          setAuthModalUrlError(null);
         }}
       />
 
