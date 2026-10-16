@@ -8,7 +8,7 @@ import {
 } from 'react-router-dom';
 import { Product, CartItem, Order, SizeVariant, ViewMode, Category, UserProfile } from './types';
 import { fetchProducts, fetchCategories, getCachedProducts, getCachedCategories, saveOrder, updateProduct, getSupabase, isSupabaseConfigured, subscribeToProductsAndSystemConfig } from './services/supabase';
-import { getLocalAuthUser, fetchUserProfile } from './services/auth';
+import { userToProfile } from './services/auth';
 import { getActiveVariantImages, getItemEffectiveNormalPrice, getSelectedVariantStock, deductStockFromProduct, getProductCoverImage } from './utils/variantHelpers';
 import { slugifyCategory, reconcileCategoriesWithProducts } from './utils/categoryHelpers';
 import { recordSiteVisit } from './services/analytics';
@@ -222,9 +222,9 @@ export default function App() {
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [targetInfoSection, setTargetInfoSection] = useState<string | null>(null);
 
-  // Check and restore user session on mount + handle password recovery redirects from Vercel / email
+  // Sesión persistente centralizada mediante Supabase Auth y captura de enlaces de recuperación
   useEffect(() => {
-    // 1. Detectar si el usuario llegó a través de un enlace de recuperación de contraseña
+    // 1. Detectar si el usuario llegó a través de un enlace de recuperación de contraseña o error de enlace
     const hash = typeof window !== 'undefined' ? window.location.hash : '';
     const search = typeof window !== 'undefined' ? window.location.search : '';
 
@@ -241,49 +241,19 @@ export default function App() {
       }
     }
 
-    // 2. Restaurar sesión existente
-    const initAuthSession = async () => {
-      const supabase = getSupabase();
-      if (isSupabaseConfigured() && supabase) {
-        try {
-          const { data } = await supabase.auth.getSession();
-          if (data?.session?.user) {
-            const profile = await fetchUserProfile(data.session.user.id, data.session.user.email);
-            if (profile) {
-              setCurrentUser(profile);
-              return;
-            }
-          }
-        } catch (e) {
-          console.warn('Error checking Supabase session:', e);
-        }
-      }
-
-      // Check local storage session
-      const localUser = getLocalAuthUser();
-      if (localUser) {
-        const profile = await fetchUserProfile(localUser.id, localUser.email);
-        if (profile) {
-          setCurrentUser(profile);
-        }
-      }
-    };
-
-    initAuthSession();
-
-    // 3. Suscripción a eventos de autenticación de Supabase (recuperación de contraseña, login, logout)
+    // 2. Único listener centralizado de Supabase Auth:
+    // Supabase Auth gestiona la persistencia de sesión automáticamente en localStorage.
+    // onAuthStateChange emite el estado inicial ('INITIAL_SESSION') y cualquier cambio posterior
+    // ('SIGNED_IN', 'SIGNED_OUT', 'PASSWORD_RECOVERY') sin consultas redundantes.
     const supabase = getSupabase();
     if (isSupabaseConfigured() && supabase) {
-      const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
         if (event === 'PASSWORD_RECOVERY') {
           setAuthModalInitialMode('reset_password');
           setAuthModalUrlError(null);
           setIsAuthModalOpen(true);
-        } else if (event === 'SIGNED_IN' && session?.user) {
-          const profile = await fetchUserProfile(session.user.id, session.user.email);
-          if (profile) {
-            setCurrentUser(profile);
-          }
+        } else if (session?.user) {
+          setCurrentUser(userToProfile(session.user));
         } else if (event === 'SIGNED_OUT') {
           setCurrentUser(null);
         }
