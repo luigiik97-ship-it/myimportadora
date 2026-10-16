@@ -218,7 +218,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 title="Ir a la página principal"
                 className="flex items-center justify-center focus:outline-none group cursor-pointer select-none shrink-0"
               >
-                <span className="font-black text-2xl sm:text-3xl md:text-4xl tracking-tighter text-white drop-shadow-sm font-['Montserrat'] leading-none">
+                <span className="font-black text-3xl md:text-4xl tracking-tighter text-white drop-shadow-sm font-['Montserrat'] leading-none">
                   MY
                 </span>
               </button>

@@ -219,8 +219,10 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
   // Video exclusivo de este producto para el visor a pantalla completa
   const currentProductVideo = useMemo<StoreVideo[]>(() => {
+    const galleryVid = galleryMedia.find((m) => m.type === 'video')?.url;
     const currentVid =
       (product.videoUrl && product.videoUrl.trim()) ||
+      galleryVid ||
       getLocalStoreVideos().find((v) => v.productId === product.id)?.videoUrl?.trim();
 
     if (!currentVid) return [];
@@ -237,7 +239,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
         createdAt: product.createdAt || new Date().toISOString(),
       },
     ];
-  }, [product]);
+  }, [product, galleryMedia]);
 
   // Precarga rápida en segundo plano de imágenes secundarias de galería y variantes
   // Elimina tiempos de espera de 1-2 segundos al cambiar de foto o seleccionar variantes
@@ -433,9 +435,33 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     }
   }, [galleryMedia, activeMediaIndex]);
 
-  // Showcase video player state (reproduce una sola vez sin sonido y luego para)
+  // Showcase video player state (reproduce una sola vez sin sonido y luego se pausa)
   const showcaseVideoRef = useRef<HTMLVideoElement | null>(null);
-  const [isShowcaseVideoPlaying, setIsShowcaseVideoPlaying] = useState<boolean>(true);
+  const [isShowcaseVideoPlaying, setIsShowcaseVideoPlaying] = useState<boolean>(false);
+  const hasShowcaseVideoAutoplayedRef = useRef<boolean>(false);
+  const isLightboxOpenRef = useRef<boolean>(false);
+  const isVideoModalOpenRef = useRef<boolean>(false);
+
+  // Mantener sincronizadas las referencias a modales abiertos para pausar de inmediato cualquier reproducción de fondo
+  useEffect(() => {
+    isLightboxOpenRef.current = isLightboxOpen;
+    isVideoModalOpenRef.current = isVideoModalOpen;
+    if (isLightboxOpen || isVideoModalOpen) {
+      if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
+        showcaseVideoRef.current.pause();
+      }
+      setIsShowcaseVideoPlaying(false);
+    }
+  }, [isLightboxOpen, isVideoModalOpen]);
+
+  // Reiniciar el indicador de reproducción automática si cambia el producto
+  useEffect(() => {
+    hasShowcaseVideoAutoplayedRef.current = false;
+    setIsShowcaseVideoPlaying(false);
+    if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
+      showcaseVideoRef.current.pause();
+    }
+  }, [product.id]);
 
   // Visibilidad configurable del botón "Comprar ahora" desde la administración
   const [showBuyNowButton, setShowBuyNowButton] = useState<boolean>(() => {
@@ -454,18 +480,99 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     };
   }, []);
 
+  // Función controlada para intentar reproducir automáticamente el video una sola vez y sin sonido
+  const attemptShowcaseAutoplay = useCallback((videoEl?: HTMLVideoElement | null, forcePlay = false) => {
+    const vid = videoEl || showcaseVideoRef.current;
+    if (!vid) return;
+
+    // Si el visor a pantalla completa o el lightbox están abiertos, el video de fondo DEBE permanecer pausado
+    if (isLightboxOpenRef.current || isVideoModalOpenRef.current || isLightboxOpen || isVideoModalOpen) {
+      if (!vid.paused) {
+        vid.pause();
+      }
+      setIsShowcaseVideoPlaying(false);
+      return;
+    }
+
+    // Si ya se reprodujo automáticamente una vez para este producto y no es reproducción forzada (ej. click en miniatura), mantener pausado
+    if (hasShowcaseVideoAutoplayedRef.current && !forcePlay) {
+      if (!vid.paused) {
+        vid.pause();
+      }
+      setIsShowcaseVideoPlaying(false);
+      return;
+    }
+
+    // Iniciar reproducción silenciada de una sola vez
+    vid.muted = true;
+    vid.defaultMuted = true;
+    vid.playsInline = true;
+    vid.setAttribute('playsinline', '');
+    vid.setAttribute('webkit-playsinline', '');
+
+    const playPromise = vid.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          hasShowcaseVideoAutoplayedRef.current = true;
+          setIsShowcaseVideoPlaying(true);
+        })
+        .catch(() => {
+          setIsShowcaseVideoPlaying(false);
+        });
+    }
+  }, [isLightboxOpen, isVideoModalOpen]);
+
+  // Manejador específico para click en la miniatura de video en escritorio:
+  // Se reproduce una sola vez en el visor de escritorio
+  const handleVideoThumbnailClick = useCallback((idx: number) => {
+    setActiveMediaIndex(idx);
+    setTimeout(() => {
+      const vid = showcaseVideoRef.current;
+      if (vid) {
+        vid.currentTime = 0;
+        attemptShowcaseAutoplay(vid, true);
+      }
+    }, 60);
+  }, [attemptShowcaseAutoplay]);
+
+  // Manejo de reproducción automática al deslizar o navegar entre los elementos de la galería:
+  // - Al llegar por primera vez al video: se reproduce automáticamente una sola vez sin sonido.
+  // - Al terminar el video: se pausa automáticamente y no entra en loop.
+  // - Si se desliza a otras imágenes y se regresa al video: se mantiene pausado mostrando el botón de play.
+  // - Si el lightbox o modal de video a pantalla completa está abierto: el video de fondo siempre permanece pausado.
   useEffect(() => {
     const currentMedia = galleryMedia[activeMediaIndex];
-    if (currentMedia?.type === 'video') {
-      setIsShowcaseVideoPlaying(true);
-      if (showcaseVideoRef.current) {
-        const vid = showcaseVideoRef.current;
-        if (vid.paused) {
-          vid.play().catch(() => {});
-        }
+
+    if (isLightboxOpen || isVideoModalOpen) {
+      if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
+        showcaseVideoRef.current.pause();
       }
+      setIsShowcaseVideoPlaying(false);
+      return;
     }
-  }, [activeMediaIndex]);
+
+    if (currentMedia?.type === 'video') {
+      const vid = showcaseVideoRef.current;
+      if (!hasShowcaseVideoAutoplayedRef.current) {
+        if (vid) {
+          attemptShowcaseAutoplay(vid);
+        }
+      } else {
+        // Al volver al video luego de haberlo visto, se mantiene en pausa
+        if (vid && !vid.paused) {
+          vid.pause();
+        }
+        setIsShowcaseVideoPlaying(false);
+      }
+    } else {
+      // Si el elemento activo de la galería es una imagen, pausar el video
+      if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
+        showcaseVideoRef.current.pause();
+      }
+      setIsShowcaseVideoPlaying(false);
+    }
+  }, [activeMediaIndex, galleryMedia, isLightboxOpen, isVideoModalOpen, attemptShowcaseAutoplay]);
 
   // Selected Size Variant / Price Modifiers
   const selectedSizeOption = useMemo(() => {
@@ -640,10 +747,10 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     if (!target) return false;
     try {
       if (typeof target.closest === 'function') {
-        return !!target.closest('#btn-share-product-detail, button, a, [role="button"]');
+        return !!target.closest('#btn-share-product-detail, #btn-prev-image, #btn-next-image, #btn-stock-notification');
       }
       if (target.parentElement && typeof target.parentElement.closest === 'function') {
-        return !!target.parentElement.closest('#btn-share-product-detail, button, a, [role="button"]');
+        return !!target.parentElement.closest('#btn-share-product-detail, #btn-prev-image, #btn-next-image, #btn-stock-notification');
       }
     } catch {}
     return false;
@@ -671,17 +778,40 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     const deltaY = e.changedTouches[0].clientY - touchStartY.current;
 
     // Check if horizontal swipe is significant and dominant over vertical scroll
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 35) {
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 28) {
       isSwipingMobile.current = true;
+      lastTouchOpenTime.current = Date.now();
+      setTimeout(() => {
+        isSwipingMobile.current = false;
+      }, 400);
+
       if (deltaX < 0) {
         // Swiped left -> Next item
         if (galleryMedia.length > 1) {
-          setActiveMediaIndex((prev) => (prev < galleryMedia.length - 1 ? prev + 1 : 0));
+          const nextIdx = activeMediaIndex < galleryMedia.length - 1 ? activeMediaIndex + 1 : 0;
+          setActiveMediaIndex(nextIdx);
+          if (galleryMedia[nextIdx]?.type === 'video' && !hasShowcaseVideoAutoplayedRef.current) {
+            setTimeout(() => {
+              const vid = showcaseVideoRef.current;
+              if (vid) {
+                attemptShowcaseAutoplay(vid);
+              }
+            }, 60);
+          }
         }
       } else {
         // Swiped right -> Previous item
         if (galleryMedia.length > 1) {
-          setActiveMediaIndex((prev) => (prev > 0 ? prev - 1 : galleryMedia.length - 1));
+          const prevIdx = activeMediaIndex > 0 ? activeMediaIndex - 1 : galleryMedia.length - 1;
+          setActiveMediaIndex(prevIdx);
+          if (galleryMedia[prevIdx]?.type === 'video' && !hasShowcaseVideoAutoplayedRef.current) {
+            setTimeout(() => {
+              const vid = showcaseVideoRef.current;
+              if (vid) {
+                attemptShowcaseAutoplay(vid);
+              }
+            }, 60);
+          }
         }
       }
     } else if (Math.abs(deltaX) < 14 && Math.abs(deltaY) < 14) {
@@ -958,11 +1088,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                       key="thumb-video-item"
                       id="thumb-btn-video"
                       onClick={() => {
-                        if (activeMediaIndex === idx) {
-                          setIsVideoModalOpen(true);
-                        } else {
-                          setActiveMediaIndex(idx);
-                        }
+                        handleVideoThumbnailClick(idx);
                       }}
                       className={`w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border-2 transition-all shrink-0 bg-black relative p-0.5 md:p-0 cursor-pointer group ${
                         isActive
@@ -1088,14 +1214,18 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               </button>
               {galleryMedia[activeMediaIndex]?.type === 'video' ? (
                 <div
-                  role="button"
                   tabIndex={0}
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
+                      showcaseVideoRef.current.pause();
+                    }
+                    setIsShowcaseVideoPlaying(false);
                     setIsVideoModalOpen(true);
                   }}
-                  className="relative aspect-[9/16] h-full max-h-[390px] sm:max-h-[440px] md:max-h-[460px] max-w-full bg-black rounded-none sm:rounded-xl overflow-hidden shadow-md flex items-center justify-center cursor-pointer group/showcase-video select-none"
-                  title="Ver video del producto"
+                  className="relative aspect-[9/16] h-full max-h-[390px] sm:max-h-[440px] md:max-h-[460px] max-w-full bg-black rounded-none sm:rounded-xl overflow-hidden shadow-md flex items-center justify-center cursor-pointer select-none"
+                  title="Ver video del producto a pantalla completa"
+                  aria-label="Ver video del producto a pantalla completa"
                 >
                   {(() => {
                     const videoSrc = galleryMedia[activeMediaIndex].url;
@@ -1104,19 +1234,52 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
                     return (
                       <video
-                        ref={showcaseVideoRef}
+                        ref={(el) => {
+                          showcaseVideoRef.current = el;
+                          if (el) {
+                            el.muted = true;
+                            el.defaultMuted = true;
+                            el.playsInline = true;
+                            el.setAttribute('playsinline', '');
+                            el.setAttribute('webkit-playsinline', '');
+
+                            if (isLightboxOpenRef.current || isVideoModalOpenRef.current) {
+                              if (!el.paused) el.pause();
+                              setIsShowcaseVideoPlaying(false);
+                            } else if (!hasShowcaseVideoAutoplayedRef.current) {
+                              attemptShowcaseAutoplay(el);
+                            } else {
+                              if (!el.paused) el.pause();
+                              setIsShowcaseVideoPlaying(false);
+                            }
+                          }
+                        }}
                         key={optimizedUrl || videoSrc}
                         src={optimizedUrl || videoSrc}
                         poster={posterUrl || undefined}
-                        autoPlay
+                        autoPlay={!hasShowcaseVideoAutoplayedRef.current}
                         muted
                         playsInline
                         preload="auto"
+                        loop={false}
+                        onCanPlay={(e) => {
+                          attemptShowcaseAutoplay(e.currentTarget);
+                        }}
+                        onLoadedData={(e) => {
+                          attemptShowcaseAutoplay(e.currentTarget);
+                        }}
                         onEnded={() => {
                           setIsShowcaseVideoPlaying(false);
+                          hasShowcaseVideoAutoplayedRef.current = true;
+                          if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
+                            showcaseVideoRef.current.pause();
+                          }
                         }}
                         onPause={() => setIsShowcaseVideoPlaying(false)}
-                        onPlay={() => setIsShowcaseVideoPlaying(true)}
+                        onPlay={() => {
+                          hasShowcaseVideoAutoplayedRef.current = true;
+                          setIsShowcaseVideoPlaying(true);
+                        }}
                         className={`w-full h-full object-cover pointer-events-none transition-all duration-300 ${
                           isCurrentSelectionOutOfStock ? 'brightness-[0.75] contrast-[0.95]' : ''
                         }`}
@@ -1127,7 +1290,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   {/* Play icon overlay when video has ended or is paused */}
                   {!isShowcaseVideoPlaying && (
                     <div className="absolute inset-0 bg-black/35 flex items-center justify-center pointer-events-none z-10">
-                      <div className="w-14 h-14 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-xs border border-white/20 shadow-xl transition-transform group-hover/showcase-video:scale-110">
+                      <div className="w-14 h-14 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-xs border border-white/20 shadow-xl">
                         <Play className="w-7 h-7 ml-1 fill-white text-white" />
                       </div>
                     </div>
@@ -1169,8 +1332,13 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                       onClick={(e) => {
                         e.stopPropagation();
                         setActiveMediaIndex(dotIdx);
-                        if (mItem.type === 'video') {
-                          setIsVideoModalOpen(true);
+                        if (galleryMedia[dotIdx]?.type === 'video' && !hasShowcaseVideoAutoplayedRef.current) {
+                          setTimeout(() => {
+                            const vid = showcaseVideoRef.current;
+                            if (vid) {
+                              attemptShowcaseAutoplay(vid);
+                            }
+                          }, 60);
                         }
                       }}
                       className={`h-1.5 rounded-full transition-all flex items-center justify-center ${
@@ -1196,7 +1364,16 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     id="btn-prev-image"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setActiveMediaIndex((prev) => (prev > 0 ? prev - 1 : galleryMedia.length - 1));
+                      const prevIdx = activeMediaIndex > 0 ? activeMediaIndex - 1 : galleryMedia.length - 1;
+                      setActiveMediaIndex(prevIdx);
+                      if (galleryMedia[prevIdx]?.type === 'video' && !hasShowcaseVideoAutoplayedRef.current) {
+                        setTimeout(() => {
+                          const vid = showcaseVideoRef.current;
+                          if (vid) {
+                            attemptShowcaseAutoplay(vid);
+                          }
+                        }, 60);
+                      }
                     }}
                     className="hidden md:flex absolute left-2.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 shadow-md border border-gray-200 items-center justify-center text-gray-700 hover:text-[#0058bb] hover:bg-white transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
                     title="Elemento anterior"
@@ -1208,7 +1385,16 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     id="btn-next-image"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setActiveMediaIndex((prev) => (prev < galleryMedia.length - 1 ? prev + 1 : 0));
+                      const nextIdx = activeMediaIndex < galleryMedia.length - 1 ? activeMediaIndex + 1 : 0;
+                      setActiveMediaIndex(nextIdx);
+                      if (galleryMedia[nextIdx]?.type === 'video' && !hasShowcaseVideoAutoplayedRef.current) {
+                        setTimeout(() => {
+                          const vid = showcaseVideoRef.current;
+                          if (vid) {
+                            attemptShowcaseAutoplay(vid);
+                          }
+                        }, 60);
+                      }
                     }}
                     className="hidden md:flex absolute right-2.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 shadow-md border border-gray-200 items-center justify-center text-gray-700 hover:text-[#0058bb] hover:bg-white transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
                     title="Siguiente elemento"
@@ -1884,7 +2070,13 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
       {/* Lightbox / Visor de Imagen a Pantalla Completa con Zoom y Deslizamiento */}
       <ProductImageLightbox
         isOpen={isLightboxOpen}
-        onClose={() => setIsLightboxOpen(false)}
+        onClose={() => {
+          if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
+            showcaseVideoRef.current.pause();
+          }
+          setIsShowcaseVideoPlaying(false);
+          setIsLightboxOpen(false);
+        }}
         mediaItems={lightboxMediaItems}
         initialIndex={activeMediaIndex}
         title={product.title}
@@ -1894,9 +2086,17 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             : undefined
         }
         onIndexChange={(newIdx) => {
+          if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
+            showcaseVideoRef.current.pause();
+          }
+          setIsShowcaseVideoPlaying(false);
           setActiveMediaIndex(newIdx);
         }}
         onOpenVideo={() => {
+          if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
+            showcaseVideoRef.current.pause();
+          }
+          setIsShowcaseVideoPlaying(false);
           setIsLightboxOpen(false);
           setIsVideoModalOpen(true);
         }}

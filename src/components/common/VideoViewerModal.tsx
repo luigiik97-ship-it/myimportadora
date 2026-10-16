@@ -132,24 +132,34 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
 
   // Play video with sound whenever currentIndex changes or modal opens
   useEffect(() => {
-    if (!isOpen || !videoRef.current) return;
+    if (!isOpen) {
+      if (videoRef.current) {
+        videoRef.current.pause();
+      }
+      setIsPlaying(false);
+      return;
+    }
+
+    if (!videoRef.current) return;
     const video = videoRef.current;
     video.currentTime = 0;
-    video.muted = isMuted;
+    video.muted = false;
+    setIsMuted(false);
 
     const playPromise = video.play();
     if (playPromise !== undefined) {
       playPromise
         .then(() => setIsPlaying(true))
         .catch(() => {
-          // If browser policy blocks sound before user tap, attempt muted playback
+          // If browser policy blocks unmuted autoplay, attempt muted playback
           if (!video.muted) {
             video.muted = true;
+            setIsMuted(true);
             video.play().catch(() => {});
           }
         });
     }
-  }, [currentIndex, isOpen, isMuted]);
+  }, [currentIndex, isOpen]);
 
   // Precarga suave en segundo plano del video siguiente (y anterior) para que el deslizamiento vertical sea 100% instantáneo
   useEffect(() => {

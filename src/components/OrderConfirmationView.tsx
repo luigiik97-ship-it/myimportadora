@@ -226,32 +226,33 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
   };
 
   return (
-    <div className="max-w-[1240px] mx-auto px-1 sm:px-4 py-3 sm:py-8 space-y-4 sm:space-y-8">
-      {/* 1. Header Section */}
-      <div className="text-center space-y-2.5 sm:space-y-3 max-w-2xl mx-auto px-2">
-        <div className="w-16 h-16 sm:w-16 sm:h-16 bg-emerald-100 text-[#00a650] rounded-full flex items-center justify-center mx-auto shadow-xs">
-          <CheckCircle2 className="w-10 h-10 stroke-[2.5]" />
-        </div>
-        <h1 id="order-thankyou-title" className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-900 font-['Montserrat'] tracking-tight">
-          ¡Gracias por tu compra!
-        </h1>
-        <p className="text-sm sm:text-base text-gray-600">
-          Tu pedido <strong className="text-[#0058bb] font-bold">#{order.orderNumber}</strong> ha sido reservado y está en proceso de preparación.
-        </p>
+    <div className="w-full min-h-full bg-white">
+      <div className="max-w-[1240px] mx-auto px-1 sm:px-4 py-3 sm:py-8 space-y-4 sm:space-y-8 bg-white">
+        {/* 1. Header Section */}
+        <div className="text-center space-y-2.5 sm:space-y-3 max-w-2xl mx-auto px-2">
+          <div className="w-16 h-16 sm:w-16 sm:h-16 bg-emerald-100 text-[#00a650] rounded-full flex items-center justify-center mx-auto shadow-xs">
+            <CheckCircle2 className="w-10 h-10 stroke-[2.5]" />
+          </div>
+          <h1 id="order-thankyou-title" className="text-2xl sm:text-3xl md:text-4xl font-black text-gray-900 font-['Montserrat'] tracking-tight">
+            ¡Gracias por tu compra!
+          </h1>
+          <p className="text-sm sm:text-base text-gray-600">
+            Tu pedido <strong className="text-[#0058bb] font-bold">#{order.orderNumber}</strong> ha sido reservado y está en proceso de preparación.
+          </p>
 
-        {/* Email receipt status notification */}
-        <div className="inline-flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-800 text-xs sm:text-sm px-3.5 py-1.5 rounded-full font-medium shadow-2xs text-left sm:text-center">
-          <Mail className="w-4 h-4 text-[#0058bb] shrink-0" />
-          <span>
-            Hemos enviado el recibo de compra y comprobante a <strong>{order.customerEmail}</strong>
-          </span>
+          {/* Email receipt status notification */}
+          <div className="inline-flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-800 text-xs sm:text-sm px-3.5 py-1.5 rounded-full font-medium shadow-2xs text-left sm:text-center">
+            <Mail className="w-4 h-4 text-[#0058bb] shrink-0" />
+            <span>
+              Hemos enviado el recibo de compra y comprobante a <strong>{order.customerEmail}</strong>
+            </span>
+          </div>
         </div>
-      </div>
 
-      {/* 2. Three Sections: Flat native on mobile with subtle dividers, cards on desktop */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-0 md:gap-6 divide-y md:divide-y-0 divide-gray-200">
-        {/* Section 1: Datos de envío */}
-        <div className="bg-transparent md:bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-200 p-2 md:p-5 shadow-none md:shadow-xs flex flex-col justify-between space-y-3.5 sm:space-y-4 py-4 md:py-5">
+        {/* 2. Three Sections: Flat native on mobile with subtle dividers, cards on desktop */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-0 md:gap-6 divide-y md:divide-y-0 divide-gray-200">
+          {/* Section 1: Datos de envío */}
+          <div className="bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-200 p-2 md:p-5 shadow-none md:shadow-xs flex flex-col justify-between space-y-3.5 sm:space-y-4 py-4 md:py-5">
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-gray-900 font-bold font-['Montserrat'] text-base border-b border-gray-100 pb-2">
               {order.deliveryOption === 'pickup' ? (
@@ -306,7 +307,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
         </div>
 
         {/* Section 2: Pago */}
-        <div className="bg-transparent md:bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-200 p-2 md:p-5 shadow-none md:shadow-xs flex flex-col justify-between space-y-3.5 sm:space-y-4 py-4 md:py-5">
+        <div className="bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-200 p-2 md:p-5 shadow-none md:shadow-xs flex flex-col justify-between space-y-3.5 sm:space-y-4 py-4 md:py-5">
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-gray-900 font-bold font-['Montserrat'] text-base border-b border-gray-100 pb-2">
               <CreditCard className="w-5 h-5 text-[#0058bb]" />
@@ -380,7 +381,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
         </div>
 
         {/* Section 3: Resumen de compra */}
-        <div className="bg-transparent md:bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-200 p-2 md:p-5 shadow-none md:shadow-xs flex flex-col justify-between space-y-4 py-4 md:py-5">
+        <div className="bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-200 p-2 md:p-5 shadow-none md:shadow-xs flex flex-col justify-between space-y-4 py-4 md:py-5">
           <div className="space-y-3">
             <h3 className="text-gray-900 font-bold font-['Montserrat'] text-base border-b border-gray-100 pb-2">
               Resumen de compra
@@ -494,7 +495,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
       </div>
 
       {/* 3. Bottom Section: Resumen de productos - Flat native on mobile */}
-      <div className="bg-transparent md:bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-200 p-2 md:p-5 shadow-none md:shadow-xs space-y-4 pt-4 border-t border-gray-200 md:border-t-0">
+      <div className="bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-200 p-2 md:p-5 shadow-none md:shadow-xs space-y-4 pt-4 border-t border-gray-200 md:border-t-0">
         <div className="flex items-center justify-between border-b border-gray-100 pb-3">
           <h3 className="text-base sm:text-lg font-bold text-gray-900 font-['Montserrat']">
             Resumen de productos
@@ -561,6 +562,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
           <span>{toast.text}</span>
         </div>
       )}
+      </div>
     </div>
   );
 };
