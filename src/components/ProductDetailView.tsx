@@ -500,12 +500,15 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
       return;
     }
 
-    // Si ya se reprodujo automáticamente para este producto, mantener pausado y no repetir
+    // Si ya se reprodujo automáticamente para este producto, no interferir con la reproducción actual ni reintentar
     if (hasShowcaseVideoAutoplayedRef.current) {
-      if (!vid.paused) {
-        vid.pause();
-      }
-      setIsShowcaseVideoPlaying(false);
+      return;
+    }
+
+    // Si ya está reproduciéndose (por ejemplo por autoPlay nativo del navegador), sincronizar estado sin interrumpir
+    if (!vid.paused) {
+      hasShowcaseVideoAutoplayedRef.current = true;
+      setIsShowcaseVideoPlaying(true);
       return;
     }
 
@@ -567,17 +570,10 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
     if (currentMedia?.type === 'video') {
       const vid = showcaseVideoRef.current;
-      if (!hasShowcaseVideoAutoplayedRef.current) {
-        if (vid) {
-          attemptShowcaseAutoplay(vid);
-        }
-      } else {
-        // Al volver al video luego de haberlo visto, se mantiene en pausa
-        if (vid && !vid.paused) {
-          vid.pause();
-        }
-        setIsShowcaseVideoPlaying(false);
+      if (!hasShowcaseVideoAutoplayedRef.current && vid) {
+        attemptShowcaseAutoplay(vid);
       }
+      // Nota: Si hasShowcaseVideoAutoplayedRef ya es true, el video continúa su reproducción natural o permanece pausado si el usuario volvió de otra imagen
     } else {
       // Si el elemento activo de la galería es una imagen, pausar de inmediato el video
       if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
@@ -1230,6 +1226,10 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   tabIndex={0}
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (Date.now() - lastTouchOpenTime.current < 600 || isSwipingMobile.current) {
+                      isSwipingMobile.current = false;
+                      return;
+                    }
                     if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
                       showcaseVideoRef.current.pause();
                     }
