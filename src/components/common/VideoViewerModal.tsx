@@ -48,6 +48,7 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const modalContainerRef = useRef<HTMLDivElement | null>(null);
   const touchStartY = useRef<number | null>(null);
+  const playbackSessionRef = useRef<string | null>(null);
 
   // Sync initial index
   useEffect(() => {
@@ -94,17 +95,47 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
 
   const currentVideo = videos[currentIndex];
 
+  // Reproduce con sonido desde el principio sin bucle
+  const startPlaybackWithAudio = useCallback((videoEl?: HTMLVideoElement | null) => {
+    const video = videoEl || videoRef.current;
+    if (!video) return;
+
+    try {
+      video.currentTime = 0;
+      video.muted = false;
+      video.playsInline = true;
+      video.loop = false;
+      setIsMuted(false);
+
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => setIsPlaying(true))
+          .catch(() => {
+            // Si las políticas de reproducción del navegador requieren muted inicial
+            video.muted = true;
+            setIsMuted(true);
+            video.play()
+              .then(() => setIsPlaying(true))
+              .catch(() => setIsPlaying(false));
+          });
+      }
+    } catch {
+      // Ignorar excepciones sincrónicas
+    }
+  }, []);
+
   // Play / Pause toggler
   const togglePlay = useCallback(() => {
     if (!videoRef.current) return;
-    if (videoRef.current.paused || videoRef.current.ended) {
-      if (videoRef.current.ended) {
-        videoRef.current.currentTime = 0;
+    const vid = videoRef.current;
+    if (vid.paused || vid.ended) {
+      if (vid.ended) {
+        vid.currentTime = 0;
       }
-      videoRef.current.play().catch(() => {});
-      setIsPlaying(true);
+      vid.play().then(() => setIsPlaying(true)).catch(() => {});
     } else {
-      videoRef.current.pause();
+      vid.pause();
       setIsPlaying(false);
     }
   }, []);
@@ -130,36 +161,30 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
     setIsPlaying(true);
   }, [videos.length]);
 
-  // Play video with sound whenever currentIndex changes or modal opens
+  // Reproduce con sonido cada vez que cambia el índice o se abre el modal (controlado por playbackSessionRef para evitar reinicios)
   useEffect(() => {
     if (!isOpen) {
-      if (videoRef.current) {
+      if (videoRef.current && !videoRef.current.paused) {
         videoRef.current.pause();
       }
       setIsPlaying(false);
+      playbackSessionRef.current = null;
       return;
     }
 
-    if (!videoRef.current) return;
-    const video = videoRef.current;
-    video.currentTime = 0;
-    video.muted = false;
-    setIsMuted(false);
+    const currentVid = videos[currentIndex];
+    if (!currentVid) return;
 
-    const playPromise = video.play();
-    if (playPromise !== undefined) {
-      playPromise
-        .then(() => setIsPlaying(true))
-        .catch(() => {
-          // If browser policy blocks unmuted autoplay, attempt muted playback
-          if (!video.muted) {
-            video.muted = true;
-            setIsMuted(true);
-            video.play().catch(() => {});
-          }
-        });
+    const sessionKey = `${currentVid.id || currentVid.videoUrl}_${currentIndex}`;
+    if (playbackSessionRef.current === sessionKey) {
+      return; // Ya iniciado para este video, no reiniciar ni cambiar currentTime
     }
-  }, [currentIndex, isOpen]);
+    playbackSessionRef.current = sessionKey;
+
+    if (videoRef.current) {
+      startPlaybackWithAudio(videoRef.current);
+    }
+  }, [currentIndex, isOpen, videos, startPlaybackWithAudio]);
 
   // Precarga suave en segundo plano del video siguiente (y anterior) para que el deslizamiento vertical sea 100% instantáneo
   useEffect(() => {
@@ -248,15 +273,36 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
 
           return (
             <video
-              ref={videoRef}
+              ref={(el) => {
+                videoRef.current = el;
+              }}
               key={optimizedVideoUrl}
               src={optimizedVideoUrl}
               poster={posterUrl || undefined}
               playsInline
               preload="auto"
               loop={false}
+              onLoadedMetadata={(e) => {
+                if (!isOpen || !currentVideo) return;
+                const sessionKey = `${currentVideo.id || currentVideo.videoUrl}_${currentIndex}`;
+                if (playbackSessionRef.current !== sessionKey) {
+                  playbackSessionRef.current = sessionKey;
+                  startPlaybackWithAudio(e.currentTarget);
+                }
+              }}
+              onCanPlay={(e) => {
+                if (!isOpen || !currentVideo) return;
+                const sessionKey = `${currentVideo.id || currentVideo.videoUrl}_${currentIndex}`;
+                if (playbackSessionRef.current !== sessionKey) {
+                  playbackSessionRef.current = sessionKey;
+                  startPlaybackWithAudio(e.currentTarget);
+                }
+              }}
               onEnded={() => {
                 setIsPlaying(false);
+                if (videoRef.current && !videoRef.current.paused) {
+                  videoRef.current.pause();
+                }
               }}
               onPlay={() => setIsPlaying(true)}
               onPause={() => setIsPlaying(false)}

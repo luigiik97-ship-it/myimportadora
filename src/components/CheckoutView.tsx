@@ -939,7 +939,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       <span className="text-sm font-bold text-gray-900">Transferencia</span>
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5 leading-snug">
-                      Realiza el pago por Alias / CVU.
+                      Realiza el pago por Alias / CVU
                     </p>
                   </div>
                 </div>
@@ -975,7 +975,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                         </span>
                       </div>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        Abonás al retirar en el local comercial.
+                        Abonás al retirar en el local
                       </p>
                     </div>
                   </div>
