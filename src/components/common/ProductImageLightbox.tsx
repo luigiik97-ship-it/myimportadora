@@ -377,7 +377,11 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
               }}
             >
               <div
-                className="relative aspect-[9/16] h-[72vh] max-h-[640px] max-w-full rounded-2xl overflow-hidden bg-black shadow-2xl border border-white/20 select-none group flex items-center justify-center"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenVideo?.();
+                }}
+                className="relative aspect-[9/16] h-[72vh] max-h-[640px] max-w-full rounded-2xl overflow-hidden bg-black shadow-2xl border border-white/20 select-none group flex items-center justify-center cursor-pointer"
                 style={{
                   transform: `translate3d(${slideOffset}px, 0px, 0px)`,
                   transition: isDragging ? 'none' : 'transform 250ms ease-out',
@@ -404,13 +408,10 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
                   );
                 })()}
                 {/* Play Button Overlay */}
-                <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 transition-colors flex flex-col items-center justify-center gap-3">
+                <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 transition-colors flex items-center justify-center pointer-events-none">
                   <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/95 group-hover:bg-white text-gray-950 flex items-center justify-center shadow-2xl transition-transform group-hover:scale-110 active:scale-95">
                     <Play className="w-8 h-8 sm:w-9 sm:h-9 ml-1 fill-gray-950 text-gray-950" />
                   </div>
-                  <span className="text-white text-xs sm:text-sm font-semibold tracking-wide bg-black/75 px-4 py-1.5 rounded-full border border-white/20 backdrop-blur-xs shadow-md">
-                    Ver video en pantalla completa
-                  </span>
                 </div>
               </div>
             </div>

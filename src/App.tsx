@@ -920,7 +920,7 @@ export default function App() {
         }
       }}
     >
-      <div className={`min-h-screen flex flex-col ${isConfirmation ? 'bg-white' : 'bg-[#fbf9f8]'} text-[#1b1c1c] font-sans antialiased`}>
+      <div className={`min-h-screen flex flex-col w-full max-w-full overflow-x-clip ${isConfirmation ? 'bg-white' : 'bg-[#fbf9f8]'} text-[#1b1c1c] font-sans antialiased`}>
       {/* Global Navigation Header (Royal Blue) */}
       <Navbar
         showTopBar={showTopBar}
@@ -959,7 +959,7 @@ export default function App() {
       />
 
       {/* Main Content Area with Real Browser Routes */}
-      <main className={`flex-1 ${isConfirmation ? 'bg-white' : ''}`}>
+      <main className={`flex-1 w-full max-w-full ${isConfirmation ? 'bg-white' : ''}`}>
         <Routes>
           <Route
             path="/"

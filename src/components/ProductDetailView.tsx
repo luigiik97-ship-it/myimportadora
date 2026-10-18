@@ -550,6 +550,30 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     setActiveMediaIndex(idx);
   }, []);
 
+  // Abre el video en pantalla completa con sonido desde el segundo cero, pausando la galería normal
+  const handleOpenVideoFullscreen = useCallback(() => {
+    // Desbloquear permisos de audio del navegador con el gesto directo del usuario
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        if (!(window as any).__unlockedAudioContext) {
+          (window as any).__unlockedAudioContext = new AudioCtx();
+        }
+        if ((window as any).__unlockedAudioContext.state === 'suspended') {
+          (window as any).__unlockedAudioContext.resume();
+        }
+      }
+    } catch {}
+
+    if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
+      showcaseVideoRef.current.pause();
+    }
+    setIsShowcaseVideoPlaying(false);
+    hasShowcaseVideoAutoplayedRef.current = true;
+    setIsLightboxOpen(false);
+    setIsVideoModalOpen(true);
+  }, []);
+
   // Manejo de reproducción automática al deslizar o navegar entre los elementos de la galería:
   // - Al llegar por primera vez al video: se reproduce automáticamente una sola vez sin sonido.
   // - Al terminar el video: se pausa automáticamente y no entra en loop.
@@ -813,18 +837,13 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
           setActiveMediaIndex(prevIdx);
         }
       }
-    } else if (Math.abs(deltaX) < 14 && Math.abs(deltaY) < 14) {
+    } else if (Math.abs(deltaX) <= 24 && Math.abs(deltaY) <= 24) {
       // Direct tap without swipe opens fullscreen
       isSwipingMobile.current = false;
       lastTouchOpenTime.current = Date.now();
       const currentItem = galleryMedia[activeMediaIndex];
       if (currentItem && currentItem.type === 'video') {
-        if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
-          showcaseVideoRef.current.pause();
-        }
-        setIsShowcaseVideoPlaying(false);
-        hasShowcaseVideoAutoplayedRef.current = true;
-        setIsVideoModalOpen(true);
+        handleOpenVideoFullscreen();
       } else {
         setIsLightboxOpen(true);
       }
@@ -1058,7 +1077,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   };
 
   return (
-    <div className="max-w-[1240px] mx-auto px-0 sm:px-4 pt-0 sm:py-5 pb-3 sm:pb-6 space-y-3 sm:space-y-5 md:space-y-6">
+    <div className="w-full max-w-[1240px] mx-auto px-0 sm:px-4 pt-0 sm:py-5 pb-3 sm:pb-6 space-y-3 sm:space-y-5 md:space-y-6 overflow-x-clip">
       {/* Breadcrumbs (Hidden on mobile, visible on desktop) */}
       <nav id="breadcrumbs" className="hidden md:flex items-center gap-2 text-sm text-gray-500 flex-wrap">
         <span className="hover:text-gray-800 cursor-pointer">{product.category}</span>
@@ -1160,18 +1179,13 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 if (target && isInteractiveTarget(target)) {
                   return;
                 }
-                if (Date.now() - lastTouchOpenTime.current < 600 || isSwipingMobile.current) {
+                if (Date.now() - lastTouchOpenTime.current < 450 || isSwipingMobile.current) {
                   isSwipingMobile.current = false;
                   return;
                 }
                 const currentMedia = galleryMedia[activeMediaIndex];
                 if (currentMedia && currentMedia.type === 'video') {
-                  if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
-                    showcaseVideoRef.current.pause();
-                  }
-                  setIsShowcaseVideoPlaying(false);
-                  hasShowcaseVideoAutoplayedRef.current = true;
-                  setIsVideoModalOpen(true);
+                  handleOpenVideoFullscreen();
                 } else {
                   setIsLightboxOpen(true);
                 }
@@ -1226,16 +1240,11 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   tabIndex={0}
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (Date.now() - lastTouchOpenTime.current < 600 || isSwipingMobile.current) {
+                    if (Date.now() - lastTouchOpenTime.current < 450 || isSwipingMobile.current) {
                       isSwipingMobile.current = false;
                       return;
                     }
-                    if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
-                      showcaseVideoRef.current.pause();
-                    }
-                    setIsShowcaseVideoPlaying(false);
-                    hasShowcaseVideoAutoplayedRef.current = true;
-                    setIsVideoModalOpen(true);
+                    handleOpenVideoFullscreen();
                   }}
                   className="relative aspect-[9/16] h-full max-h-[390px] sm:max-h-[440px] md:max-h-[460px] max-w-full bg-black rounded-none sm:rounded-xl overflow-hidden shadow-md flex items-center justify-center cursor-pointer select-none"
                   title="Ver video del producto a pantalla completa"
@@ -2082,12 +2091,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
           setActiveMediaIndex(newIdx);
         }}
         onOpenVideo={() => {
-          if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
-            showcaseVideoRef.current.pause();
-          }
-          setIsShowcaseVideoPlaying(false);
-          setIsLightboxOpen(false);
-          setIsVideoModalOpen(true);
+          handleOpenVideoFullscreen();
         }}
       />
 
@@ -2099,6 +2103,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
         initialIndex={0}
         products={allProducts}
         showAssociatedProduct={false}
+        loop={false}
       />
 
       {/* Share Modal para el detalle de producto */}

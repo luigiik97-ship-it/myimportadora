@@ -789,7 +789,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-gray-900 pb-28">
+    <div className="min-h-screen bg-[#f8fafc] text-gray-900 pb-28 w-full max-w-full overflow-x-clip">
       {/* Top Banner Header */}
       <div
         className="text-white py-3.5 sm:py-4.5 md:py-5 px-1 sm:px-6 shadow-sm relative overflow-hidden border-b border-gray-800"

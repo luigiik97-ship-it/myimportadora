@@ -166,14 +166,14 @@ export const HomeReelsCarousel: React.FC<HomeReelsCarouselProps> = ({
   return (
     <section
       id="home-reels-carousel"
-      className="relative w-full max-w-[1240px] mx-auto group select-none"
+      className="relative w-full max-w-[1240px] mx-auto group select-none overflow-hidden"
     >
       {/* Navigation Arrows for Desktop */}
       {canScrollLeft && (
         <button
           type="button"
           onClick={() => scrollByAmount('left')}
-          className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/95 text-gray-800 items-center justify-center shadow-md border border-gray-200 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+          className="hidden md:flex absolute left-1 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/95 text-gray-800 items-center justify-center shadow-md border border-gray-200 hover:scale-105 active:scale-95 transition-all cursor-pointer"
           aria-label="Ver videos anteriores"
         >
           <ChevronLeft className="w-5 h-5 text-gray-700" />
@@ -184,7 +184,7 @@ export const HomeReelsCarousel: React.FC<HomeReelsCarouselProps> = ({
         <button
           type="button"
           onClick={() => scrollByAmount('right')}
-          className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/95 text-gray-800 items-center justify-center shadow-md border border-gray-200 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+          className="hidden md:flex absolute right-1 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/95 text-gray-800 items-center justify-center shadow-md border border-gray-200 hover:scale-105 active:scale-95 transition-all cursor-pointer"
           aria-label="Ver siguientes videos"
         >
           <ChevronRight className="w-5 h-5 text-gray-700" />

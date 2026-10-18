@@ -19,7 +19,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateToInfo, className = ''
   };
 
   return (
-    <footer id="main-footer" className={`bg-[#f0eded] border-t border-[#e4e2e1] mt-4 sm:mt-16 text-gray-600 text-[11px] sm:text-sm py-3.5 sm:py-8 ${className}`}>
+    <footer id="main-footer" className={`bg-[#f0eded] border-t border-[#e4e2e1] mt-4 sm:mt-16 text-gray-600 text-[11px] sm:text-sm py-3.5 sm:py-8 w-full max-w-full overflow-hidden ${className}`}>
       <div className="max-w-[1240px] mx-auto px-2 sm:px-4">
         {/* Navigation Links */}
         <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-3 sm:gap-x-6 gap-y-1 sm:gap-y-2 mb-2.5 sm:mb-6 font-medium text-gray-700 text-[11px] sm:text-sm">

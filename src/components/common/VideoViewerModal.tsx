@@ -28,6 +28,7 @@ interface VideoViewerModalProps {
   products?: Product[];
   onSelectProduct?: (productId: string) => void;
   showAssociatedProduct?: boolean;
+  loop?: boolean;
 }
 
 export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
@@ -38,6 +39,7 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
   products = [],
   onSelectProduct,
   showAssociatedProduct = true,
+  loop = false,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -56,6 +58,12 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
       setCurrentIndex(Math.max(0, Math.min(initialIndex, videos.length - 1)));
       setIsPlaying(true);
       setIsMuted(false);
+      playbackSessionRef.current = null;
+    } else {
+      playbackSessionRef.current = null;
+      if (videoRef.current && !videoRef.current.paused) {
+        videoRef.current.pause();
+      }
     }
   }, [isOpen, initialIndex, videos.length]);
 
@@ -101,18 +109,34 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
     if (!video) return;
 
     try {
-      video.currentTime = 0;
       video.muted = false;
+      video.defaultMuted = false;
+      video.volume = 1.0;
+      try {
+        video.removeAttribute('muted');
+      } catch {}
       video.playsInline = true;
-      video.loop = false;
+      video.loop = loop;
       setIsMuted(false);
+
+      if (video.readyState >= 1 && video.currentTime > 0 && video.ended) {
+        video.currentTime = 0;
+      }
 
       const playPromise = video.play();
       if (playPromise !== undefined) {
         playPromise
-          .then(() => setIsPlaying(true))
-          .catch(() => {
-            // Si las políticas de reproducción del navegador requieren muted inicial
+          .then(() => {
+            setIsPlaying(true);
+            setIsMuted(false);
+            video.muted = false;
+          })
+          .catch((err) => {
+            // Si el error es AbortError (interrumpido por carga en curso), no mutear prematuramente
+            if (err && err.name === 'AbortError') {
+              return;
+            }
+            // Si el navegador requiere interacción directa adicional para sonido, reproducir inicialmente en silencio
             video.muted = true;
             setIsMuted(true);
             video.play()
@@ -125,7 +149,7 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
     }
   }, []);
 
-  // Play / Pause toggler
+  // Play / Pause toggler & activación directa de sonido con el toque del usuario
   const togglePlay = useCallback(() => {
     if (!videoRef.current) return;
     const vid = videoRef.current;
@@ -133,8 +157,25 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
       if (vid.ended) {
         vid.currentTime = 0;
       }
+      vid.muted = false;
+      vid.volume = 1.0;
+      try {
+        vid.removeAttribute('muted');
+      } catch {}
+      setIsMuted(false);
       vid.play().then(() => setIsPlaying(true)).catch(() => {});
     } else {
+      // Si el video está reproduciéndose pero en silencio por restricciones del navegador,
+      // el toque del usuario activa el sonido inmediatamente sin pausar
+      if (vid.muted) {
+        vid.muted = false;
+        vid.volume = 1.0;
+        try {
+          vid.removeAttribute('muted');
+        } catch {}
+        setIsMuted(false);
+        return;
+      }
       vid.pause();
       setIsPlaying(false);
     }
@@ -276,35 +317,50 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
               ref={(el) => {
                 videoRef.current = el;
               }}
-              key={optimizedVideoUrl}
+              key={`${optimizedVideoUrl}_${currentIndex}`}
               src={optimizedVideoUrl}
               poster={posterUrl || undefined}
               playsInline
               preload="auto"
-              loop={false}
+              loop={loop}
+              muted={isMuted}
               onLoadedMetadata={(e) => {
                 if (!isOpen || !currentVideo) return;
+                const vid = e.currentTarget;
                 const sessionKey = `${currentVideo.id || currentVideo.videoUrl}_${currentIndex}`;
                 if (playbackSessionRef.current !== sessionKey) {
                   playbackSessionRef.current = sessionKey;
-                  startPlaybackWithAudio(e.currentTarget);
+                  startPlaybackWithAudio(vid);
                 }
               }}
               onCanPlay={(e) => {
                 if (!isOpen || !currentVideo) return;
+                const vid = e.currentTarget;
                 const sessionKey = `${currentVideo.id || currentVideo.videoUrl}_${currentIndex}`;
-                if (playbackSessionRef.current !== sessionKey) {
+                if (playbackSessionRef.current !== sessionKey || vid.paused) {
                   playbackSessionRef.current = sessionKey;
-                  startPlaybackWithAudio(e.currentTarget);
+                  startPlaybackWithAudio(vid);
                 }
               }}
               onEnded={() => {
+                if (loop) {
+                  if (videoRef.current) {
+                    videoRef.current.currentTime = 0;
+                    videoRef.current.play().catch(() => {});
+                  }
+                  return;
+                }
                 setIsPlaying(false);
                 if (videoRef.current && !videoRef.current.paused) {
                   videoRef.current.pause();
                 }
               }}
-              onPlay={() => setIsPlaying(true)}
+              onPlay={() => {
+                setIsPlaying(true);
+                if (videoRef.current) {
+                  setIsMuted(videoRef.current.muted);
+                }
+              }}
               onPause={() => setIsPlaying(false)}
               className="w-full h-full object-cover cursor-pointer"
               onClick={togglePlay}

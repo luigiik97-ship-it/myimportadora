@@ -451,7 +451,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full max-w-full overflow-x-clip">
       {/* Franja Informativa Superior (Imagen de alta definición sin pixelado) */}
       <section
         id="franja-informativa-inicio"
@@ -593,7 +593,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {/* Main Content Area */}
       <div className="max-w-[1240px] mx-auto px-2 sm:px-4 pt-2 sm:pt-4 pb-4 sm:pb-6 flex flex-col gap-2 sm:gap-4">
         {/* 2. Categorías principales (Fila horizontal desplazable) */}
-      <section id="categorias-principales">
+      <section id="categorias-principales" className="w-full max-w-full overflow-hidden">
         <div className="hidden">
           <div>
             <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 font-['Montserrat']">
@@ -1054,6 +1054,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         initialIndex={selectedViewerVideoIndex}
         products={products}
         showAssociatedProduct={true}
+        loop={true}
         onSelectProduct={(productId) => {
           const prod = products.find((p) => p.id === productId);
           if (prod) onSelectProduct(prod);

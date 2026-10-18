@@ -78,7 +78,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     if (categoriesButtonRef.current) {
       const rect = categoriesButtonRef.current.getBoundingClientRect();
       const dropdownWidth = 280;
-      const leftPos = Math.max(12, Math.min(rect.left, window.innerWidth - dropdownWidth - 12));
+      const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+      const leftPos = Math.max(12, Math.min(rect.left, viewportWidth - dropdownWidth - 12));
       setDropdownCoords({
         top: rect.bottom + 6,
         left: leftPos,
@@ -167,7 +168,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="bg-[#0058bb] text-white">
         <div
           id="main-nav-primary-row"
-          className="max-w-[1240px] mx-auto px-2.5 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between md:justify-start gap-2.5 sm:gap-3 md:gap-4 lg:gap-5"
+          className="max-w-[1240px] mx-auto px-2 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between md:justify-start gap-1.5 sm:gap-3 md:gap-4 lg:gap-5"
         >
           {isMobileSearchOpen ? (
             /* Active Search Bar for Mobile */
@@ -228,7 +229,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="button"
                 id="header-quick-buy-btn"
                 onClick={onOpenQuickBuy}
-                className={`flex items-center justify-center gap-1.5 px-2.5 sm:px-3 md:px-3.5 py-1.5 md:py-2 rounded-full font-black text-xs md:text-sm transition-all cursor-pointer select-none shrink-0 shadow-sm border border-yellow-300/40 min-h-[38px] ${
+                className={`flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 md:px-3.5 py-1.5 md:py-2 rounded-full font-black text-xs md:text-sm transition-all cursor-pointer select-none shrink-0 shadow-sm border border-yellow-300/40 min-h-[38px] ${
                   isQuickBuyActive
                     ? 'bg-yellow-400 text-gray-950 ring-2 ring-white shadow-md'
                     : 'bg-yellow-400 hover:bg-yellow-300 text-gray-950 hover:shadow-md active:scale-95'
@@ -236,7 +237,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 title="Ir a Compra Rápida por Mayor"
               >
                 <Zap className="w-3.5 h-3.5 md:w-4 md:h-4 fill-current text-gray-950 shrink-0" />
-                <span className="font-extrabold tracking-tight whitespace-nowrap">
+                <span className="font-extrabold tracking-tight whitespace-nowrap text-[11px] min-[360px]:text-xs md:text-sm">
                   <span className="hidden">⚡ </span>Compra Rápida
                 </span>
               </button>
@@ -282,10 +283,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="header-account-btn"
                   onClick={onOpenAccount}
-                  className="flex items-center justify-center gap-1.5 px-2.5 py-1.5 min-h-[38px] bg-white/10 hover:bg-white/20 border border-white/25 rounded-full transition-all text-xs md:text-sm font-semibold cursor-pointer shrink-0"
+                  className="flex items-center justify-center gap-1.5 p-2 sm:px-2.5 sm:py-1.5 min-h-[38px] min-w-[38px] bg-white/10 hover:bg-white/20 border border-white/25 rounded-full transition-all text-xs md:text-sm font-semibold cursor-pointer shrink-0"
                   title="Mi Cuenta"
                 >
-                  <div className="w-6 h-6 rounded-full bg-white text-[#0058bb] flex items-center justify-center font-bold text-xs">
+                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white text-[#0058bb] flex items-center justify-center font-bold text-xs">
                     {currentUser.fullName ? currentUser.fullName.charAt(0).toUpperCase() : 'U'}
                   </div>
                   <span className="hidden md:inline max-w-[100px] truncate">
@@ -296,7 +297,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="header-login-btn"
                   onClick={onOpenAuth}
-                  className="flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 min-h-[38px] bg-white/10 hover:bg-white/20 border border-white/25 rounded-full transition-all text-xs md:text-sm font-medium cursor-pointer shrink-0"
+                  className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-1.5 min-h-[38px] min-w-[38px] bg-white/10 hover:bg-white/20 border border-white/25 rounded-full transition-all text-xs md:text-sm font-medium cursor-pointer shrink-0"
                   title="Iniciar Sesión"
                 >
                   <User className="w-4 h-4 md:w-4.5 md:h-4.5" />
@@ -321,16 +322,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               )}
 
-              {/* Cart Button */}
+              {/* Cart Button: anchored counter that expands strictly to the left without overflowing on the right */}
               <button
                 id="header-cart-btn"
                 onClick={onOpenCart}
-                className="relative p-2 min-w-[38px] min-h-[38px] sm:min-w-[40px] sm:min-h-[40px] justify-center text-white hover:bg-white/10 rounded-full transition-colors flex items-center cursor-pointer shrink-0"
+                className="relative p-2 min-w-[38px] min-h-[38px] sm:min-w-[40px] sm:min-h-[40px] justify-center text-white hover:bg-white/10 rounded-full transition-colors flex items-center cursor-pointer shrink-0 mr-0.5 sm:mr-0"
                 title="Ver Carrito de Compras"
               >
                 <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 stroke-[2.2]" />
                 {totalCartCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-600 text-white font-bold text-xs rounded-full min-w-[20px] h-[20px] flex items-center justify-center px-1 shadow-md border-2 border-[#0058bb] animate-in zoom-in">
+                  <span className="absolute -top-1.5 right-0 left-auto bg-red-600 text-white font-bold text-xs rounded-full min-w-[20px] h-[20px] flex items-center justify-center px-1.5 shadow-md border-2 border-[#0058bb] whitespace-nowrap tabular-nums pointer-events-none select-none origin-right animate-in zoom-in">
                     {totalCartCount}
                   </span>
                 )}
