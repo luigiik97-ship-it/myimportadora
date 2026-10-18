@@ -153,7 +153,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header
       id="main-header"
-      className={isQuickBuyActive ? 'relative z-30 shadow-md' : 'sticky top-0 z-50 shadow-md'}
+      className={
+        isQuickBuyActive
+          ? isCategoriesOpen
+            ? 'relative z-50 shadow-md'
+            : 'relative z-30 shadow-md'
+          : 'sticky top-0 z-50 shadow-md'
+      }
     >
       {/* Top micro announcement bar */}
       {showTopBar && (
