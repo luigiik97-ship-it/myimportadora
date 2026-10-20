@@ -500,7 +500,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   };
 
   return (
-    <div className="max-w-[1240px] mx-auto px-1 sm:px-4 py-2 sm:py-6 space-y-3 sm:space-y-6">
+    <div className="max-w-[1240px] mx-auto px-1 sm:px-4 py-2 sm:py-6 space-y-3 sm:space-y-6 bg-white md:bg-transparent min-h-full">
       <h1 id="checkout-title" className="text-xl sm:text-2xl md:text-3xl font-black text-gray-900 font-['Montserrat'] px-1 sm:px-0">
         Finalizar Compra
       </h1>

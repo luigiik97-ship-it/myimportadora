@@ -352,7 +352,7 @@ export const triggerWhatsAppOpen = (url: string) => {
  * - Pedido *#[N° Correlativo]*
  * - Cantidad total: *[Total] unids.*
  * - Precio total: *$[Total]*
- * - Forma de pago: *[Transferencia / Alias: hola.retiro / Nombre: Silvia Lembo / Efectivo]*
+ * - Forma de pago: *Transferencia* / *Alias*: hola.retiro / *Nombre*: Silvia Lembo / *Efectivo*
  * - Forma de entrega: *[Retiro en el local / Envío a domicilio]*
  * - Con negritas entre asteriscos (*) para WhatsApp.
  */
@@ -369,7 +369,7 @@ export const buildShortOrderWhatsAppMessage = (params: {
 
   const paymentText =
     paymentMethod === 'transfer'
-      ? `*Transferencia\nAlias: hola.retiro\nNombre: Silvia Lembo*`
+      ? `*Transferencia*\n*Alias*: hola.retiro\n*Nombre*: Silvia Lembo`
       : `*Efectivo*`;
 
   let deliveryText =

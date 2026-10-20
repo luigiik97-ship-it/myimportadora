@@ -1610,7 +1610,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   <>
                     {/* Estado inicial compacto: título y debajo en una sola línea Código postal + Calcular, sin textos adicionales */}
                     <div className="flex items-center gap-2">
-                      <Truck className="w-4 h-4 sm:w-5 sm:h-5 text-[#16a34a] shrink-0" />
+                      <Truck className="w-4 h-4 sm:w-5 sm:h-5 text-[#0058bb] shrink-0" />
                       <span className="font-bold text-gray-900 text-sm sm:text-base">
                         Envíos a domicilio
                       </span>
@@ -1655,7 +1655,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     {/* Estado calculado: título "Envíos a domicilio" + chip con CP y X para borrar */}
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
-                        <Truck className="w-4 h-4 sm:w-5 sm:h-5 text-[#16a34a] shrink-0" />
+                        <Truck className="w-4 h-4 sm:w-5 sm:h-5 text-[#0058bb] shrink-0" />
                         <span className="font-bold text-gray-900 text-sm sm:text-base truncate">
                           Envíos a domicilio
                         </span>
@@ -1751,7 +1751,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
             {/* Retiro Gratis Highlights */}
             <div className="order-6 lg:order-7 flex items-start gap-2.5 px-0.5">
-              <Store className="w-4 h-4 sm:w-5 sm:h-5 text-[#0058bb] shrink-0 mt-0.5" />
+              <Store className="w-4 h-4 sm:w-5 sm:h-5 text-[#16a34a] shrink-0 mt-0.5" />
               <div className="text-sm sm:text-base">
                 <span className="font-bold text-gray-900">Retiro gratis</span> en Local de Flores, CABA.
               </div>
