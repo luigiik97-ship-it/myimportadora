@@ -1320,7 +1320,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                 disabled={lockoutRemaining > 0}
                 value={adminUserInput}
                 onChange={(e) => setAdminUserInput(e.target.value)}
-                placeholder="admin@myimportadora.com o admin"
+                placeholder=""
                 className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
               />
             </div>
@@ -1340,7 +1340,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                   disabled={lockoutRemaining > 0}
                   value={passwordInput}
                   onChange={(e) => setPasswordInput(e.target.value)}
-                  placeholder={lockoutRemaining > 0 ? 'Bloqueado por intentos fallidos...' : 'Ingresa la clave de administrador'}
+                  placeholder={lockoutRemaining > 0 ? 'Bloqueado por intentos fallidos...' : ''}
                   className="w-full border border-gray-300 rounded-lg pl-3.5 pr-10 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
                 />
                 <button

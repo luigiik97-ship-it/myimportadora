@@ -1226,7 +1226,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
               title="Ir a la página de inicio"
             >
               <img
-                src="https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/lgo%20ps.png"
+                src="https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/fvbf.pnj.webp"
                 alt="Logo"
                 loading="lazy"
                 decoding="async"

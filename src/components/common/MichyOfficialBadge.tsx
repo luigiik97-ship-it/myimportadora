@@ -7,58 +7,28 @@ interface MichyOfficialBadgeProps {
 export const MichyOfficialBadge: React.FC<MichyOfficialBadgeProps> = ({ className = '' }) => {
   return (
     <div
-      className={`w-full flex items-center justify-start gap-2.5 sm:gap-3 py-1.5 select-none ${className}`}
+      className={`w-full flex items-center justify-start gap-2 sm:gap-2.5 py-1.5 select-none overflow-x-clip ${className}`}
       aria-label="Tienda oficial Michy - 10 años establecido - +100mil ventas - Importador directo"
     >
-      {/* Michy Mascot Icon (Black cat silhouette on light gray rounded square) */}
-      <div className="w-11 h-11 min-[380px]:w-12 min-[380px]:h-12 sm:w-13 sm:h-13 rounded-xl sm:rounded-2xl bg-[#f2f2f4] flex items-center justify-center p-1.5 sm:p-2 shrink-0 shadow-2xs">
-        <svg viewBox="0 0 500 500" className="w-full h-full" fill="currentColor">
-          {/* Stylized M Logo */}
-          <path
-            d="M 125 45 
-               L 255 220 
-               L 380 45 
-               L 490 375 
-               L 330 375 
-               L 255 220 
-               L 190 355 
-               L 90 232 
-               L 53 365 
-               C 42 385 16 385 13 366 
-               C 10 348 20 330 24 315 
-               Z"
-            fill="#111111"
-          />
-          {/* Left Eye */}
-          <path
-            d="M 75 380 
-               L 168 412 
-               C 168 438 145 452 121 452 
-               C 97 452 75 438 75 380 
-               Z"
-            fill="#111111"
-          />
-          {/* Right Eye */}
-          <path
-            d="M 305 380 
-               L 212 412 
-               C 212 438 235 452 259 452 
-               C 283 452 305 438 305 380 
-               Z"
-            fill="#111111"
-          />
-        </svg>
+      {/* Michy Mascot Icon / Logo */}
+      <div className="w-11.5 h-11.5 min-[380px]:w-12.5 min-[380px]:h-12.5 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-[#f2f2f4] flex items-center justify-center p-1 sm:p-1.5 shrink-0 shadow-2xs overflow-hidden">
+        <img
+          src="https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/fvbf.pnj.webp"
+          alt="Logo Michy"
+          className="w-full h-full object-contain"
+          loading="lazy"
+        />
       </div>
 
       {/* 2-Row / 2-Column Information Grid */}
-      <div className="grid grid-cols-[auto_1px_auto] items-center gap-x-2 sm:gap-x-2.5 gap-y-1 sm:gap-y-1.5">
+      <div className="grid grid-cols-[auto_1px_auto] items-center gap-x-2 sm:gap-x-2.5 gap-y-1 sm:gap-y-1.5 min-w-0">
         {/* ROW 1 - LEFT: Tienda oficial Michy + Verified Badge */}
-        <div className="flex items-center gap-1 sm:gap-1.5 whitespace-nowrap">
-          <span className="text-gray-900 font-normal text-[11px] min-[360px]:text-[12px] min-[400px]:text-[13px] sm:text-sm tracking-tight leading-tight">
+        <div className="flex items-center gap-1 sm:gap-1.5 whitespace-nowrap flex-nowrap shrink-0">
+          <span className="text-gray-900 font-normal text-[11.5px] min-[360px]:text-[12.5px] min-[400px]:text-[13.5px] sm:text-[15px] tracking-tight leading-tight">
             Tienda oficial <span className="text-[#2f83ff] font-bold">Michy</span>
           </span>
           {/* Blue Scalloped Rosette with White Checkmark */}
-          <svg className="w-3.5 h-3.5 min-[380px]:w-4 min-[380px]:h-4 shrink-0" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 min-[380px]:w-4.5 min-[380px]:h-4.5 sm:w-5 sm:h-5 shrink-0" viewBox="0 0 24 24">
             <path
               d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.79-4-4-4-.495 0-.965.084-1.4.238C14.55 2.475 13.18 1.6 11.6 1.6c-1.58 0-2.95.875-3.6 2.148-.435-.154-.905-.238-1.4-.238-2.21 0-4 1.79-4 4 0 .495.084.965.238 1.4C1.475 9.55.6 10.92.6 12.5c0 1.58.875 2.95 2.148 3.6-.154.435-.238.905-.238 1.4 0 2.21 1.79 4 4 4 .495 0 .965-.084 1.4-.238.65 1.273 2.02 2.148 3.6 2.148 1.58 0 2.95-.875 3.6-2.148.435.154.905.238 1.4.238 2.21 0 4-1.79 4-4 0-.495-.084-.965-.238-1.4 1.273-.65 2.148-2.02 2.148-3.6z"
               fill="#2f83ff"
@@ -71,13 +41,13 @@ export const MichyOfficialBadge: React.FC<MichyOfficialBadgeProps> = ({ classNam
         </div>
 
         {/* ROW 1 - DIVIDER */}
-        <div className="h-3.5 sm:h-4 w-px bg-gray-300 shrink-0 self-center" />
+        <div className="h-4 sm:h-4.5 w-px bg-gray-300 shrink-0 self-center" />
 
         {/* ROW 1 - RIGHT: Calendar Icon + 10 años establecido */}
-        <div className="flex items-center gap-1 sm:gap-1.5 whitespace-nowrap">
+        <div className="flex items-center gap-1 sm:gap-1.5 whitespace-nowrap flex-nowrap shrink-0">
           {/* Black Outline Calendar Icon with Rings and 6 Grid Dots */}
           <svg
-            className="w-3.5 h-3.5 min-[380px]:w-4 min-[380px]:h-4 text-gray-900 shrink-0"
+            className="w-4 h-4 min-[380px]:w-4.5 min-[380px]:h-4.5 sm:w-5 sm:h-5 text-gray-900 shrink-0"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -96,26 +66,26 @@ export const MichyOfficialBadge: React.FC<MichyOfficialBadgeProps> = ({ classNam
             <circle cx="12" cy="18" r="0.8" fill="currentColor" stroke="none" />
             <circle cx="16" cy="18" r="0.8" fill="currentColor" stroke="none" />
           </svg>
-          <span className="text-gray-900 font-normal text-[11px] min-[360px]:text-[12px] min-[400px]:text-[13px] sm:text-sm tracking-tight leading-tight">
-            <span className="text-[#2f83ff] font-bold">10 años</span> establecido
+          <span className="text-gray-900 font-normal text-[11.5px] min-[360px]:text-[12.5px] min-[400px]:text-[13.5px] sm:text-[15px] tracking-tight leading-tight">
+            <span className="text-[#2f83ff] font-bold">+10 años</span> establecido
           </span>
         </div>
 
         {/* ROW 2 - LEFT: +100mil ventas */}
-        <div className="flex items-center gap-1 sm:gap-1.5 whitespace-nowrap">
-          <span className="text-gray-950 font-extrabold text-[13px] min-[360px]:text-[14px] min-[400px]:text-[15px] sm:text-[15.5px] md:text-[16.5px] tracking-tight leading-none">
+        <div className="flex items-center gap-1 sm:gap-1.5 whitespace-nowrap flex-nowrap shrink-0">
+          <span className="text-gray-950 font-extrabold text-[13.5px] min-[360px]:text-[14.5px] min-[400px]:text-[15.5px] sm:text-[17px] md:text-[18px] tracking-tight leading-none">
             +100mil ventas
           </span>
         </div>
 
         {/* ROW 2 - DIVIDER */}
-        <div className="h-4 sm:h-4.5 w-px bg-gray-300 shrink-0 self-center -translate-x-6 min-[380px]:-translate-x-3.5 sm:translate-x-0" />
+        <div className="h-4.5 sm:h-5 w-px bg-gray-300 shrink-0 self-center -translate-x-6 min-[380px]:-translate-x-3.5 sm:translate-x-0" />
 
         {/* ROW 2 - RIGHT: Speed Delivery Box Icon + Importador directo */}
-        <div className="flex items-center gap-1.5 sm:gap-2 whitespace-nowrap shrink-0 -translate-x-6 min-[380px]:-translate-x-3.5 sm:translate-x-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 whitespace-nowrap flex-nowrap shrink-0 -translate-x-6 min-[380px]:-translate-x-3.5 sm:translate-x-0">
           {/* Blue Isometric Delivery Box with 3 Speed Motion Lines */}
           <svg
-            className="w-4.5 h-4.5 min-[380px]:w-5 min-[380px]:h-5 sm:w-5.5 sm:h-5.5 text-[#2f83ff] shrink-0"
+            className="w-5 h-5 min-[380px]:w-5.5 min-[380px]:h-5.5 sm:w-6 sm:h-6 text-[#2f83ff] shrink-0"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -134,7 +104,7 @@ export const MichyOfficialBadge: React.FC<MichyOfficialBadgeProps> = ({ classNam
             {/* Top Tape Line */}
             <path d="M12.5 5.25L19 8.75" />
           </svg>
-          <span className="text-gray-950 font-extrabold text-[13px] min-[360px]:text-[14px] min-[400px]:text-[15px] sm:text-[15.5px] md:text-[16.5px] tracking-tight leading-none">
+          <span className="text-gray-950 font-extrabold text-[13.5px] min-[360px]:text-[14.5px] min-[400px]:text-[15.5px] sm:text-[17px] md:text-[18px] tracking-tight leading-none">
             Importador directo
           </span>
         </div>
