@@ -43,29 +43,8 @@ export const MichyOfficialBadge: React.FC<MichyOfficialBadgeProps> = ({ classNam
         {/* ROW 1 - DIVIDER */}
         <div className="h-4 sm:h-4.5 w-px bg-gray-300 shrink-0 self-center" />
 
-        {/* ROW 1 - RIGHT: Calendar Icon + 10 años establecido */}
+        {/* ROW 1 - RIGHT: +10 años establecido */}
         <div className="flex items-center gap-1 sm:gap-1.5 whitespace-nowrap flex-nowrap shrink-0">
-          {/* Black Outline Calendar Icon with Rings and 6 Grid Dots */}
-          <svg
-            className="w-4 h-4 min-[380px]:w-4.5 min-[380px]:h-4.5 sm:w-5 sm:h-5 text-gray-900 shrink-0"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <rect x="3" y="4" width="18" height="18" rx="3" ry="3" />
-            <line x1="16" y1="2" x2="16" y2="6" />
-            <line x1="8" y1="2" x2="8" y2="6" />
-            <line x1="3" y1="10" x2="21" y2="10" />
-            <circle cx="8" cy="14" r="0.8" fill="currentColor" stroke="none" />
-            <circle cx="12" cy="14" r="0.8" fill="currentColor" stroke="none" />
-            <circle cx="16" cy="14" r="0.8" fill="currentColor" stroke="none" />
-            <circle cx="8" cy="18" r="0.8" fill="currentColor" stroke="none" />
-            <circle cx="12" cy="18" r="0.8" fill="currentColor" stroke="none" />
-            <circle cx="16" cy="18" r="0.8" fill="currentColor" stroke="none" />
-          </svg>
           <span className="text-gray-900 font-normal text-[11.5px] min-[360px]:text-[12.5px] min-[400px]:text-[13.5px] sm:text-[15px] tracking-tight leading-tight">
             <span className="text-[#2f83ff] font-bold">+10 años</span> establecido
           </span>
