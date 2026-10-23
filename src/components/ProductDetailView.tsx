@@ -1490,7 +1490,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 {/* Sub-label: Category wholesale min */}
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-xs sm:text-sm text-[#16a34a] font-medium leading-tight">
-                    (combina productos dentro de la categoría {product.category})
+                    (Combina productos dentro de la categoría <span className="font-bold">{product.category}</span>)
                   </p>
                 </div>
               </div>
@@ -2004,7 +2004,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   ))}
                 </div>
               ) : (
-                <p className="text-xs sm:text-sm text-gray-500 italic py-2">
+                <p className="hidden text-xs sm:text-sm text-gray-500 italic py-2">
                   Este producto aún no cuenta con comentarios u opiniones cargadas.
                 </p>
               )}

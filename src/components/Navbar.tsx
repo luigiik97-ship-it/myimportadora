@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Search, ShoppingCart, User, ChevronDown, ChevronRight, Layers, ArrowLeft, Zap, Rocket } from 'lucide-react';
 import { CartItem, Category, UserProfile } from '../types';
 import { reconcileCategoriesWithProducts } from '../utils/categoryHelpers';
@@ -45,6 +46,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAuth,
   onOpenAccount,
 }) => {
+  const location = useLocation();
   const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
   const { isCashMode } = usePurchaseMode();
   const cartTotal = useMemo(() => {
@@ -56,12 +58,100 @@ export const Navbar: React.FC<NavbarProps> = ({
   const categoriesButtonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
+  const mobileSearchContainerRef = useRef<HTMLDivElement>(null);
+  const mobileSearchOpenTimeRef = useRef<number>(0);
+  const mobileSearchInitialScrollYRef = useRef<number>(0);
 
   useEffect(() => {
     if (isMobileSearchOpen && mobileSearchInputRef.current) {
       mobileSearchInputRef.current.focus();
     }
   }, [isMobileSearchOpen]);
+
+  // Auto-minimize mobile search on tap/click outside or tapping another button
+  useEffect(() => {
+    if (!isMobileSearchOpen) return;
+
+    const handlePointerDown = (event: PointerEvent | MouseEvent | TouchEvent) => {
+      // Ignore initial tap that opened the search bar
+      if (Date.now() - mobileSearchOpenTimeRef.current < 200) {
+        return;
+      }
+      const target = event.target as Node;
+      if (!target) return;
+
+      // If clicked/tapped inside the mobile search container, do NOT minimize
+      if (
+        mobileSearchContainerRef.current &&
+        mobileSearchContainerRef.current.contains(target)
+      ) {
+        return;
+      }
+
+      // Tapped outside or tapped another button: minimize automatically back to icon
+      setIsMobileSearchOpen(false);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown, { passive: true });
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+    };
+  }, [isMobileSearchOpen]);
+
+  // Auto-minimize mobile search when scrolling or swiping the screen up or down
+  useEffect(() => {
+    if (!isMobileSearchOpen) return;
+
+    const handleScroll = () => {
+      const elapsed = Date.now() - mobileSearchOpenTimeRef.current;
+      // During initial 350ms, allow minor viewport shifts caused by virtual keyboard opening
+      if (elapsed < 350) {
+        if (Math.abs(window.scrollY - mobileSearchInitialScrollYRef.current) > 35) {
+          setIsMobileSearchOpen(false);
+        }
+        return;
+      }
+      // After opening grace period, any scroll movement minimizes the search bar
+      if (Math.abs(window.scrollY - mobileSearchInitialScrollYRef.current) > 8) {
+        setIsMobileSearchOpen(false);
+      }
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (Date.now() - mobileSearchOpenTimeRef.current < 200) return;
+      const target = event.target as Node;
+      // If swipe is inside the mobile search container (e.g. cursor drag inside text), do not close
+      if (
+        mobileSearchContainerRef.current &&
+        mobileSearchContainerRef.current.contains(target)
+      ) {
+        return;
+      }
+      // Swiping outside the search bar
+      setIsMobileSearchOpen(false);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, [isMobileSearchOpen]);
+
+  // Auto-minimize mobile search on page navigation or category selection
+  useEffect(() => {
+    if (isMobileSearchOpen) {
+      // Do not close if user is actively writing inside the search input
+      if (document.activeElement !== mobileSearchInputRef.current) {
+        setIsMobileSearchOpen(false);
+      }
+    }
+  }, [location.pathname, location.search, currentCategory]);
 
   const allVisibleCategories = useMemo(() => {
     const list = reconcileCategoriesWithProducts(customCategories, undefined);
@@ -140,15 +230,16 @@ export const Navbar: React.FC<NavbarProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setIsCategoriesOpen(false);
+        setIsMobileSearchOpen(false);
       }
     };
-    if (isCategoriesOpen) {
+    if (isCategoriesOpen || isMobileSearchOpen) {
       document.addEventListener('keydown', handleKeyDown);
     }
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isCategoriesOpen]);
+  }, [isCategoriesOpen, isMobileSearchOpen]);
 
   return (
     <header
@@ -178,7 +269,10 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           {isMobileSearchOpen ? (
             /* Active Search Bar for Mobile */
-            <div className="md:hidden flex items-center gap-2 w-full animate-in fade-in duration-200">
+            <div
+              ref={mobileSearchContainerRef}
+              className="md:hidden flex items-center gap-2 w-full animate-in fade-in duration-200"
+            >
               <button
                 type="button"
                 id="close-mobile-search-btn"
@@ -276,7 +370,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 type="button"
                 id="mobile-search-toggle-btn"
-                onClick={() => setIsMobileSearchOpen(true)}
+                onClick={() => {
+                  setIsCategoriesOpen(false);
+                  mobileSearchOpenTimeRef.current = Date.now();
+                  mobileSearchInitialScrollYRef.current = typeof window !== 'undefined' ? window.scrollY : 0;
+                  setIsMobileSearchOpen(true);
+                }}
                 aria-label="Abrir buscador"
                 title="Buscar productos"
                 className="md:hidden p-2 min-w-[38px] min-h-[38px] sm:min-w-[40px] sm:min-h-[40px] justify-center text-white hover:bg-white/10 rounded-full transition-colors flex items-center cursor-pointer shrink-0"

@@ -97,6 +97,12 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   });
   const [correoBranchError, setCorreoBranchError] = useState<string | null>(null);
   const correoBranchInputRef = useRef<HTMLInputElement>(null);
+  const whatsappInputRef = useRef<HTMLInputElement>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const postalCodeInputRef = useRef<HTMLInputElement>(null);
+  const streetInputRef = useRef<HTMLInputElement>(null);
+  const cityInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     try {
@@ -350,19 +356,26 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
 
     if (!effectiveWhatsapp) {
       setErrorMessage('Por favor ingresa tu número de WhatsApp para coordinar la entrega.');
+      whatsappInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      whatsappInputRef.current?.focus();
       return;
     }
     if (!effectiveEmail || !effectiveEmail.includes('@')) {
-      setErrorMessage('Por favor ingresa un correo Gmail válido donde recibirás el comprobante.');
+      setErrorMessage('Por favor ingresa un correo electrónico válido donde recibirás el comprobante.');
+      emailInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      emailInputRef.current?.focus();
       return;
     }
     if (!effectiveName) {
       setErrorMessage('Por favor ingresa tu nombre y apellido.');
+      nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      nameInputRef.current?.focus();
       return;
     }
 
     if (!deliveryOption) {
       setDeliveryOptionError('elija una opción de envió');
+      setErrorMessage('Por favor selecciona una opción de entrega (Retiro en local o Envío a domicilio/sucursal).');
       deliverySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
@@ -370,30 +383,40 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     if (deliveryOption === 'delivery') {
       if (!postalCode.trim()) {
         setErrorMessage('Por favor ingresa tu Código Postal para calcular las opciones de envío.');
-        deliverySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        postalCodeInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        postalCodeInputRef.current?.focus();
         return;
       }
       if (!selectedShippingOption) {
         setDeliveryOptionError('elija una opción de envió');
+        setErrorMessage('Por favor selecciona una opción de envío para tu código postal.');
         deliverySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
       if (isBranchPickupSelected) {
         if (!correoBranch.trim()) {
           setCorreoBranchError('Por favor ingresa el nombre y dirección de la sucursal');
-          setErrorMessage('Por favor ingresa el Nombre y dirección de la sucursal.');
+          setErrorMessage('Por favor ingresa el Nombre y dirección de la sucursal de Correo.');
           correoBranchInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
           correoBranchInputRef.current?.focus();
           return;
         }
         if (!city.trim()) {
           setErrorMessage('Por favor completa la ciudad / localidad para tu envío.');
+          cityInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          cityInputRef.current?.focus();
           return;
         }
       } else {
         if (!street.trim() || !number.trim() || !city.trim()) {
           setErrorMessage('Por favor completa la dirección completa de envío a domicilio (Calle, Número y Ciudad).');
-          deliverySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          if (!street.trim()) {
+            streetInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            streetInputRef.current?.focus();
+          } else {
+            cityInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            cityInputRef.current?.focus();
+          }
           return;
         }
       }
@@ -535,7 +558,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8 items-start">
+      <form onSubmit={handleSubmit} noValidate className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8 items-start">
         {/* Left Column: Form Details (Cols 8) */}
         <div className="lg:col-span-8 space-y-3 sm:space-y-3.5">
           {/* Prompt to login or session active indicator */}
@@ -567,61 +590,62 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             </div>
           )}
 
-          {/* 1. Tus Datos - Only shown for guest users (hidden when user is logged in or created account) */}
-          {!currentUser && (
-            <div className="bg-transparent md:bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-200 p-1 md:p-4 shadow-none md:shadow-xs space-y-2.5 pb-4 border-b border-gray-100 md:border-b-0">
-              <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 font-['Montserrat']">
-                Tus Datos
-              </h2>
+          {/* 1. Tus Datos - Visible for all users with prefilled values */}
+          <div className="bg-transparent md:bg-white rounded-none md:rounded-xl border-0 md:border md:border-gray-200 p-1 md:p-4 shadow-none md:shadow-xs space-y-2.5 pb-4 border-b border-gray-100 md:border-b-0">
+            <h2 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 font-['Montserrat']">
+              Tus Datos
+            </h2>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                <div>
-                  <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-1">
-                    Número de WhatsApp *
-                  </label>
-                  <input
-                    id="checkout-whatsapp"
-                    type="tel"
-                    required
-                    value={customerWhatsapp}
-                    onChange={(e) => setCustomerWhatsapp(e.target.value)}
-                    placeholder="Ej: 1123456789"
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all min-h-[42px] bg-white"
-                  />
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              <div>
+                <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-1">
+                  Número de WhatsApp *
+                </label>
+                <input
+                  ref={whatsappInputRef}
+                  id="checkout-whatsapp"
+                  type="tel"
+                  required
+                  value={customerWhatsapp}
+                  onChange={(e) => setCustomerWhatsapp(e.target.value)}
+                  placeholder="Ej: 1123456789"
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all min-h-[42px] bg-white"
+                />
+              </div>
 
-                <div>
-                  <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-1">
-                    Correo Gmail (Se enviará el recibo) *
-                  </label>
-                  <input
-                    id="checkout-email"
-                    type="email"
-                    required
-                    value={customerEmail}
-                    onChange={(e) => setCustomerEmail(e.target.value)}
-                    placeholder="correo@gmail.com"
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all min-h-[42px] bg-white"
-                  />
-                </div>
+              <div>
+                <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-1">
+                  Correo Gmail (Se enviará el recibo) *
+                </label>
+                <input
+                  ref={emailInputRef}
+                  id="checkout-email"
+                  type="email"
+                  required
+                  value={customerEmail}
+                  onChange={(e) => setCustomerEmail(e.target.value)}
+                  placeholder="correo@gmail.com"
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all min-h-[42px] bg-white"
+                />
+              </div>
 
-                <div className="md:col-span-2">
-                  <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-1">
-                    Nombre y Apellido Completo *
-                  </label>
-                  <input
-                    id="checkout-name"
-                    type="text"
-                    required
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="Ej: Alejandro Yugar"
-                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all min-h-[42px] bg-white"
-                  />
-                </div>
+              <div className="md:col-span-2">
+                <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-1">
+                  Nombre y Apellido Completo *
+                </label>
+                <input
+                  ref={nameInputRef}
+                  id="checkout-name"
+                  type="text"
+                  required
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Ej: Alejandro Yugar"
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all min-h-[42px] bg-white"
+                />
               </div>
             </div>
-          )}
+          </div>
 
           {/* 2. Opciones de Entrega */}
           <div
@@ -721,6 +745,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                           Calle {isBranchPickupSelected ? '(opcional)' : '*'}
                         </label>
                         <input
+                          ref={streetInputRef}
                           type="text"
                           required={!isBranchPickupSelected}
                           value={street}
@@ -758,6 +783,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       <div>
                         <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-0.5">Ciudad / Localidad *</label>
                         <input
+                          ref={cityInputRef}
                           type="text"
                           required
                           value={city}
@@ -772,6 +798,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                           Código Postal *
                         </label>
                         <input
+                          ref={postalCodeInputRef}
                           type="text"
                           inputMode="numeric"
                           pattern="[0-9]*"
@@ -1069,6 +1096,13 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
               $ {totalFinal.toLocaleString('es-AR')}
             </span>
           </div>
+
+          {errorMessage && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-3.5 py-2.5 rounded-xl flex items-center gap-2 text-xs sm:text-sm font-medium animate-shake">
+              <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
 
           {/* Confirm Button - Enlarged full width */}
           <button

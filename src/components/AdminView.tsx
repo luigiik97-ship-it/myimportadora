@@ -43,7 +43,9 @@ import {
   isSupabaseConfigured,
   SUPABASE_SQL_SETUP_SCHEMA,
   SUPABASE_MIGRATION_SQL,
+  STORAGE_REPAIR_SQL,
   testSupabaseImagesPersistence,
+  testSupabaseStorageUpload,
 } from '../services/supabase';
 import { AnalyticsDashboard } from './admin/AnalyticsDashboard';
 import { BannerManager } from './admin/BannerManager';
@@ -61,8 +63,14 @@ import { StoreSettingsManager } from './admin/StoreSettingsManager';
 import { StockNotificationsManager } from './admin/StockNotificationsManager';
 import { getStoreSettings, fetchStoreSettingsFromSupabase, StoreSettings } from '../services/storeSettings';
 import { isQuickBuyOrder } from '../services/quickBuyLink';
-import { isAdminAuthenticated, authenticateAdmin, clearAdminSession } from '../services/adminAuth';
 import { fetchStockNotifications } from '../services/stockNotifications';
+import {
+  isAdminAuthenticated,
+  authenticateAdmin,
+  clearAdminSession,
+  restoreSupabaseAdminSession,
+  AUTHORIZED_ADMIN_EMAIL,
+} from '../services/adminAuth';
 import {
   Lock,
   Package,
@@ -184,6 +192,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
   const [failedAttempts, setFailedAttempts] = useState<number>(0);
   const [lockoutRemaining, setLockoutRemaining] = useState<number>(0);
 
+  // Restaurar automáticamente la sesión si existe sesión activa en Supabase Auth
+  useEffect(() => {
+    if (!isAuthenticated) {
+      restoreSupabaseAdminSession().then((restored) => {
+        if (restored) {
+          setIsAuthenticated(true);
+        }
+      });
+    }
+  }, [isAuthenticated]);
+
   useEffect(() => {
     if (lockoutRemaining <= 0) return;
     const interval = setInterval(() => {
@@ -303,6 +322,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
   const [newReviewAuthor, setNewReviewAuthor] = useState('');
   const [newReviewRating, setNewReviewRating] = useState(5);
 
+  // Estados de Galería de Fotos de la Publicación (Foto 1 a Foto 6)
+  const [galleryUrlInput, setGalleryUrlInput] = useState('');
+  const [isUploadingGalleryImages, setIsUploadingGalleryImages] = useState(false);
+  const [galleryUploadProgress, setGalleryUploadProgress] = useState<string | null>(null);
+  const [storageWarningBanner, setStorageWarningBanner] = useState<string | null>(null);
+
   // Product tags states
   const [availableTags, setAvailableTags] = useState<ProductTag[]>(() => getLocalProductTags());
   const [isCreatingNewTag, setIsCreatingNewTag] = useState(false);
@@ -323,6 +348,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     };
     window.addEventListener('product_tags_updated', handleTagsUpdated);
     return () => window.removeEventListener('product_tags_updated', handleTagsUpdated);
+  }, []);
+
+  useEffect(() => {
+    const handleStorageWarn = (e: any) => {
+      if (e.detail?.message) {
+        setStorageWarningBanner(e.detail.message);
+      }
+    };
+    window.addEventListener('supabase-storage-warning', handleStorageWarn);
+    return () => window.removeEventListener('supabase-storage-warning', handleStorageWarn);
   }, []);
 
   const handleCreateAndAssignTag = async () => {
@@ -352,7 +387,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
   // SQL schema copied notifications
   const [schemaCopied, setSchemaCopied] = useState(false);
   const [migrationCopied, setMigrationCopied] = useState(false);
-  const [activeSqlTab, setActiveSqlTab] = useState<'migration' | 'full'>('migration');
+  const [storageCopied, setStorageCopied] = useState(false);
+  const [activeSqlTab, setActiveSqlTab] = useState<'migration' | 'full' | 'storage'>('migration');
   const [diagnosticResult, setDiagnosticResult] = useState<{
     connected: boolean;
     hasImagesColumn: boolean;
@@ -361,6 +397,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     message: string;
   } | null>(null);
   const [isTestingDiagnostic, setIsTestingDiagnostic] = useState(false);
+  const [isTestingStorageUpload, setIsTestingStorageUpload] = useState(false);
+  const [storageUploadResult, setStorageUploadResult] = useState<{
+    success: boolean;
+    message: string;
+    url?: string;
+  } | null>(null);
 
   // In-app deletion modals (reliable, replaces blocked window.confirm)
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
@@ -374,7 +416,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     if (lockoutRemaining > 0) return;
 
     try {
-      const result = await authenticateAdmin(adminUserInput, passwordInput);
+      const emailToUse = (adminUserInput || AUTHORIZED_ADMIN_EMAIL).trim();
+      const result = await authenticateAdmin(emailToUse, passwordInput);
       if (result.success) {
         setIsAuthenticated(true);
         setAuthError(null);
@@ -400,6 +443,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
   const handleLogout = () => {
     setIsAuthenticated(false);
     clearAdminSession();
+    setAdminUserInput('');
   };
 
   // Load data on mount / auth
@@ -731,6 +775,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
       isBestSeller: false,
       videoUrl: '',
     });
+    setGalleryUrlInput('');
+    setIsUploadingGalleryImages(false);
+    setGalleryUploadProgress(null);
+    setStorageWarningBanner(null);
     setAdditionalImageInputUrl('');
     setNewReviewText('');
     setNewReviewAuthor('');
@@ -752,6 +800,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     console.log(`[Admin Edit Open] Variantes cargadas en el modal:`, JSON.stringify(cloned.variantTypes, null, 2));
     cloned.videoUrl = cloned.videoUrl || '';
     setEditingProduct(cloned);
+    setGalleryUrlInput('');
+    setIsUploadingGalleryImages(false);
+    setGalleryUploadProgress(null);
+    setStorageWarningBanner(null);
     setAdditionalImageInputUrl(cloned.additionalImage || '');
     setNewReviewText('');
     setNewReviewAuthor('');
@@ -771,19 +823,25 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     );
     console.log(`[VARIANT DEBUG - EDIT] Variantes actualizadas en el estado local del producto:`, newVariantTypes);
 
-    // Portada única obtenida de la primera variante con foto (sin duplicar ni crear campos nuevos)
+    // Portada única obtenida de la primera variante con foto (o primera foto de la publicación)
     const coverImage = getProductCoverImage({
       ...editingProduct,
       variantTypes: newVariantTypes,
     });
+
+    // Preservar la galería de imágenes completa sin truncarla a una sola foto
+    const existingImages = Array.isArray(editingProduct.images) ? editingProduct.images : [];
+    const resolvedImages = existingImages.length > 0
+      ? existingImages
+      : (coverImage ? [coverImage] : []);
 
     setEditingProduct({
       ...editingProduct,
       variantTypes: newVariantTypes,
       colors,
       sizeVariants,
-      images: coverImage ? [coverImage] : [],
-      image: coverImage,
+      images: resolvedImages,
+      image: resolvedImages[0] || coverImage || '',
     });
   };
 
@@ -816,16 +874,53 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
       targetWholesaleCashPrice
     );
 
-    // Portada única obtenida de la primera variante con foto (sin duplicar)
+    // Consolidación de imágenes de la publicación (hasta 6 imágenes para image_1 a image_6 y JSONB)
+    // 1. Imágenes explícitas de la galería del producto
+    const explicitGalleryImages = (editingProduct.images || []).filter(
+      (img) => typeof img === 'string' && img.trim().length > 0
+    );
+
+    // 2. Extraer imágenes asignadas a opciones de variantes para no perder ninguna foto seleccionada
+    const variantOptionImages: string[] = [];
+    currentVariantTypes.forEach((vt) => {
+      (vt.options || []).forEach((opt) => {
+        (opt.images || []).forEach((img) => {
+          if (img && typeof img === 'string' && img.trim().length > 0 && !variantOptionImages.includes(img.trim())) {
+            variantOptionImages.push(img.trim());
+          }
+        });
+      });
+    });
+
+    // 3. Unir fotos sin duplicados
+    let combinedImages = [...explicitGalleryImages];
+    variantOptionImages.forEach((vImg) => {
+      if (!combinedImages.includes(vImg)) {
+        combinedImages.push(vImg);
+      }
+    });
+
+    // 4. Determinar portada principal de la publicación (Foto 1)
     const coverImage = getProductCoverImage({
       ...editingProduct,
+      images: combinedImages,
       variantTypes: currentVariantTypes,
     });
 
+    if (coverImage) {
+      if (combinedImages.includes(coverImage)) {
+        combinedImages = [coverImage, ...combinedImages.filter((img) => img !== coverImage)];
+      } else if (combinedImages.length === 0) {
+        combinedImages = [coverImage];
+      }
+    }
+
+    const finalImages = combinedImages.slice(0, 6);
+
     const productPayload: Partial<Product> = {
       ...editingProduct,
-      images: coverImage ? [coverImage] : [],
-      image: coverImage,
+      images: finalImages,
+      image: finalImages[0] || coverImage || null,
       cashPrice: targetCashPrice ?? targetRetailCashPrice,
       retailCashPrice: targetRetailCashPrice,
       wholesaleCashPrice: targetWholesaleCashPrice,
@@ -1039,6 +1134,150 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     if (oldUrl) {
       deleteStorageImageIfUnused(oldUrl, products, adminCategories);
     }
+  };
+
+  // Manejadores de Galería de Fotos de la Publicación (Foto 1 a Foto 6)
+  const handleUploadGalleryImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !editingProduct) return;
+
+    const filesArray: File[] = Array.from(files);
+    const currentImages = Array.isArray(editingProduct.images) ? [...editingProduct.images] : [];
+    const availableSlots = 6 - currentImages.length;
+
+    if (availableSlots <= 0) {
+      alert('Ya has alcanzado el límite máximo de 6 fotos por publicación.');
+      e.target.value = '';
+      return;
+    }
+
+    const filesToUpload: File[] = filesArray.slice(0, availableSlots);
+    setIsUploadingGalleryImages(true);
+    setGalleryUploadProgress(`Subiendo y optimizando ${filesToUpload.length} foto(s)...`);
+
+    try {
+      let optInfo: any = null;
+      const uploadedUrls = await uploadProductImages(
+        filesToUpload,
+        (current, total, stats) => {
+          if (stats) optInfo = stats;
+          setGalleryUploadProgress(`Optimizando y subiendo: ${current} de ${total}...`);
+        },
+        {
+          isFirstImageCover: currentImages.length === 0,
+        }
+      );
+
+      if (uploadedUrls.length > 0) {
+        const nextImages = [...currentImages, ...uploadedUrls].slice(0, 6);
+        setEditingProduct({
+          ...editingProduct,
+          images: nextImages,
+          image: nextImages[0] || editingProduct.image,
+        });
+        if (optInfo) {
+          setLastOptimizationSummary(
+            `✓ ${uploadedUrls.length} foto(s) optimizada(s) y agregada(s) con éxito (Total: ${nextImages.length}/6)`
+          );
+        } else {
+          setLastOptimizationSummary(
+            `✓ ${uploadedUrls.length} foto(s) agregada(s) a la publicación (Total: ${nextImages.length}/6)`
+          );
+        }
+        setTimeout(() => setLastOptimizationSummary(null), 5000);
+      }
+    } catch (err: any) {
+      console.error('[AdminView] Error subiendo fotos de galería:', err);
+      alert('Error al subir fotos de la publicación: ' + (err?.message || err));
+    } finally {
+      setIsUploadingGalleryImages(false);
+      setGalleryUploadProgress(null);
+      e.target.value = '';
+    }
+  };
+
+  const handleAddGalleryUrl = () => {
+    if (!editingProduct || !galleryUrlInput.trim()) return;
+    const url = galleryUrlInput.trim();
+    const currentImages = Array.isArray(editingProduct.images) ? [...editingProduct.images] : [];
+
+    if (currentImages.length >= 6) {
+      alert('Ya has alcanzado el máximo de 6 fotos permitidas para esta publicación.');
+      return;
+    }
+
+    if (currentImages.includes(url)) {
+      alert('Esta URL de imagen ya se encuentra en la galería.');
+      return;
+    }
+
+    const nextImages = [...currentImages, url].slice(0, 6);
+    setEditingProduct({
+      ...editingProduct,
+      images: nextImages,
+      image: nextImages[0] || editingProduct.image,
+    });
+    setGalleryUrlInput('');
+  };
+
+  const handleRemoveGalleryImage = (index: number) => {
+    if (!editingProduct || !Array.isArray(editingProduct.images)) return;
+    const oldUrl = editingProduct.images[index];
+    const nextImages = editingProduct.images.filter((_, i) => i !== index);
+    setEditingProduct({
+      ...editingProduct,
+      images: nextImages,
+      image: nextImages[0] || null,
+    });
+
+    if (oldUrl) {
+      deleteStorageImageIfUnused(oldUrl, products, adminCategories);
+    }
+  };
+
+  const handleSetGalleryCover = (index: number) => {
+    if (!editingProduct || !Array.isArray(editingProduct.images) || index <= 0) return;
+    const images = [...editingProduct.images];
+    const [selected] = images.splice(index, 1);
+    images.unshift(selected);
+    setEditingProduct({
+      ...editingProduct,
+      images,
+      image: images[0],
+    });
+  };
+
+  const handleSyncVariantImagesToGallery = () => {
+    if (!editingProduct) return;
+    const currentImages = Array.isArray(editingProduct.images) ? [...editingProduct.images] : [];
+    const variantTypes = editingProduct.variantTypes || [];
+    const collected: string[] = [];
+
+    variantTypes.forEach((vt) => {
+      (vt.options || []).forEach((opt) => {
+        (opt.images || []).forEach((img) => {
+          if (img && typeof img === 'string' && img.trim().length > 0) {
+            if (!currentImages.includes(img.trim()) && !collected.includes(img.trim())) {
+              collected.push(img.trim());
+            }
+          }
+        });
+      });
+    });
+
+    if (collected.length === 0) {
+      alert('No se encontraron fotos nuevas en las variantes para importar.');
+      return;
+    }
+
+    const nextImages = [...currentImages, ...collected].slice(0, 6);
+    const addedCount = nextImages.length - currentImages.length;
+    setEditingProduct({
+      ...editingProduct,
+      images: nextImages,
+      image: nextImages[0] || editingProduct.image,
+    });
+    alert(`Se sincronizaron ${addedCount} foto(s) de las variantes a la publicación (Total: ${nextImages.length}/6).`);
   };
 
   // Reviews & Rating handling
@@ -1283,6 +1522,28 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     }
   };
 
+  const runStorageUploadTest = async () => {
+    setIsTestingStorageUpload(true);
+    setStorageUploadResult(null);
+    try {
+      const res = await testSupabaseStorageUpload();
+      setStorageUploadResult(res);
+    } catch (err: any) {
+      setStorageUploadResult({
+        success: false,
+        message: `Error al probar Storage: ${err?.message || err}`
+      });
+    } finally {
+      setIsTestingStorageUpload(false);
+    }
+  };
+
+  const copyStorageScriptToClipboard = () => {
+    navigator.clipboard.writeText(STORAGE_REPAIR_SQL);
+    setStorageCopied(true);
+    setTimeout(() => setStorageCopied(false), 2500);
+  };
+
   // ---------------- AUTHENTICATION SCREEN ---------------- //
   if (!isAuthenticated) {
     return (
@@ -1293,9 +1554,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
               <Lock className="w-7 h-7" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900 font-['Montserrat']">Panel de Administración</h1>
-            <p className="text-xs text-gray-500">
-              Ruta protegida para gestión de catálogo, pedidos y sincronización con Supabase.
-            </p>
           </div>
 
           {authError && (
@@ -1308,12 +1566,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="text-xs font-semibold text-gray-700 block mb-1">
-                Usuario o Correo de Administrador
+                Cuenta de Administrador
               </label>
               <input
                 id="admin-username-input"
                 type="text"
-                required
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck="false"
@@ -1367,7 +1624,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                 lockoutRemaining > 0 ? 'opacity-60 cursor-not-allowed hover:bg-[#0058bb]' : ''
               }`}
             >
-              {lockoutRemaining > 0 ? `Espera ${lockoutRemaining}s para reintentar` : 'Acceder al Panel'}
+              {lockoutRemaining > 0 ? `Espera ${lockoutRemaining}s para reintentar` : 'Ingresar'}
             </button>
           </form>
 
@@ -1376,7 +1633,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
               onClick={onExitAdmin}
               className="text-xs text-gray-500 hover:text-gray-800 underline cursor-pointer"
             >
-              Volver a la tienda pública
+              Volver a tienda
             </button>
           </div>
         </div>
@@ -1401,7 +1658,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
           </div>
           <div>
             <h1 className="text-xl font-bold text-gray-900 font-['Montserrat']">Panel de Control Mayorista</h1>
-            <div className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-0.5">
+              <span className="flex items-center gap-1 font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                Cuenta Oficial: MICHY.K97@GMAIL.COM
+              </span>
               <span className="flex items-center gap-1">
                 <Database className="w-3.5 h-3.5 text-[#0058bb]" />
                 Supabase: {isSupabaseConfigured() ? 'Conectado ✓' : 'Modo Local / Storage'}
@@ -2399,7 +2660,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                         : 'text-gray-600 hover:text-gray-900'
                     }`}
                   >
-                    1. Migración 6 Fotos (Recomendado)
+                    1. Migración 6 Fotos
+                  </button>
+                  <button
+                    onClick={() => setActiveSqlTab('storage')}
+                    className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                      activeSqlTab === 'storage'
+                        ? 'bg-white text-[#0058bb] shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    2. Políticas Storage (RLS 403)
                   </button>
                   <button
                     onClick={() => setActiveSqlTab('full')}
@@ -2409,11 +2680,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                         : 'text-gray-600 hover:text-gray-900'
                     }`}
                   >
-                    2. Schema Completo
+                    3. Schema Completo
                   </button>
                 </div>
 
-                {activeSqlTab === 'migration' ? (
+                {activeSqlTab === 'migration' && (
                   <button
                     onClick={copyMigrationToClipboard}
                     className="text-xs bg-[#0058bb] text-white px-2.5 py-1 rounded font-semibold flex items-center gap-1 hover:bg-[#004bb0] cursor-pointer"
@@ -2421,7 +2692,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                     {migrationCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                     {migrationCopied ? '¡Copiado!' : 'Copiar Migración'}
                   </button>
-                ) : (
+                )}
+
+                {activeSqlTab === 'storage' && (
+                  <button
+                    onClick={copyStorageScriptToClipboard}
+                    className="text-xs bg-amber-600 text-white px-2.5 py-1 rounded font-semibold flex items-center gap-1 hover:bg-amber-700 cursor-pointer"
+                  >
+                    {storageCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                    {storageCopied ? '¡Copiado!' : 'Copiar SQL Storage'}
+                  </button>
+                )}
+
+                {activeSqlTab === 'full' && (
                   <button
                     onClick={copySchemaToClipboard}
                     className="text-xs bg-gray-700 text-white px-2.5 py-1 rounded font-semibold flex items-center gap-1 hover:bg-gray-850 cursor-pointer"
@@ -2433,14 +2716,21 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
               </div>
 
               <pre className="bg-gray-50 border border-gray-200 text-gray-700 text-[11px] p-3 rounded-lg max-h-48 overflow-y-auto font-mono">
-                {activeSqlTab === 'migration' ? SUPABASE_MIGRATION_SQL : SUPABASE_SQL_SETUP_SCHEMA}
+                {activeSqlTab === 'migration'
+                  ? SUPABASE_MIGRATION_SQL
+                  : activeSqlTab === 'storage'
+                  ? STORAGE_REPAIR_SQL
+                  : SUPABASE_SQL_SETUP_SCHEMA}
               </pre>
             </div>
 
-            {/* Test de Compatibilidad y Diagnóstico */}
+            {/* Test de Compatibilidad y Diagnóstico de Base de Datos */}
             <div className="pt-2 border-t border-gray-100 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-gray-800">Diagnóstico de Base de Datos y Fotos:</span>
+                <div>
+                  <span className="text-xs font-bold text-gray-800">Diagnóstico de Base de Datos y Fotos:</span>
+                  <p className="text-[11px] text-gray-500">Verifica que las columnas image_1 a image_6 y el campo images JSONB estén activos</p>
+                </div>
                 <button
                   type="button"
                   onClick={runDiagnosticTest}
@@ -2475,6 +2765,58 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                       • Soporte columna JSONB: {diagnosticResult.hasImagesColumn ? '✅ Sí' : '❌ No (ejecuta migración)'}
                       <br />
                       • Columnas individuales: {diagnosticResult.hasNumberedColumns ? '✅ Sí' : 'ℹ️ No'}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Test en Vivo de Supabase Storage Upload */}
+            <div className="pt-2 border-t border-gray-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold text-gray-800">Diagnóstico de Supabase Storage:</span>
+                  <p className="text-[11px] text-gray-500">Prueba en vivo la subida de fotos al bucket 'product-images'</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={runStorageUploadTest}
+                  disabled={isTestingStorageUpload}
+                  className="text-xs bg-[#0058bb] hover:bg-[#004bb0] text-white px-2.5 py-1 rounded font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isTestingStorageUpload ? 'animate-spin' : ''}`} />
+                  {isTestingStorageUpload ? 'Probando subida...' : 'Probar Subida Storage'}
+                </button>
+              </div>
+
+              {storageUploadResult && (
+                <div
+                  className={`p-3 rounded-lg text-xs space-y-1 border ${
+                    storageUploadResult.success
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                      : 'bg-amber-50 border-amber-200 text-amber-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 font-bold">
+                    {storageUploadResult.success ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    )}
+                    <span>{storageUploadResult.message}</span>
+                  </div>
+                  {!storageUploadResult.success && (
+                    <div className="pt-1 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveSqlTab('storage');
+                          copyStorageScriptToClipboard();
+                        }}
+                        className="text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1 rounded cursor-pointer"
+                      >
+                        Copiar Script SQL para Storage
+                      </button>
                     </div>
                   )}
                 </div>
@@ -2801,6 +3143,176 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                         ))}
                       </div>
                     </div>
+                  </div>
+                )}
+              </div>
+
+              {/* SECCIÓN: Galería de Fotos de la Publicación (Foto 1 a Foto 6 / Portada) */}
+              <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/70 space-y-3">
+                <div className="flex items-center justify-between border-b border-gray-200 pb-2 flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 text-[#0058bb]" />
+                    <div>
+                      <label className="font-bold text-gray-800 text-xs uppercase tracking-wide flex items-center gap-1.5">
+                        Fotos de la Publicación (Foto 1 a Foto 6)
+                        <span className="text-[11px] font-normal text-gray-500 lowercase">
+                          ({editingProduct.images?.length || 0}/6 fotos)
+                        </span>
+                      </label>
+                      <p className="text-[11px] text-gray-500 font-normal">
+                        La Foto 1 es la portada principal. Puedes subir imágenes desde tu dispositivo o sincronizarlas desde las opciones de variantes.
+                      </p>
+                    </div>
+                  </div>
+
+                  {editingProduct.variantTypes && editingProduct.variantTypes.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleSyncVariantImagesToGallery}
+                      className="text-xs bg-blue-50 text-[#0058bb] hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Importa automáticamente las fotos asignadas a las variantes de este producto"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Importar fotos de variantes
+                    </button>
+                  )}
+                </div>
+
+                {/* Storage Warning Banner if RLS error occurred */}
+                {storageWarningBanner && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold">{storageWarningBanner}</p>
+                        <p className="text-[11px] text-amber-700 mt-0.5">
+                          Tus fotos se procesan y preservan de forma optimizada. Para permitir almacenamiento directo en el bucket 'product-images', ejecuta el script de Storage en tu Supabase SQL Editor o en la pestaña Integraciones.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(STORAGE_REPAIR_SQL);
+                        alert('¡Script SQL de Storage copiado al portapapeles! Pégalo en tu Supabase SQL Editor.');
+                      }}
+                      className="text-[11px] font-bold bg-amber-200 hover:bg-amber-300 text-amber-900 px-2.5 py-1 rounded cursor-pointer whitespace-nowrap"
+                    >
+                      Copiar SQL Storage
+                    </button>
+                  </div>
+                )}
+
+                {/* Optimización y progreso */}
+                {galleryUploadProgress && (
+                  <div className="bg-blue-50 border border-blue-200 text-[#0058bb] text-xs font-medium px-3 py-2 rounded-lg flex items-center gap-2">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" />
+                    <span>{galleryUploadProgress}</span>
+                  </div>
+                )}
+
+                {lastOptimizationSummary && (
+                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-mono font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>{lastOptimizationSummary}</span>
+                  </div>
+                )}
+
+                {/* Thumbnails grid */}
+                <div className="flex flex-wrap gap-2.5 items-start">
+                  {(editingProduct.images || []).map((imgUrl, imgIdx) => (
+                    <div key={imgIdx} className="flex flex-col items-center gap-1">
+                      <div className="relative w-20 h-20 rounded-xl border-2 border-gray-200 overflow-hidden group bg-white shadow-xs flex items-center justify-center p-1">
+                        <img
+                          src={imgUrl}
+                          alt={`Foto ${imgIdx + 1}`}
+                          className="max-h-full max-w-full object-contain"
+                        />
+
+                        {imgIdx === 0 ? (
+                          <span className="absolute top-1 left-1 bg-[#0058bb] text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-xs">
+                            Portada
+                          </span>
+                        ) : (
+                          <span className="absolute top-1 left-1 bg-gray-800/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-xs">
+                            #{imgIdx + 1}
+                          </span>
+                        )}
+
+                        {/* Overlay actions */}
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1.5 transition-opacity">
+                          {imgIdx > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => handleSetGalleryCover(imgIdx)}
+                              className="p-1.5 bg-white/90 text-amber-600 rounded-lg hover:bg-white cursor-pointer shadow-xs"
+                              title="Establecer como Portada Principal (Foto 1)"
+                            >
+                              <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveGalleryImage(imgIdx)}
+                            className="p-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 cursor-pointer shadow-xs"
+                            title="Eliminar esta foto"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                      <ImageOptimizationBadge imageUrl={imgUrl} compact align="center" />
+                    </div>
+                  ))}
+
+                  {/* Add Slot via Upload if < 6 images */}
+                  {(!editingProduct.images || editingProduct.images.length < 6) && (
+                    <label
+                      className={`w-20 h-20 rounded-xl border-2 border-dashed border-[#0058bb]/50 hover:border-[#0058bb] bg-blue-50/40 hover:bg-blue-50 flex flex-col items-center justify-center cursor-pointer transition-colors text-[#0058bb] ${
+                        isUploadingGalleryImages ? 'opacity-50 pointer-events-none' : ''
+                      }`}
+                    >
+                      {isUploadingGalleryImages ? (
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <>
+                          <Upload className="w-5 h-5 mb-1" />
+                          <span className="text-[10px] font-bold">Subir Fotos</span>
+                          <span className="text-[9px] text-gray-400">
+                            ({6 - (editingProduct.images?.length || 0)} disponibles)
+                          </span>
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        onChange={handleUploadGalleryImages}
+                        disabled={isUploadingGalleryImages}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {/* Direct URL input bar */}
+                {(!editingProduct.images || editingProduct.images.length < 6) && (
+                  <div className="flex gap-2 pt-1">
+                    <input
+                      type="url"
+                      value={galleryUrlInput}
+                      onChange={(e) => setGalleryUrlInput(e.target.value)}
+                      placeholder="O pegar URL directa de imagen (https://...)"
+                      className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:ring-1 focus:ring-[#0058bb]"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddGalleryUrl}
+                      disabled={!galleryUrlInput.trim()}
+                      className="bg-gray-200 hover:bg-gray-300 disabled:opacity-50 text-gray-800 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                    >
+                      Añadir URL
+                    </button>
                   </div>
                 )}
               </div>

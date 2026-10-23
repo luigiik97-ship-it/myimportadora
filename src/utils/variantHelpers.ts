@@ -756,6 +756,19 @@ export function getProductCoverImage(product: Partial<Product> | any): string {
     return 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
   }
 
+  // 1. Priorizar Foto 1 / Portada de la publicación (imágenes del producto)
+  if (Array.isArray(product.images) && product.images.length > 0) {
+    const firstImg = product.images.find(
+      (img: any) => typeof img === 'string' && img.trim().length > 0
+    );
+    if (firstImg) return firstImg;
+  }
+
+  if (typeof product.image === 'string' && product.image.trim().length > 0) {
+    return product.image;
+  }
+
+  // 2. Si no hay imágenes en la galería base, buscar en las variantes con foto
   const variantTypes = normalizeVariantTypes(product);
   for (const vt of variantTypes) {
     if (vt && Array.isArray(vt.options)) {
@@ -772,18 +785,6 @@ export function getProductCoverImage(product: Partial<Product> | any): string {
     }
   }
 
-  // Fallback a imágenes base del producto o placeholder
-  if (Array.isArray(product.images) && product.images.length > 0) {
-    const firstImg = product.images.find(
-      (img: any) => typeof img === 'string' && img.trim().length > 0
-    );
-    if (firstImg) return firstImg;
-  }
-
-  if (typeof product.image === 'string' && product.image.trim().length > 0) {
-    return product.image;
-  }
-
   return 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
 }
 
@@ -791,9 +792,10 @@ export function getProductCoverImage(product: Partial<Product> | any): string {
  * Computes the active gallery of images for a product given the user's variant selections.
  * 
  * Rules:
- * 1. Cada variante debe mostrar SOLO sus propias imágenes; no se inserta la portada en otras galerías.
- * 2. Si la variante seleccionada no tiene imágenes cargadas, usa como fallback la portada de la publicación.
- * 3. Productos sin variantes muestran sus imágenes base.
+ * 1. Cada variante que tiene fotos propias muestra exclusivamente sus fotos.
+ * 2. Si la variante seleccionada no tiene fotos propias específicas o el producto no tiene variantes,
+ *    se exhibe la galería completa de la publicación (hasta 6 fotos del producto).
+ * 3. Fallback a portada o placeholder en caso de publicación sin fotos.
  */
 export function getActiveVariantImages(
   product: Product,
@@ -808,8 +810,7 @@ export function getActiveVariantImages(
   const variantTypes = normalizeVariantTypes(product);
   let variantCustomImages: string[] = [];
 
-  // 1. Look for custom images from the selected variant options
-  // Check preferred variant type first if user recently clicked/interacted with it
+  // 1. Buscar fotos específicas de la opción de variante actualmente seleccionada
   if (preferredVariantTypeId) {
     const preferredVt = variantTypes.find(
       (vt) =>
@@ -831,7 +832,7 @@ export function getActiveVariantImages(
     }
   }
 
-  // If no images found yet, check each variant type in order
+  // Si no se encontraron por preferred, recorrer los tipos de variante
   if (variantCustomImages.length === 0) {
     for (const vt of variantTypes) {
       const selectedName = selectedOptionNames[vt.id] || selectedOptionNames[vt.name];
@@ -852,7 +853,7 @@ export function getActiveVariantImages(
     }
   }
 
-  // Also check legacy sizeVariant images if applicable and still no images found
+  // Compatibilidad con sizeVariants legacy
   if (variantCustomImages.length === 0 && product.sizeVariants && product.sizeVariants.length > 0) {
     const selectedSizeName =
       selectedOptionNames['vt-size'] ||
@@ -870,12 +871,23 @@ export function getActiveVariantImages(
     }
   }
 
-  // Cada variante muestra exclusivamente sus propias imágenes (sin inyectar la portada de otra variante)
+  // Si la variante tiene fotos personalizadas, mostrarlas
   if (variantCustomImages.length > 0) {
     return variantCustomImages;
   }
 
-  // Si la variante no tiene fotos o no hay variantes, se utiliza la portada de la publicación
+  // Si la variante no tiene fotos específicas, o el producto no tiene variantes:
+  // Exhibir la galería completa de la publicación (hasta 6 imágenes del producto)
+  if (Array.isArray(product.images) && product.images.length > 0) {
+    const validBaseImages = product.images.filter(
+      (img) => img && typeof img === 'string' && img.trim().length > 0
+    );
+    if (validBaseImages.length > 0) {
+      return validBaseImages;
+    }
+  }
+
+  // Fallback a portada o placeholder
   const cover = getProductCoverImage(product);
   return cover ? [cover] : [defaultPlaceholder];
 }

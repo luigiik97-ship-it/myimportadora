@@ -282,69 +282,100 @@ CREATE POLICY "Inserción de visitas" ON public.site_visits FOR ALL USING (true)
 
 -- ------------------------------------------------------------------------------
 -- 6. STORAGE BUCKET: product-images (Fotos de Catálogo, Banners y Categorías)
--- Lectura pública para la tienda; INSERT, UPDATE y DELETE restringidos al administrador
+-- Lectura pública para la tienda; INSERT, UPDATE y DELETE restringidos al administrador autenticado
 -- ------------------------------------------------------------------------------
+DO $$
+DECLARE
+  pol RECORD;
+BEGIN
+  -- Elimina cualquier política previa en storage.objects para evitar duplicados o brechas anónimas
+  FOR pol IN 
+    SELECT policyname 
+    FROM pg_policies 
+    WHERE schemaname = 'storage' AND tablename = 'objects'
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON storage.objects', pol.policyname);
+  END LOOP;
+
+  -- Elimina cualquier política previa en storage.buckets
+  FOR pol IN 
+    SELECT policyname 
+    FROM pg_policies 
+    WHERE schemaname = 'storage' AND tablename = 'buckets'
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON storage.buckets', pol.policyname);
+  END LOOP;
+END $$;
+
 INSERT INTO storage.buckets (id, name, public) 
 VALUES ('product-images', 'product-images', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 
-DROP POLICY IF EXISTS "Lectura pública de imágenes" ON storage.objects;
-DROP POLICY IF EXISTS "Subida de imágenes" ON storage.objects;
-DROP POLICY IF EXISTS "Subida de imágenes autorizadas" ON storage.objects;
-DROP POLICY IF EXISTS "Subida de imágenes por admin" ON storage.objects;
-DROP POLICY IF EXISTS "Modificación de imágenes" ON storage.objects;
-DROP POLICY IF EXISTS "Modificación de imágenes por admin" ON storage.objects;
-DROP POLICY IF EXISTS "Eliminación de imágenes" ON storage.objects;
-DROP POLICY IF EXISTS "Eliminación de imágenes por admin" ON storage.objects;
+CREATE POLICY "Lectura pública de buckets" ON storage.buckets 
+FOR SELECT TO public
+USING (true);
 
+-- Lectura pública para cargar fotos de catálogo y banners en la tienda, WhatsApp y Vercel
 CREATE POLICY "Lectura pública de imágenes" ON storage.objects 
-FOR SELECT USING (bucket_id = 'product-images');
+FOR SELECT TO public
+USING (bucket_id = 'product-images');
 
-CREATE POLICY "Subida de imágenes por admin" ON storage.objects 
-FOR INSERT WITH CHECK (
-  bucket_id = 'product-images' AND
-  lower(storage.extension(name)) IN ('jpg', 'jpeg', 'png', 'webp', 'gif', 'avif') AND (
-    auth.role() = 'service_role' OR
-    auth.jwt()->>'email' = 'admin@myimportadora.com' OR
-    auth.jwt()->'app_metadata'->>'role' = 'admin' OR
-    auth.jwt()->'user_metadata'->>'is_admin' = 'true'
+-- Subida de imágenes exclusiva para el administrador autenticado michy.k97@gmail.com mediante app_metadata seguro
+CREATE POLICY "Subida exclusiva administrador" ON storage.objects 
+FOR INSERT TO authenticated
+WITH CHECK (
+  bucket_id = 'product-images'
+  AND (
+    LOWER(auth.jwt() ->> 'email') = 'michy.k97@gmail.com'
+    OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
+    OR ((auth.jwt() -> 'app_metadata' ->> 'is_admin')::boolean = true)
   )
 );
 
-CREATE POLICY "Modificación de imágenes por admin" ON storage.objects 
-FOR UPDATE USING (
-  bucket_id = 'product-images' AND (
-    auth.role() = 'service_role' OR
-    auth.jwt()->>'email' = 'admin@myimportadora.com' OR
-    auth.jwt()->'app_metadata'->>'role' = 'admin' OR
-    auth.jwt()->'user_metadata'->>'is_admin' = 'true'
+-- Modificación de imágenes existentes exclusiva para el administrador autenticado
+CREATE POLICY "Modificación exclusiva administrador" ON storage.objects 
+FOR UPDATE TO authenticated
+USING (
+  bucket_id = 'product-images'
+  AND (
+    LOWER(auth.jwt() ->> 'email') = 'michy.k97@gmail.com'
+    OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
+    OR ((auth.jwt() -> 'app_metadata' ->> 'is_admin')::boolean = true)
   )
+)
+WITH CHECK (
+  bucket_id = 'product-images'
 );
 
-CREATE POLICY "Eliminación de imágenes por admin" ON storage.objects 
-FOR DELETE USING (
-  bucket_id = 'product-images' AND (
-    auth.role() = 'service_role' OR
-    auth.jwt()->>'email' = 'admin@myimportadora.com' OR
-    auth.jwt()->'app_metadata'->>'role' = 'admin' OR
-    auth.jwt()->'user_metadata'->>'is_admin' = 'true'
+-- Eliminación de imágenes en el bucket exclusiva para el administrador autenticado
+CREATE POLICY "Eliminación exclusiva administrador" ON storage.objects 
+FOR DELETE TO authenticated
+USING (
+  bucket_id = 'product-images'
+  AND (
+    LOWER(auth.jwt() ->> 'email') = 'michy.k97@gmail.com'
+    OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
+    OR ((auth.jwt() -> 'app_metadata' ->> 'is_admin')::boolean = true)
   )
 );
 
 -- ------------------------------------------------------------------------------
 -- 7. CONFIGURACIÓN DEL USUARIO ADMINISTRADOR EN Supabase Auth
--- Si el usuario 'admin@myimportadora.com' ya existe en auth.users, garantiza que
--- su email esté confirmado y tenga los metadatos de rol de administrador.
+-- Asigna rol admin a michy.k97@gmail.com conservando intacta su contraseña existente
+-- Limpia raw_user_meta_data para eliminar cualquier vulnerabilidad en el cliente
 -- ------------------------------------------------------------------------------
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM auth.users WHERE email = 'admin@myimportadora.com') THEN
+  IF EXISTS (SELECT 1 FROM auth.users WHERE LOWER(email) = 'michy.k97@gmail.com') THEN
     UPDATE auth.users 
     SET 
       email_confirmed_at = COALESCE(email_confirmed_at, now()),
-      raw_app_meta_data = raw_app_meta_data || '{"role": "admin"}'::jsonb,
-      raw_user_meta_data = raw_user_meta_data || '{"is_admin": true, "role": "admin"}'::jsonb
-    WHERE email = 'admin@myimportadora.com';
+      raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || '{"role": "admin", "is_admin": true}'::jsonb,
+      raw_user_meta_data = CASE 
+        WHEN raw_user_meta_data IS NOT NULL THEN (raw_user_meta_data - 'role' - 'is_admin')
+        ELSE '{}'::jsonb 
+      END
+    WHERE LOWER(email) = 'michy.k97@gmail.com';
   END IF;
 END $$;
 
@@ -389,7 +420,7 @@ FOR INSERT WITH CHECK (true);
 CREATE POLICY "Lectura de avisos solo para administradores" ON public.stock_notifications
 FOR SELECT USING (
   auth.role() = 'service_role' OR
-  auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+  LOWER(auth.jwt()->>'email') = 'michy.k97@gmail.com' OR
   auth.jwt()->'app_metadata'->>'role' = 'admin' OR
   auth.jwt()->'user_metadata'->>'is_admin' = 'true'
 );
@@ -398,7 +429,7 @@ FOR SELECT USING (
 CREATE POLICY "Modificación de avisos solo para administradores" ON public.stock_notifications
 FOR UPDATE USING (
   auth.role() = 'service_role' OR
-  auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+  LOWER(auth.jwt()->>'email') = 'michy.k97@gmail.com' OR
   auth.jwt()->'app_metadata'->>'role' = 'admin' OR
   auth.jwt()->'user_metadata'->>'is_admin' = 'true'
 );
@@ -407,7 +438,7 @@ FOR UPDATE USING (
 CREATE POLICY "Eliminación de avisos solo para administradores" ON public.stock_notifications
 FOR DELETE USING (
   auth.role() = 'service_role' OR
-  auth.jwt()->>'email' = 'admin@myimportadora.com' OR
+  LOWER(auth.jwt()->>'email') = 'michy.k97@gmail.com' OR
   auth.jwt()->'app_metadata'->>'role' = 'admin' OR
   auth.jwt()->'user_metadata'->>'is_admin' = 'true'
 );

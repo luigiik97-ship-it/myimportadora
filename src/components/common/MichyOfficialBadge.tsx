@@ -52,7 +52,7 @@ export const MichyOfficialBadge: React.FC<MichyOfficialBadgeProps> = ({ classNam
 
         {/* ROW 2 - LEFT: +100mil ventas */}
         <div className="flex items-center gap-1 sm:gap-1.5 whitespace-nowrap flex-nowrap shrink-0">
-          <span className="text-gray-950 font-extrabold text-[13.5px] min-[360px]:text-[14.5px] min-[400px]:text-[15.5px] sm:text-[17px] md:text-[18px] tracking-tight leading-none">
+          <span className="text-gray-950 font-bold text-[13.5px] min-[360px]:text-[14.5px] min-[400px]:text-[15.5px] sm:text-[17px] md:text-[18px] tracking-tight leading-none">
             +100mil ventas
           </span>
         </div>
@@ -83,7 +83,7 @@ export const MichyOfficialBadge: React.FC<MichyOfficialBadgeProps> = ({ classNam
             {/* Top Tape Line */}
             <path d="M12.5 5.25L19 8.75" />
           </svg>
-          <span className="text-gray-950 font-extrabold text-[13.5px] min-[360px]:text-[14.5px] min-[400px]:text-[15.5px] sm:text-[17px] md:text-[18px] tracking-tight leading-none">
+          <span className="text-gray-950 font-bold text-[13.5px] min-[360px]:text-[14.5px] min-[400px]:text-[15.5px] sm:text-[17px] md:text-[18px] tracking-tight leading-none">
             Importador directo
           </span>
         </div>
