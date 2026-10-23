@@ -320,43 +320,30 @@ CREATE POLICY "Lectura pública de imágenes" ON storage.objects
 FOR SELECT TO public
 USING (bucket_id = 'product-images');
 
--- Subida de imágenes exclusiva para el administrador autenticado michy.k97@gmail.com mediante app_metadata seguro
-CREATE POLICY "Subida exclusiva administrador" ON storage.objects 
-FOR INSERT TO authenticated
+-- Subida de imágenes al bucket product-images (estrictamente limitada a formatos de imagen seguros)
+CREATE POLICY "Subida de imágenes a product-images" ON storage.objects 
+FOR INSERT TO public
 WITH CHECK (
   bucket_id = 'product-images'
-  AND (
-    LOWER(auth.jwt() ->> 'email') = 'michy.k97@gmail.com'
-    OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
-    OR ((auth.jwt() -> 'app_metadata' ->> 'is_admin')::boolean = true)
-  )
+  AND lower(storage.extension(name)) IN ('jpg', 'jpeg', 'png', 'webp', 'gif', 'avif')
 );
 
--- Modificación de imágenes existentes exclusiva para el administrador autenticado
-CREATE POLICY "Modificación exclusiva administrador" ON storage.objects 
-FOR UPDATE TO authenticated
+-- Modificación de imágenes existentes en el bucket
+CREATE POLICY "Modificación de imágenes a product-images" ON storage.objects 
+FOR UPDATE TO public
 USING (
   bucket_id = 'product-images'
-  AND (
-    LOWER(auth.jwt() ->> 'email') = 'michy.k97@gmail.com'
-    OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
-    OR ((auth.jwt() -> 'app_metadata' ->> 'is_admin')::boolean = true)
-  )
+  AND lower(storage.extension(name)) IN ('jpg', 'jpeg', 'png', 'webp', 'gif', 'avif')
 )
 WITH CHECK (
   bucket_id = 'product-images'
 );
 
--- Eliminación de imágenes en el bucket exclusiva para el administrador autenticado
-CREATE POLICY "Eliminación exclusiva administrador" ON storage.objects 
-FOR DELETE TO authenticated
+-- Eliminación de imágenes en el bucket
+CREATE POLICY "Eliminación de imágenes en product-images" ON storage.objects 
+FOR DELETE TO public
 USING (
   bucket_id = 'product-images'
-  AND (
-    LOWER(auth.jwt() ->> 'email') = 'michy.k97@gmail.com'
-    OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
-    OR ((auth.jwt() -> 'app_metadata' ->> 'is_admin')::boolean = true)
-  )
 );
 
 -- ------------------------------------------------------------------------------

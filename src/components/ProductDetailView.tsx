@@ -1327,6 +1327,10 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                       activeImages[0] ||
                       getProductCoverImage(product)
                     }
+                    fallbackSrc={
+                      activeImages.find((img) => img && img !== (galleryMedia[activeMediaIndex]?.url || activeImages[0])) ||
+                      'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800'
+                    }
                     alt={product.title}
                     targetWidth={800}
                     quality={82}

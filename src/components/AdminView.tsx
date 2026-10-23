@@ -1101,11 +1101,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
         } else {
           setLastOptimizationSummary('✓ Imagen adicional optimizada automáticamente en formato WebP.');
         }
-        setTimeout(() => setLastOptimizationSummary(null), 5000);
-
-        if (oldUrl && oldUrl !== uploadedUrl) {
-          deleteStorageImageIfUnused(oldUrl, products, adminCategories);
-        }
+        // Preservar la imagen en Storage para evitar 404s en publicaciones o variantes
       }
     } catch (err: any) {
       alert('Error subiendo imagen adicional: ' + err.message);
@@ -1125,15 +1121,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
 
   const handleRemoveAdditionalImage = () => {
     if (!editingProduct) return;
-    const oldUrl = editingProduct.additionalImage;
     setEditingProduct({
       ...editingProduct,
       additionalImage: '',
     });
     setAdditionalImageInputUrl('');
-    if (oldUrl) {
-      deleteStorageImageIfUnused(oldUrl, products, adminCategories);
-    }
   };
 
   // Manejadores de Galería de Fotos de la Publicación (Foto 1 a Foto 6)
@@ -1222,17 +1214,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
 
   const handleRemoveGalleryImage = (index: number) => {
     if (!editingProduct || !Array.isArray(editingProduct.images)) return;
-    const oldUrl = editingProduct.images[index];
     const nextImages = editingProduct.images.filter((_, i) => i !== index);
     setEditingProduct({
       ...editingProduct,
       images: nextImages,
       image: nextImages[0] || null,
     });
-
-    if (oldUrl) {
-      deleteStorageImageIfUnused(oldUrl, products, adminCategories);
-    }
   };
 
   const handleSetGalleryCover = (index: number) => {

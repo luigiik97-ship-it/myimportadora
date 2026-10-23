@@ -153,10 +153,6 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
       } else {
         showFeedback('success', 'Imagen subida correctamente');
       }
-
-      if (previousImage && previousImage !== uploadedUrl) {
-        deleteStorageImageIfUnused(previousImage, products, categories);
-      }
     } catch (err: any) {
       console.error('[CategoryManager] Error uploading category image:', err);
       showFeedback('error', `Error al subir la imagen: ${err.message || 'Desconocido'}`);
