@@ -172,6 +172,12 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState<boolean>(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
+  const DEFAULT_ADDITIONAL_BANNER = 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&auto=format&fit=crop&q=80';
+  const [additionalBannerSrc, setAdditionalBannerSrc] = useState<string>(() => product.additionalImage || DEFAULT_ADDITIONAL_BANNER);
+
+  useEffect(() => {
+    setAdditionalBannerSrc(product.additionalImage || DEFAULT_ADDITIONAL_BANNER);
+  }, [product.additionalImage]);
 
   // Active gallery of images based on current variant selection (falls back to product.images)
   const activeImages: string[] = useMemo(() => {
@@ -1422,11 +1428,14 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               {/* Imagen Complementaria en escritorio: debajo de la descripción y al lado izquierdo del bloque de precios/botones */}
               <div className="relative w-full h-56 sm:h-64 md:h-80 rounded-xl overflow-hidden bg-gray-100 border border-gray-200/70 shadow-2xs group">
                 <img
-                  src={
-                    product.additionalImage ||
-                    'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&auto=format&fit=crop&q=80'
-                  }
+                  src={additionalBannerSrc}
                   alt={product.title || 'Showcase'}
+                  onError={() => {
+                    if (additionalBannerSrc !== DEFAULT_ADDITIONAL_BANNER) {
+                      setAdditionalBannerSrc(DEFAULT_ADDITIONAL_BANNER);
+                    }
+                  }}
+                  loading="lazy"
                   className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-500"
                 />
               </div>
@@ -1943,11 +1952,14 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             <div className="md:hidden space-y-2">
               <div className="relative w-full h-48 sm:h-64 md:h-80 rounded-xl overflow-hidden bg-gray-100 border border-gray-200/70 shadow-2xs group">
                 <img
-                  src={
-                    product.additionalImage ||
-                    'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&auto=format&fit=crop&q=80'
-                  }
+                  src={additionalBannerSrc}
                   alt={product.title || 'Showcase'}
+                  onError={() => {
+                    if (additionalBannerSrc !== DEFAULT_ADDITIONAL_BANNER) {
+                      setAdditionalBannerSrc(DEFAULT_ADDITIONAL_BANNER);
+                    }
+                  }}
+                  loading="lazy"
                   className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-500"
                 />
               </div>

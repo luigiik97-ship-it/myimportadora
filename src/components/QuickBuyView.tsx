@@ -33,6 +33,8 @@ import {
   getActiveVariantImages,
   getSelectedVariantStock,
   getResolvedProductPrices,
+  getItemEffectiveNormalPrice,
+  getItemEffectiveCashPrice,
   getProductCoverImage,
   ResolvedProductPrices
 } from '../utils/variantHelpers';
@@ -393,6 +395,8 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
 
   const cartCalculations = useMemo(() => {
     let subtotal = 0;
+    let transferSubtotal = 0;
+    let cashSubtotal = 0;
     let totalSavings = 0;
 
     cartItems.forEach((item) => {
@@ -401,31 +405,55 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
       const minQty = item.product.minWholesaleQty || 1;
       const isWholesale = catQty >= minQty;
 
-      const prices = getResolvedProductPrices(item.product, item.selectedVariants, item.selectedSizeVariant);
+      const wholesaleUnitPrice = getItemEffectiveNormalPrice(
+        item.product,
+        item.selectedVariants,
+        item.selectedSizeVariant,
+        true
+      );
+      const retailUnitPrice = getItemEffectiveNormalPrice(
+        item.product,
+        item.selectedVariants,
+        item.selectedSizeVariant,
+        false
+      );
 
-      let unitPrice = 0;
-      let retailComparison = 0;
+      const normalUnitPrice = isWholesale ? wholesaleUnitPrice : retailUnitPrice;
 
-      if (deliveryOption === 'pickup' && paymentMethod === 'cash') {
-        const wholesaleCash = prices.wholesaleCashPrice || prices.wholesalePrice;
-        const retailCash = prices.retailCashPrice || prices.retailPrice;
-        unitPrice = isWholesale ? wholesaleCash : retailCash;
-        retailComparison = retailCash;
-      } else {
-        unitPrice = isWholesale ? prices.wholesalePrice : prices.retailPrice;
-        retailComparison = prices.retailPrice;
-      }
+      const cashUnitPrice = getItemEffectiveCashPrice(
+        item.product,
+        item.selectedVariants,
+        item.selectedSizeVariant,
+        normalUnitPrice,
+        isWholesale
+      );
+
+      const isCashSelected = deliveryOption === 'pickup' && paymentMethod === 'cash';
+      const unitPrice = isCashSelected ? cashUnitPrice : normalUnitPrice;
+      const retailComparison = isCashSelected ? cashUnitPrice : retailUnitPrice;
 
       const itemTotal = unitPrice * item.quantity;
+      const itemNormalTotal = normalUnitPrice * item.quantity;
+      const itemCashTotal = cashUnitPrice * item.quantity;
       const itemRetailTotal = retailComparison * item.quantity;
 
       subtotal += itemTotal;
+      transferSubtotal += itemNormalTotal;
+      cashSubtotal += itemCashTotal;
       if (isWholesale) {
         totalSavings += Math.max(0, itemRetailTotal - itemTotal);
       }
     });
 
-    return { subtotal, totalSavings };
+    const cashDiscount = paymentMethod === 'cash' ? Math.max(0, transferSubtotal - cashSubtotal) : 0;
+
+    return {
+      subtotal,
+      transferSubtotal,
+      cashSubtotal,
+      cashDiscount,
+      totalSavings,
+    };
   }, [cartItems, categoryQuantitiesInCart, deliveryOption, paymentMethod]);
 
   // Gestión centralizada de envíos por Código Postal
@@ -572,17 +600,32 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         const minQty = item.product.minWholesaleQty || 1;
         const isWholesale = catQty >= minQty;
 
-        const prices = getResolvedProductPrices(item.product, item.selectedVariants, item.selectedSizeVariant);
+        const wholesaleUnitPrice = getItemEffectiveNormalPrice(
+          item.product,
+          item.selectedVariants,
+          item.selectedSizeVariant,
+          true
+        );
 
-        let unitPrice = isWholesale ? prices.wholesalePrice : prices.retailPrice;
-        let cashUnitPrice = isWholesale
-          ? (prices.wholesaleCashPrice || prices.wholesalePrice)
-          : (prices.retailCashPrice || prices.retailPrice);
+        const retailUnitPrice = getItemEffectiveNormalPrice(
+          item.product,
+          item.selectedVariants,
+          item.selectedSizeVariant,
+          false
+        );
 
-        const effectiveUnitPrice =
-          deliveryOption === 'pickup' && paymentMethod === 'cash'
-            ? cashUnitPrice
-            : unitPrice;
+        const normalUnitPrice = isWholesale ? wholesaleUnitPrice : retailUnitPrice;
+
+        const cashUnitPrice = getItemEffectiveCashPrice(
+          item.product,
+          item.selectedVariants,
+          item.selectedSizeVariant,
+          normalUnitPrice,
+          isWholesale
+        );
+
+        const isCashSelected = deliveryOption === 'pickup' && paymentMethod === 'cash';
+        const effectiveUnitPrice = isCashSelected ? cashUnitPrice : normalUnitPrice;
 
         // Reutilizar la misma fuente de variantes que ya existe en el pedido y carrito
         const rawVariantList: string[] =
@@ -593,22 +636,31 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
             : ([item.selectedColor, item.selectedSizeVariant?.name].filter(Boolean) as string[]);
         const resolvedVariantText = Array.from(new Set(rawVariantList)).join(', ');
 
+        const normalTotalPrice = normalUnitPrice * item.quantity;
+        const cashTotalPrice = cashUnitPrice * item.quantity;
+        const totalPrice = effectiveUnitPrice * item.quantity;
+
         return {
           id: item.id,
           productId: item.productId,
           title: item.product.title,
           image: getOptimizedImageUrl(
-            item.selectedImage || (item.product.images && item.product.images[0]),
+            item.selectedImage || (item.product.images && item.product.images[0]) || getProductCoverImage(item.product),
             { width: 300, quality: 70 }
           ),
           variantText: resolvedVariantText || item.variantText || '',
           quantity: item.quantity,
           unitPrice: effectiveUnitPrice,
-          normalUnitPrice: unitPrice,
-          cashUnitPrice: cashUnitPrice,
-          totalPrice: effectiveUnitPrice * item.quantity,
-          totalCashPrice: cashUnitPrice * item.quantity,
+          normalUnitPrice,
+          cashUnitPrice,
+          totalPrice,
+          totalCashPrice: cashTotalPrice,
+          normalTotalPrice,
           isWholesale,
+          category: item.product.category || '',
+          selectedVariants: item.selectedVariants,
+          selectedSizeVariant: item.selectedSizeVariant,
+          selectedColor: item.selectedColor,
         };
       });
 
@@ -666,9 +718,9 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
             },
         paymentMethod,
         items: processedItems,
-        subtotal: cartCalculations.subtotal,
+        subtotal: cartCalculations.transferSubtotal,
         wholesaleDiscount: cartCalculations.totalSavings,
-        cashDiscount: paymentMethod === 'cash' ? Math.max(0, cartCalculations.totalSavings) : 0,
+        cashDiscount: cartCalculations.cashDiscount,
         shippingCost,
         total: finalOrderTotal,
         status: 'pending_payment' as const,
@@ -714,10 +766,12 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         0
       );
 
+      const confirmedTotal = savedOrder.total !== undefined ? savedOrder.total : finalOrderTotal;
+
       const shortMessage = buildShortOrderWhatsAppMessage({
         orderNumber: confirmedOrderNumber,
         totalUnits,
-        total: finalOrderTotal,
+        total: confirmedTotal,
         paymentMethod,
         deliveryOption,
         shippingMethodName: selectedShippingOption?.name,
@@ -741,12 +795,14 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         id: savedOrder.id || `order-${Date.now()}`,
         orderNumber: confirmedOrderNumber,
         items: (savedOrder.items && savedOrder.items.length > 0) ? savedOrder.items : processedItems,
-        total: finalOrderTotal,
-        subtotal: orderPayload.subtotal,
+        total: confirmedTotal,
+        subtotal: savedOrder.subtotal !== undefined ? savedOrder.subtotal : orderPayload.subtotal,
+        wholesaleDiscount: savedOrder.wholesaleDiscount !== undefined ? savedOrder.wholesaleDiscount : orderPayload.wholesaleDiscount,
+        cashDiscount: savedOrder.cashDiscount !== undefined ? savedOrder.cashDiscount : orderPayload.cashDiscount,
         paymentMethod,
         deliveryOption: deliveryOption || 'pickup',
         shippingMethodName: selectedShippingOption?.name,
-        shippingCost,
+        shippingCost: savedOrder.shippingCost !== undefined ? savedOrder.shippingCost : shippingCost,
         customerName: customerName,
         customerWhatsapp: customerWhatsapp,
         customerEmail: savedOrder.customerEmail || currentUser?.email || '',

@@ -9,6 +9,8 @@ import {
   syncLegacyFields,
   SPECS_VARIANT_TYPES_KEY,
   getResolvedProductPrices,
+  getItemEffectiveNormalPrice,
+  getItemEffectiveCashPrice,
 } from '../utils/variantHelpers';
 import { isAdminAuthenticated, requireAdminAuth } from './adminAuth';
 import {
@@ -177,6 +179,7 @@ export const hasProductsDataChanged = (prev: Product[], next: Product[]): boolea
     if (Boolean(a.isBestSeller) !== Boolean(b.isBestSeller)) return true;
     if ((a.images?.[0] || '') !== (b.images?.[0] || '')) return true;
     if ((a.images?.length || 0) !== (b.images?.length || 0)) return true;
+    if (a.additionalImage !== b.additionalImage) return true;
   }
   return false;
 };
@@ -1019,6 +1022,30 @@ export const fetchSingleProduct = async (id: string): Promise<Product | null> =>
       }
     }
 
+    let resolvedAdditionalImage: string | undefined = undefined;
+    if (data.additional_image || data.additionalImage || data.lifestyle_image || data.lifestyleImage) {
+      resolvedAdditionalImage = data.additional_image || data.additionalImage || data.lifestyle_image || data.lifestyleImage;
+    } else if (Array.isArray(rawSpecs)) {
+      const addImgSpec = rawSpecs.find(
+        (s: any) => s && (s.key === '__additional_image' || s.label === '__additional_image' || s.key === 'additionalImage' || s.label === 'additionalImage')
+      );
+      if (addImgSpec && addImgSpec.value) {
+        resolvedAdditionalImage = addImgSpec.value;
+      }
+    }
+
+    let resolvedVideoUrl: string | undefined = undefined;
+    if (data.video_url || data.videoUrl) {
+      resolvedVideoUrl = data.video_url || data.videoUrl;
+    } else if (Array.isArray(rawSpecs)) {
+      const vidSpec = rawSpecs.find(
+        (s: any) => s && (s.key === '__video_url' || s.label === '__video_url' || s.key === 'videoUrl' || s.label === 'videoUrl')
+      );
+      if (vidSpec && vidSpec.value) {
+        resolvedVideoUrl = vidSpec.value;
+      }
+    }
+
     const mapped: Product = {
       id: data.id || String(data.product_id),
       title: data.title,
@@ -1026,8 +1053,8 @@ export const fetchSingleProduct = async (id: string): Promise<Product | null> =>
       category: data.category || 'Bijuteria',
       subcategory: data.subcategory || '',
       images: prodImages,
-      additionalImage: data.additional_image || data.additionalImage || undefined,
-      videoUrl: data.video_url || data.videoUrl || undefined,
+      additionalImage: resolvedAdditionalImage,
+      videoUrl: resolvedVideoUrl,
       minWholesaleQty: Number(data.min_wholesale_qty || data.minWholesaleQty || 1),
       wholesalePrice: Number(data.wholesale_price || data.wholesalePrice || 0),
       retailPrice: Number(data.retail_price || data.retailPrice || 0),
@@ -1045,7 +1072,11 @@ export const fetchSingleProduct = async (id: string): Promise<Product | null> =>
       tagId: resolvedTagId,
       tag: resolvedTag,
       specs,
-      isBestSeller: Boolean(data.is_best_seller ?? data.isBestSeller),
+      isBestSeller: Boolean(
+        data.is_best_seller ??
+        data.isBestSeller ??
+        (Array.isArray(specs) && specs.find((s: any) => (s.label === '__is_best_seller__' || s.key === '__is_best_seller__'))?.value === 'true')
+      ),
       createdAt: data.created_at || data.createdAt,
     };
 
@@ -1901,38 +1932,90 @@ export const verifyAndSanitizeOrderPayload = async (
   for (const it of orderData.items) {
     const qty = Math.max(1, Math.min(9999, Math.floor(Number(it.quantity) || 1)));
     const prod = catalogMap.get(it.productId);
-    const cat = prod?.category || 'General';
+    const cat = (it as any).category || prod?.category || 'General';
     catCounts[cat] = (catCounts[cat] || 0) + qty;
   }
 
   let calculatedSubtotal = 0;
   let calculatedCashSubtotal = 0;
 
+  const isCash = orderData.paymentMethod === 'cash';
+
   const verifiedItems = orderData.items.map((it) => {
     const qty = Math.max(1, Math.min(9999, Math.floor(Number(it.quantity) || 1)));
     const prod = catalogMap.get(it.productId);
 
     if (!prod) {
-      // Bloqueo estricto de seguridad: no se permiten productos inexistentes o inventados en requests manipuladas
       console.error(`[SEGURIDAD CHECKOUT] Intento de compra con producto no registrado bloqueado: "${it.productId}"`);
       throw new Error(`El producto con identificador "${it.productId}" no existe en el catálogo oficial o fue retirado.`);
     }
 
-    // Resolver precios oficiales considerando variantes
-    const resolved = getResolvedProductPrices(
+    // Resolver variantes (desde selectedVariants o analizando variantText)
+    let resolvedVariants: Record<string, string> = (it as any).selectedVariants || {};
+    let resolvedSizeVariant: any = (it as any).selectedSizeVariant;
+
+    if ((!resolvedVariants || Object.keys(resolvedVariants).length === 0) && it.variantText && prod) {
+      const vTextParts = it.variantText.split(/[,•|/]+/).map((s) => s.trim().toLowerCase()).filter(Boolean);
+      const prodVarTypes = prod.variantTypes || normalizeVariantTypes(prod);
+      const matchedVariants: Record<string, string> = {};
+
+      prodVarTypes.forEach((vt) => {
+        vt.options.forEach((opt) => {
+          if (vTextParts.includes(opt.name.trim().toLowerCase())) {
+            matchedVariants[vt.id] = opt.name;
+            matchedVariants[vt.name] = opt.name;
+          }
+        });
+      });
+
+      if (Object.keys(matchedVariants).length > 0) {
+        resolvedVariants = matchedVariants;
+      }
+
+      if (!resolvedSizeVariant && prod.sizeVariants) {
+        const matchedSv = prod.sizeVariants.find((sv) =>
+          vTextParts.includes(sv.name.trim().toLowerCase())
+        );
+        if (matchedSv) {
+          resolvedSizeVariant = matchedSv;
+        }
+      }
+    }
+
+    // Determinar modalidad mayorista vs minorista según mínimo de categoría o estado explícito del checkout
+    const cat = (it as any).category || prod.category || 'General';
+    const minQty = prod.minWholesaleQty || 1;
+    const catTotal = catCounts[cat] || qty;
+    const isWholesale = Boolean(it.isWholesale !== undefined ? it.isWholesale : (catTotal >= minQty));
+
+    // Usar exactamente las mismas funciones canónicas que el checkout
+    const wholesaleUnitPrice = getItemEffectiveNormalPrice(
       prod,
-      (it as any).selectedVariants || {},
-      (it as any).selectedSizeVariant
+      resolvedVariants,
+      resolvedSizeVariant,
+      true
     );
 
-    const minQty = prod.minWholesaleQty || 1;
-    const catTotal = catCounts[prod.category] || qty;
-    const isWholesale = Boolean(it.isWholesale || catTotal >= minQty);
+    const retailUnitPrice = getItemEffectiveNormalPrice(
+      prod,
+      resolvedVariants,
+      resolvedSizeVariant,
+      false
+    );
 
-    const normalUnitPrice = isWholesale ? resolved.wholesalePrice : resolved.retailPrice;
-    const cashUnitPrice = isWholesale
-      ? (resolved.wholesaleCashPrice || resolved.cashPrice || resolved.wholesalePrice)
-      : (resolved.retailCashPrice || resolved.cashPrice || resolved.retailPrice);
+    const normalUnitPrice = isWholesale ? wholesaleUnitPrice : retailUnitPrice;
+
+    const cashUnitPrice = getItemEffectiveCashPrice(
+      prod,
+      resolvedVariants,
+      resolvedSizeVariant,
+      normalUnitPrice,
+      isWholesale
+    );
+
+    // Aplicar precio unitario según la forma de pago (efectivo vs transferencia)
+    const appliedUnitPrice = isCash ? cashUnitPrice : normalUnitPrice;
+    const appliedLineTotal = appliedUnitPrice * qty;
 
     const lineNormalTotal = normalUnitPrice * qty;
     const lineCashTotal = cashUnitPrice * qty;
@@ -1967,9 +2050,10 @@ export const verifyAndSanitizeOrderPayload = async (
       variantText: resolvedVariantText,
       quantity: qty,
       isWholesale,
-      unitPrice: normalUnitPrice,
-      cashUnitPrice: cashUnitPrice,
-      totalPrice: lineNormalTotal,
+      unitPrice: appliedUnitPrice,
+      normalUnitPrice,
+      cashUnitPrice,
+      totalPrice: appliedLineTotal,
       totalCashPrice: lineCashTotal,
       category: prod.category || '',
       selectedColor: (it as any).selectedColor || undefined,
@@ -1988,16 +2072,15 @@ export const verifyAndSanitizeOrderPayload = async (
   const isPickup = orderData.deliveryOption === 'pickup';
   const validatedShippingCost = isPickup ? 0 : Math.max(0, Number(orderData.shippingCost) || 0);
 
-  // Recalcular descuentos y total oficial
-  const isCash = orderData.paymentMethod === 'cash';
+  // Recalcular descuentos y total oficial respetando la modalidad
   const calculatedCashDiscount = isCash ? Math.max(0, calculatedSubtotal - calculatedCashSubtotal) : 0;
   const calculatedTotal = (isCash ? calculatedCashSubtotal : calculatedSubtotal) + validatedShippingCost;
 
-  // Registrar advertencia si hubo intento de manipulación desde el cliente
+  // Registrar advertencia si hubo diferencia sensible contra el cálculo del cliente
   const clientTotal = Number(orderData.total) || 0;
   if (Math.abs(clientTotal - calculatedTotal) > 2) {
     console.warn(
-      `[SEGURIDAD CHECKOUT] Manipulación de precio bloqueada. Reportado por cliente: $${clientTotal}, Calculado oficial: $${calculatedTotal}. Se forzó el precio del catálogo.`
+      `[SEGURIDAD CHECKOUT] Ajuste de precio aplicado. Reportado por cliente: $${clientTotal}, Calculado oficial: $${calculatedTotal}. Se aseguraron los precios oficiales de la modalidad.`
     );
   }
 

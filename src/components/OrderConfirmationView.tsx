@@ -405,10 +405,17 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
                 </span>
               </div>
 
-              {order.cashDiscount > 0 && (
+              {((order.cashDiscount !== undefined && order.cashDiscount > 0) ||
+                (order.paymentMethod === 'cash' && order.subtotal > (order.total - (order.shippingCost || 0)))) && (
                 <div className="flex justify-between text-[#00a650] font-semibold">
                   <span>Descuento Efectivo</span>
-                  <span>-${order.cashDiscount.toLocaleString('es-AR')}</span>
+                  <span>
+                    -$
+                    {(
+                      order.cashDiscount ||
+                      order.subtotal - (order.total - (order.shippingCost || 0))
+                    ).toLocaleString('es-AR')}
+                  </span>
                 </div>
               )}
 
@@ -507,6 +514,24 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
 
         <div className="divide-y divide-gray-100">
           {safeItems.map((item) => {
+            const isCash = order.paymentMethod === 'cash';
+            let effectiveUnitPrice = item.unitPrice;
+            if (isCash) {
+              if (item.cashUnitPrice !== undefined && item.cashUnitPrice !== null && item.cashUnitPrice > 0) {
+                effectiveUnitPrice = item.cashUnitPrice;
+              } else if ((item as any).wholesaleCashPrice && item.isWholesale) {
+                effectiveUnitPrice = (item as any).wholesaleCashPrice;
+              } else if ((item as any).retailCashPrice && !item.isWholesale) {
+                effectiveUnitPrice = (item as any).retailCashPrice;
+              }
+            }
+
+            const effectiveTotalPrice = (isCash && item.totalCashPrice !== undefined && item.totalCashPrice !== null && item.totalCashPrice > 0)
+              ? item.totalCashPrice
+              : (isCash && effectiveUnitPrice > 0)
+              ? effectiveUnitPrice * (item.quantity || 1)
+              : item.totalPrice;
+
             const variantSuffix = item.variantText ? `, ${item.variantText}` : '';
             const pricingSuffix = ` (${item.isWholesale ? 'mayorista' : 'minorista'})`;
             const fullItemLabel = `${item.quantity}x ${item.title}${variantSuffix}${pricingSuffix}`;
@@ -526,17 +551,17 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
                       {fullItemLabel}
                     </h4>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      Precio unitario: ${item.unitPrice.toLocaleString('es-AR')} c/u
+                      Precio unitario: ${effectiveUnitPrice.toLocaleString('es-AR')} c/u
                     </p>
                   </div>
                 </div>
 
                 <div className="text-right shrink-0">
                   <span className="text-base md:text-lg font-bold text-gray-900 font-['Montserrat'] block">
-                    ${item.totalPrice.toLocaleString('es-AR')}
+                    ${effectiveTotalPrice.toLocaleString('es-AR')}
                   </span>
                   <span className="text-xs text-gray-400 block">
-                    (${item.unitPrice.toLocaleString('es-AR')} c/u)
+                    (${effectiveUnitPrice.toLocaleString('es-AR')} c/u)
                   </span>
                 </div>
               </div>

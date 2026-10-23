@@ -115,6 +115,7 @@ import {
   SlidersHorizontal,
   Bell,
   X,
+  Loader2,
 } from 'lucide-react';
 
 export const resolveOrderItemPrices = (
@@ -852,6 +853,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
       return;
     }
 
+    if (isUploadingAdditionalImage) {
+      alert('El banner inferior se está subiendo y optimizando. Por favor espera unos segundos antes de guardar la publicación.');
+      return;
+    }
+
     const currentVariantTypes = editingProduct.variantTypes || normalizeVariantTypes(editingProduct as Product);
     const targetCashPrice = editingProduct.cashPrice !== undefined && editingProduct.cashPrice !== null && !isNaN(Number(editingProduct.cashPrice))
       ? Number(editingProduct.cashPrice)
@@ -917,8 +923,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
 
     const finalImages = combinedImages.slice(0, 6);
 
+    const rawAdditionalImg = (editingProduct.additionalImage && editingProduct.additionalImage.trim()) || (additionalImageInputUrl && additionalImageInputUrl.trim()) || '';
+    const effectiveAdditionalImage = rawAdditionalImg.startsWith('blob:')
+      ? (additionalImageInputUrl && !additionalImageInputUrl.startsWith('blob:') ? additionalImageInputUrl : '')
+      : rawAdditionalImg;
+
     const productPayload: Partial<Product> = {
       ...editingProduct,
+      additionalImage: effectiveAdditionalImage,
       images: finalImages,
       image: finalImages[0] || coverImage || null,
       cashPrice: targetCashPrice ?? targetRetailCashPrice,
@@ -1078,8 +1090,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     const file = e.target.files?.[0];
     if (!file || !editingProduct) return;
 
-    const oldUrl = editingProduct.additionalImage;
+    // Vista previa instantánea inmediata con Object URL
+    const objectUrl = URL.createObjectURL(file);
+    setEditingProduct((prev) => (prev ? { ...prev, additionalImage: objectUrl } : prev));
+    setAdditionalImageInputUrl(objectUrl);
     setIsUploadingAdditionalImage(true);
+
     try {
       let optResult: any = null;
       const uploadedUrl = await uploadProductImage(file, {
@@ -1092,7 +1108,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
         },
       });
       if (uploadedUrl) {
-        setEditingProduct({ ...editingProduct, additionalImage: uploadedUrl });
+        setEditingProduct((prev) => (prev ? { ...prev, additionalImage: uploadedUrl } : prev));
         setAdditionalImageInputUrl(uploadedUrl);
         if (optResult) {
           setLastOptimizationSummary(
@@ -1101,7 +1117,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
         } else {
           setLastOptimizationSummary('✓ Imagen adicional optimizada automáticamente en formato WebP.');
         }
-        // Preservar la imagen en Storage para evitar 404s en publicaciones o variantes
       }
     } catch (err: any) {
       alert('Error subiendo imagen adicional: ' + err.message);
@@ -1113,18 +1128,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
 
   const handleAddAdditionalImageUrl = () => {
     if (!editingProduct || !additionalImageInputUrl.trim()) return;
-    setEditingProduct({
-      ...editingProduct,
-      additionalImage: additionalImageInputUrl.trim(),
-    });
+    setEditingProduct((prev) =>
+      prev ? { ...prev, additionalImage: additionalImageInputUrl.trim() } : prev
+    );
   };
 
   const handleRemoveAdditionalImage = () => {
     if (!editingProduct) return;
-    setEditingProduct({
-      ...editingProduct,
-      additionalImage: '',
-    });
+    setEditingProduct((prev) =>
+      prev ? { ...prev, additionalImage: '' } : prev
+    );
     setAdditionalImageInputUrl('');
   };
 
@@ -3457,40 +3470,59 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                 {/* Preview de la imagen adicional */}
                 {editingProduct.additionalImage ? (
                   <>
-                  <div className="relative rounded-xl overflow-hidden border border-gray-300 bg-gray-900 max-h-48 group flex items-center justify-center">
-                    <img
-                      src={editingProduct.additionalImage}
-                      alt="Banner adicional"
-                      className="w-full h-44 object-cover opacity-85 group-hover:scale-102 transition-transform duration-300"
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2">
-                      <label className="bg-white/90 hover:bg-white text-gray-800 text-xs font-bold px-3 py-1.5 rounded-lg shadow-md cursor-pointer flex items-center gap-1.5">
-                        <Upload className="w-3.5 h-3.5" />
-                        Reemplazar Imagen
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleUploadAdditionalImage}
-                          disabled={isUploadingAdditionalImage}
-                          className="hidden"
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        onClick={handleRemoveAdditionalImage}
-                        className="bg-red-600/90 hover:bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-md cursor-pointer flex items-center gap-1.5"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Quitar
-                      </button>
+                    <div className="relative rounded-xl overflow-hidden border border-gray-300 bg-gray-100 max-h-52 group flex items-center justify-center shadow-xs">
+                      <img
+                        src={editingProduct.additionalImage}
+                        alt="Banner adicional"
+                        className="w-full h-44 object-cover group-hover:scale-102 transition-transform duration-300"
+                        onError={(e) => {
+                          console.warn('Error cargando preview de banner adicional');
+                        }}
+                      />
+                      {/* Indicador de carga cuando se está procesando */}
+                      {isUploadingAdditionalImage && (
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-xs flex flex-col items-center justify-center gap-2 text-white z-10">
+                          <Loader2 className="w-6 h-6 animate-spin text-white" />
+                          <span className="text-xs font-semibold">Subiendo y optimizando banner...</span>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2 z-10">
+                        <label className="bg-white/90 hover:bg-white text-gray-800 text-xs font-bold px-3 py-1.5 rounded-lg shadow-md cursor-pointer flex items-center gap-1.5">
+                          <Upload className="w-3.5 h-3.5" />
+                          Reemplazar Imagen
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleUploadAdditionalImage}
+                            disabled={isUploadingAdditionalImage}
+                            className="hidden"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleRemoveAdditionalImage}
+                          className="bg-red-600/90 hover:bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-md cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Quitar
+                        </button>
+                      </div>
+                      <div className="absolute top-2 left-2 bg-emerald-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1 z-10">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Banner personalizado activo
+                      </div>
                     </div>
-                  </div>
-                  {editingProduct.additionalImage && (
-                    <div className="pt-1.5">
-                      <ImageOptimizationBadge imageUrl={editingProduct.additionalImage} />
-                    </div>
-                  )}
+                    {editingProduct.additionalImage && !editingProduct.additionalImage.startsWith('blob:') && (
+                      <div className="pt-1.5">
+                        <ImageOptimizationBadge imageUrl={editingProduct.additionalImage} />
+                      </div>
+                    )}
                   </>
+                ) : isUploadingAdditionalImage ? (
+                  <div className="border-2 border-[#0058bb]/40 rounded-xl p-6 text-center bg-blue-50/50 flex flex-col items-center justify-center gap-2">
+                    <Loader2 className="w-6 h-6 animate-spin text-[#0058bb]" />
+                    <p className="text-xs font-semibold text-[#0058bb]">Subiendo y optimizando banner...</p>
+                  </div>
                 ) : (
                   <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center bg-white space-y-1">
                     <p className="text-xs font-semibold text-gray-600">
@@ -3526,7 +3558,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                     <input
                       type="url"
                       value={additionalImageInputUrl}
-                      onChange={(e) => setAdditionalImageInputUrl(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setAdditionalImageInputUrl(val);
+                        if (val.trim()) {
+                          setEditingProduct((prev) => (prev ? { ...prev, additionalImage: val.trim() } : prev));
+                        }
+                      }}
                       placeholder="O pega URL (https://...)"
                       className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:ring-1 focus:ring-[#0058bb]"
                     />
