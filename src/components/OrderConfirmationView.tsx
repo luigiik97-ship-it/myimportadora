@@ -387,45 +387,63 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
               Resumen de compra
             </h3>
 
-            <div className="space-y-2.5 text-sm text-gray-600">
-              <div className="flex justify-between">
-                <span>Productos</span>
-                <span className="font-normal text-gray-800">${order.subtotal.toLocaleString('es-AR')}</span>
-              </div>
+            {(() => {
+              const isCash = order.paymentMethod === 'cash';
+              const effectiveProductsSubtotal = (isCash && safeItems.length > 0)
+                ? safeItems.reduce((acc, it) => {
+                    let uPrice = it.unitPrice;
+                    if (it.cashUnitPrice !== undefined && it.cashUnitPrice !== null && it.cashUnitPrice > 0) {
+                      uPrice = it.cashUnitPrice;
+                    } else if ((it as any).wholesaleCashPrice && it.isWholesale) {
+                      uPrice = (it as any).wholesaleCashPrice;
+                    } else if ((it as any).retailCashPrice && !it.isWholesale) {
+                      uPrice = (it as any).retailCashPrice;
+                    }
+                    const lineTotal = (it.totalCashPrice !== undefined && it.totalCashPrice !== null && it.totalCashPrice > 0)
+                      ? it.totalCashPrice
+                      : (uPrice * (it.quantity || 1));
+                    return acc + lineTotal;
+                  }, 0)
+                : order.subtotal;
 
-              <div className="flex justify-between items-start">
-                <div>
-                  <span>Envío</span>
-                  {order.deliveryOption === 'delivery' && order.shippingMethodName && (
-                    <p className="text-xs text-gray-500 font-normal">{order.shippingMethodName}</p>
+              return (
+                <div className="space-y-2.5 text-sm text-gray-600">
+                  <div className="flex justify-between">
+                    <span>Productos</span>
+                    <span className="font-normal text-gray-800">${effectiveProductsSubtotal.toLocaleString('es-AR')}</span>
+                  </div>
+
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span>Envío</span>
+                      {order.deliveryOption === 'delivery' && order.shippingMethodName && (
+                        <p className="text-xs text-gray-500 font-normal">{order.shippingMethodName}</p>
+                      )}
+                    </div>
+                    <span className={order.shippingCost === 0 ? 'text-[#00a650] font-bold' : 'font-normal text-gray-800'}>
+                      {order.shippingCost === 0 ? 'Gratis' : `$${order.shippingCost.toLocaleString('es-AR')}`}
+                    </span>
+                  </div>
+
+                  {order.subtotal > effectiveProductsSubtotal && (
+                    <div className="flex justify-between text-[#00a650] font-semibold">
+                      <span>Descuento Efectivo</span>
+                      <span>
+                        -$
+                        {(order.subtotal - effectiveProductsSubtotal).toLocaleString('es-AR')}
+                      </span>
+                    </div>
                   )}
-                </div>
-                <span className={order.shippingCost === 0 ? 'text-[#00a650] font-bold' : 'font-normal text-gray-800'}>
-                  {order.shippingCost === 0 ? 'Gratis' : `$${order.shippingCost.toLocaleString('es-AR')}`}
-                </span>
-              </div>
 
-              {((order.cashDiscount !== undefined && order.cashDiscount > 0) ||
-                (order.paymentMethod === 'cash' && order.subtotal > (order.total - (order.shippingCost || 0)))) && (
-                <div className="flex justify-between text-[#00a650] font-semibold">
-                  <span>Descuento Efectivo</span>
-                  <span>
-                    -$
-                    {(
-                      order.cashDiscount ||
-                      order.subtotal - (order.total - (order.shippingCost || 0))
-                    ).toLocaleString('es-AR')}
-                  </span>
+                  <div className="pt-2 border-t border-gray-200 flex justify-between items-baseline">
+                    <span className="text-base font-bold text-gray-900">Total</span>
+                    <span className="text-2xl font-bold text-gray-900 font-['Montserrat']">
+                      ${order.total.toLocaleString('es-AR')}
+                    </span>
+                  </div>
                 </div>
-              )}
-
-              <div className="pt-2 border-t border-gray-200 flex justify-between items-baseline">
-                <span className="text-base font-bold text-gray-900">Total</span>
-                <span className="text-2xl font-bold text-gray-900 font-['Montserrat']">
-                  ${order.total.toLocaleString('es-AR')}
-                </span>
-              </div>
-            </div>
+              );
+            })()}
           </div>
 
           {/* Action buttons */}

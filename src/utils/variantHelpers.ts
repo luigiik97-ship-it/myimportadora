@@ -36,11 +36,31 @@ export function normalizeVariantTypes(product: Partial<Product> | any): VariantT
           name: opt.name || `Opción ${optIdx + 1}`,
           images: Array.isArray(opt.images) ? opt.images.filter((img: any) => typeof img === 'string' && img.trim().length > 0) : [],
           stock: opt.stock !== undefined && opt.stock !== null && !isNaN(Number(opt.stock)) ? Math.max(0, Number(opt.stock)) : undefined,
-          wholesalePrice: opt.wholesalePrice !== undefined && opt.wholesalePrice !== null && !isNaN(Number(opt.wholesalePrice)) ? Number(opt.wholesalePrice) : undefined,
-          retailPrice: opt.retailPrice !== undefined && opt.retailPrice !== null && !isNaN(Number(opt.retailPrice)) ? Number(opt.retailPrice) : undefined,
-          cashPrice: opt.cashPrice !== undefined && opt.cashPrice !== null && !isNaN(Number(opt.cashPrice)) ? Number(opt.cashPrice) : undefined,
-          retailCashPrice: opt.retailCashPrice !== undefined && opt.retailCashPrice !== null && !isNaN(Number(opt.retailCashPrice)) ? Number(opt.retailCashPrice) : undefined,
-          wholesaleCashPrice: opt.wholesaleCashPrice !== undefined && opt.wholesaleCashPrice !== null && !isNaN(Number(opt.wholesaleCashPrice)) ? Number(opt.wholesaleCashPrice) : undefined,
+          wholesalePrice: opt.wholesalePrice !== undefined && opt.wholesalePrice !== null && !isNaN(Number(opt.wholesalePrice))
+            ? Number(opt.wholesalePrice)
+            : opt.wholesale_price !== undefined && opt.wholesale_price !== null && !isNaN(Number(opt.wholesale_price))
+            ? Number(opt.wholesale_price)
+            : undefined,
+          retailPrice: opt.retailPrice !== undefined && opt.retailPrice !== null && !isNaN(Number(opt.retailPrice))
+            ? Number(opt.retailPrice)
+            : opt.retail_price !== undefined && opt.retail_price !== null && !isNaN(Number(opt.retail_price))
+            ? Number(opt.retail_price)
+            : undefined,
+          cashPrice: opt.cashPrice !== undefined && opt.cashPrice !== null && !isNaN(Number(opt.cashPrice))
+            ? Number(opt.cashPrice)
+            : opt.cash_price !== undefined && opt.cash_price !== null && !isNaN(Number(opt.cash_price))
+            ? Number(opt.cash_price)
+            : undefined,
+          retailCashPrice: opt.retailCashPrice !== undefined && opt.retailCashPrice !== null && !isNaN(Number(opt.retailCashPrice))
+            ? Number(opt.retailCashPrice)
+            : opt.retail_cash_price !== undefined && opt.retail_cash_price !== null && !isNaN(Number(opt.retail_cash_price))
+            ? Number(opt.retail_cash_price)
+            : undefined,
+          wholesaleCashPrice: opt.wholesaleCashPrice !== undefined && opt.wholesaleCashPrice !== null && !isNaN(Number(opt.wholesaleCashPrice))
+            ? Number(opt.wholesaleCashPrice)
+            : opt.wholesale_cash_price !== undefined && opt.wholesale_cash_price !== null && !isNaN(Number(opt.wholesale_cash_price))
+            ? Number(opt.wholesale_cash_price)
+            : undefined,
           sku: opt.sku || undefined,
           outOfStockBadge: opt.outOfStockBadge || undefined,
           customBadgeText: opt.customBadgeText || undefined,
@@ -164,19 +184,57 @@ export function normalizeVariantTypes(product: Partial<Product> | any): VariantT
     result.push({
       id: typeId,
       name: typeName,
-      options: cleanSizeVariants.map((sv: any, idx: number) => ({
-        id: sv.id || `opt-size-${idx}`,
-        name: sv.name || `Variante ${idx + 1}`,
-        images: Array.isArray(sv.images) ? sv.images.filter(Boolean) : [],
-        stock: sv.stock !== undefined && sv.stock !== null && !isNaN(Number(sv.stock)) ? Math.max(0, Number(sv.stock)) : undefined,
-        wholesalePrice: sv.wholesalePrice !== undefined ? Number(sv.wholesalePrice) : undefined,
-        retailPrice: sv.retailPrice !== undefined ? Number(sv.retailPrice) : undefined,
-        cashPrice: sv.cashPrice !== undefined && sv.cashPrice !== null ? Number(sv.cashPrice) : undefined,
-        retailCashPrice: sv.retailCashPrice !== undefined && sv.retailCashPrice !== null ? Number(sv.retailCashPrice) : undefined,
-        sku: sv.sku || undefined,
-        outOfStockBadge: sv.outOfStockBadge || undefined,
-        customBadgeText: sv.customBadgeText || undefined,
-      })),
+      options: cleanSizeVariants.map((sv: any, idx: number) => {
+        const wholesalePrice =
+          sv.wholesalePrice !== undefined && sv.wholesalePrice !== null && !isNaN(Number(sv.wholesalePrice))
+            ? Number(sv.wholesalePrice)
+            : sv.wholesale_price !== undefined && sv.wholesale_price !== null && !isNaN(Number(sv.wholesale_price))
+            ? Number(sv.wholesale_price)
+            : undefined;
+
+        const retailPrice =
+          sv.retailPrice !== undefined && sv.retailPrice !== null && !isNaN(Number(sv.retailPrice))
+            ? Number(sv.retailPrice)
+            : sv.retail_price !== undefined && sv.retail_price !== null && !isNaN(Number(sv.retail_price))
+            ? Number(sv.retail_price)
+            : undefined;
+
+        const cashPrice =
+          sv.cashPrice !== undefined && sv.cashPrice !== null && !isNaN(Number(sv.cashPrice))
+            ? Number(sv.cashPrice)
+            : sv.cash_price !== undefined && sv.cash_price !== null && !isNaN(Number(sv.cash_price))
+            ? Number(sv.cash_price)
+            : undefined;
+
+        const retailCashPrice =
+          sv.retailCashPrice !== undefined && sv.retailCashPrice !== null && !isNaN(Number(sv.retailCashPrice))
+            ? Number(sv.retailCashPrice)
+            : sv.retail_cash_price !== undefined && sv.retail_cash_price !== null && !isNaN(Number(sv.retail_cash_price))
+            ? Number(sv.retail_cash_price)
+            : undefined;
+
+        const wholesaleCashPrice =
+          sv.wholesaleCashPrice !== undefined && sv.wholesaleCashPrice !== null && !isNaN(Number(sv.wholesaleCashPrice))
+            ? Number(sv.wholesaleCashPrice)
+            : sv.wholesale_cash_price !== undefined && sv.wholesale_cash_price !== null && !isNaN(Number(sv.wholesale_cash_price))
+            ? Number(sv.wholesale_cash_price)
+            : undefined;
+
+        return {
+          id: sv.id || `opt-size-${idx}`,
+          name: sv.name || `Variante ${idx + 1}`,
+          images: Array.isArray(sv.images) ? sv.images.filter(Boolean) : [],
+          stock: sv.stock !== undefined && sv.stock !== null && !isNaN(Number(sv.stock)) ? Math.max(0, Number(sv.stock)) : undefined,
+          wholesalePrice,
+          retailPrice,
+          cashPrice,
+          retailCashPrice,
+          wholesaleCashPrice,
+          sku: sv.sku || undefined,
+          outOfStockBadge: sv.outOfStockBadge || undefined,
+          customBadgeText: sv.customBadgeText || undefined,
+        };
+      }),
     });
   }
 
@@ -186,9 +244,17 @@ export function normalizeVariantTypes(product: Partial<Product> | any): VariantT
 /**
  * Strips internal metadata items from sizeVariants so UI never displays them
  */
-export function cleanSizeVariantsList(sizeVariants: SizeVariant[] | undefined | null): SizeVariant[] {
-  if (!Array.isArray(sizeVariants)) return [];
-  return sizeVariants.filter(
+export function cleanSizeVariantsList(sizeVariants: any): SizeVariant[] {
+  let list = sizeVariants;
+  if (typeof list === 'string') {
+    try {
+      list = JSON.parse(list);
+    } catch {
+      list = [];
+    }
+  }
+  if (!Array.isArray(list)) return [];
+  return list.filter(
     (sv) => sv && sv.id !== META_VARIANT_TYPES_KEY && sv.name !== META_VARIANT_TYPES_KEY
   );
 }
@@ -935,11 +1001,39 @@ export function getResolvedProductPrices(
     return null;
   };
 
-  const baseWholesale = checkPositiveNum(product.wholesalePrice) ?? 0;
-  const baseRetail = checkPositiveNum(product.retailPrice) ?? baseWholesale;
-  const baseWholesaleCash = checkPositiveNum(product.wholesaleCashPrice) ?? checkPositiveNum(product.cashPrice) ?? baseWholesale;
-  const baseRetailCash = checkPositiveNum(product.retailCashPrice) ?? checkPositiveNum(product.cashPrice) ?? baseRetail;
-  const baseCash = checkPositiveNum(product.cashPrice) ?? baseWholesaleCash;
+  const rawProd = product as any;
+  const rawBaseWholesale = checkPositiveNum(rawProd.wholesalePrice ?? rawProd.wholesale_price);
+  const baseWholesale = rawBaseWholesale ?? 0;
+  const rawBaseRetail = checkPositiveNum(rawProd.retailPrice ?? rawProd.retail_price);
+  const baseRetail = rawBaseRetail ?? baseWholesale;
+
+  const rawBaseWholesaleCash = checkPositiveNum(rawProd.wholesaleCashPrice ?? rawProd.wholesale_cash_price);
+  const rawBaseRetailCash = checkPositiveNum(rawProd.retailCashPrice ?? rawProd.retail_cash_price);
+  const rawBaseCash = checkPositiveNum(rawProd.cashPrice ?? rawProd.cash_price);
+
+  // Compute resolved base wholesale cash
+  let baseWholesaleCash = rawBaseWholesaleCash ?? rawBaseCash;
+  if (!baseWholesaleCash && rawBaseRetailCash && baseRetail > 0 && rawBaseRetailCash < baseRetail) {
+    baseWholesaleCash = Math.round(baseWholesale * (rawBaseRetailCash / baseRetail));
+  }
+  if (!baseWholesaleCash) {
+    baseWholesaleCash = baseWholesale;
+  }
+
+  // Compute resolved base retail cash with proportional discount if only wholesale cash was configured
+  let baseRetailCash = rawBaseRetailCash;
+  if (!baseRetailCash && rawBaseWholesaleCash && baseWholesale > 0 && rawBaseWholesaleCash < baseWholesale) {
+    baseRetailCash = Math.round(baseRetail * (rawBaseWholesaleCash / baseWholesale));
+  } else if (!baseRetailCash && rawBaseCash && baseWholesale > 0 && rawBaseCash < baseWholesale) {
+    baseRetailCash = Math.round(baseRetail * (rawBaseCash / baseWholesale));
+  } else if (!baseRetailCash && rawBaseCash) {
+    baseRetailCash = rawBaseCash;
+  }
+  if (!baseRetailCash) {
+    baseRetailCash = baseRetail;
+  }
+
+  const baseCash = rawBaseCash ?? baseWholesaleCash;
 
   const variantTypes = normalizeVariantTypes(product);
 
@@ -966,11 +1060,12 @@ export function getResolvedProductPrices(
         );
 
         if (option) {
-          const hasWholesale = checkPositiveNum(option.wholesalePrice) !== null;
-          const hasRetail = checkPositiveNum(option.retailPrice) !== null;
-          const hasCash = checkPositiveNum(option.wholesaleCashPrice) !== null ||
-                          checkPositiveNum(option.retailCashPrice) !== null ||
-                          checkPositiveNum(option.cashPrice) !== null;
+          const rawOpt = option as any;
+          const hasWholesale = checkPositiveNum(rawOpt.wholesalePrice ?? rawOpt.wholesale_price) !== null;
+          const hasRetail = checkPositiveNum(rawOpt.retailPrice ?? rawOpt.retail_price) !== null;
+          const hasCash = checkPositiveNum(rawOpt.wholesaleCashPrice ?? rawOpt.wholesale_cash_price) !== null ||
+                          checkPositiveNum(rawOpt.retailCashPrice ?? rawOpt.retail_cash_price) !== null ||
+                          checkPositiveNum(rawOpt.cashPrice ?? rawOpt.cash_price) !== null;
 
           if (hasWholesale || hasRetail || hasCash) {
             matchedOptionWithPrice = { option, variantType: vt };
@@ -983,18 +1078,36 @@ export function getResolvedProductPrices(
 
   // If no variant option matched with custom prices, check legacy sizeVariant
   if (!matchedOptionWithPrice && selectedSizeVariant) {
-    const hasWholesale = checkPositiveNum(selectedSizeVariant.wholesalePrice) !== null;
-    const hasRetail = checkPositiveNum(selectedSizeVariant.retailPrice) !== null;
-    const hasCash = checkPositiveNum(selectedSizeVariant.wholesaleCashPrice) !== null ||
-                    checkPositiveNum(selectedSizeVariant.retailCashPrice) !== null ||
-                    checkPositiveNum(selectedSizeVariant.cashPrice) !== null;
+    const rawSv = selectedSizeVariant as any;
+    const hasWholesale = checkPositiveNum(rawSv.wholesalePrice ?? rawSv.wholesale_price) !== null;
+    const hasRetail = checkPositiveNum(rawSv.retailPrice ?? rawSv.retail_price) !== null;
+    const hasCash = checkPositiveNum(rawSv.wholesaleCashPrice ?? rawSv.wholesale_cash_price) !== null ||
+                    checkPositiveNum(rawSv.retailCashPrice ?? rawSv.retail_cash_price) !== null ||
+                    checkPositiveNum(rawSv.cashPrice ?? rawSv.cash_price) !== null;
 
     if (hasWholesale || hasRetail || hasCash) {
-      const wholesalePrice = checkPositiveNum(selectedSizeVariant.wholesalePrice) ?? baseWholesale;
-      const retailPrice = checkPositiveNum(selectedSizeVariant.retailPrice) ?? (checkPositiveNum(selectedSizeVariant.wholesalePrice) ?? baseRetail);
-      const wholesaleCashPrice = checkPositiveNum(selectedSizeVariant.wholesaleCashPrice) ?? checkPositiveNum(selectedSizeVariant.cashPrice) ?? wholesalePrice;
-      const retailCashPrice = checkPositiveNum(selectedSizeVariant.retailCashPrice) ?? checkPositiveNum(selectedSizeVariant.cashPrice) ?? retailPrice;
-      const cashPrice = checkPositiveNum(selectedSizeVariant.cashPrice) ?? wholesaleCashPrice;
+      const svWholesalePrice = checkPositiveNum(rawSv.wholesalePrice ?? rawSv.wholesale_price);
+      const wholesalePrice = svWholesalePrice ?? baseWholesale;
+      const retailPrice = checkPositiveNum(rawSv.retailPrice ?? rawSv.retail_price) ?? (svWholesalePrice ?? baseRetail);
+      const wholesaleCashPrice =
+        checkPositiveNum(rawSv.wholesaleCashPrice ?? rawSv.wholesale_cash_price) ??
+        checkPositiveNum(rawSv.cashPrice ?? rawSv.cash_price) ??
+        (svWholesalePrice && svWholesalePrice !== baseWholesale
+          ? (baseWholesale > 0 && baseWholesaleCash < baseWholesale
+              ? Math.round(svWholesalePrice * (baseWholesaleCash / baseWholesale))
+              : wholesalePrice)
+          : baseWholesaleCash);
+      const retailCashPrice =
+        checkPositiveNum(rawSv.retailCashPrice ?? rawSv.retail_cash_price) ??
+        checkPositiveNum(rawSv.cashPrice ?? rawSv.cash_price) ??
+        (rawSv.retailPrice && checkPositiveNum(rawSv.retailPrice ?? rawSv.retail_price) !== baseRetail
+          ? (baseRetail > 0 && baseRetailCash < baseRetail
+              ? Math.round(checkPositiveNum(rawSv.retailPrice ?? rawSv.retail_price)! * (baseRetailCash / baseRetail))
+              : retailPrice)
+          : (retailPrice !== baseRetail && baseRetail > 0 && baseRetailCash < baseRetail
+              ? Math.round(retailPrice * (baseRetailCash / baseRetail))
+              : baseRetailCash));
+      const cashPrice = checkPositiveNum(rawSv.cashPrice ?? rawSv.cash_price) ?? wholesaleCashPrice;
 
       return {
         wholesalePrice,
@@ -1012,11 +1125,30 @@ export function getResolvedProductPrices(
   // If matched variant option with price was found
   if (matchedOptionWithPrice) {
     const opt = matchedOptionWithPrice.option;
-    const wholesalePrice = checkPositiveNum(opt.wholesalePrice) ?? baseWholesale;
-    const retailPrice = checkPositiveNum(opt.retailPrice) ?? (checkPositiveNum(opt.wholesalePrice) ?? baseRetail);
-    const wholesaleCashPrice = checkPositiveNum(opt.wholesaleCashPrice) ?? checkPositiveNum(opt.cashPrice) ?? wholesalePrice;
-    const retailCashPrice = checkPositiveNum(opt.retailCashPrice) ?? checkPositiveNum(opt.cashPrice) ?? retailPrice;
-    const cashPrice = checkPositiveNum(opt.cashPrice) ?? wholesaleCashPrice;
+    const rawOpt = opt as any;
+    const optWholesalePrice = checkPositiveNum(rawOpt.wholesalePrice ?? rawOpt.wholesale_price);
+    const optRetailPrice = checkPositiveNum(rawOpt.retailPrice ?? rawOpt.retail_price);
+    const wholesalePrice = optWholesalePrice ?? baseWholesale;
+    const retailPrice = optRetailPrice ?? (optWholesalePrice ?? baseRetail);
+    const wholesaleCashPrice =
+      checkPositiveNum(rawOpt.wholesaleCashPrice ?? rawOpt.wholesale_cash_price) ??
+      checkPositiveNum(rawOpt.cashPrice ?? rawOpt.cash_price) ??
+      (optWholesalePrice && optWholesalePrice !== baseWholesale
+        ? (baseWholesale > 0 && baseWholesaleCash < baseWholesale
+            ? Math.round(optWholesalePrice * (baseWholesaleCash / baseWholesale))
+            : wholesalePrice)
+        : baseWholesaleCash);
+    const retailCashPrice =
+      checkPositiveNum(rawOpt.retailCashPrice ?? rawOpt.retail_cash_price) ??
+      checkPositiveNum(rawOpt.cashPrice ?? rawOpt.cash_price) ??
+      (optRetailPrice && optRetailPrice !== baseRetail
+        ? (baseRetail > 0 && baseRetailCash < baseRetail
+            ? Math.round(optRetailPrice * (baseRetailCash / baseRetail))
+            : retailPrice)
+        : (retailPrice !== baseRetail && baseRetail > 0 && baseRetailCash < baseRetail
+            ? Math.round(retailPrice * (baseRetailCash / baseRetail))
+            : baseRetailCash));
+    const cashPrice = checkPositiveNum(rawOpt.cashPrice ?? rawOpt.cash_price) ?? wholesaleCashPrice;
 
     return {
       wholesalePrice,

@@ -690,10 +690,10 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
         id: selectedSizeOption.id,
         name: selectedSizeOption.name,
         images: selectedSizeOption.images || [],
-        wholesalePrice: currentWholesalePrice,
-        retailPrice: currentRetailPrice,
-        wholesaleCashPrice: currentWholesaleCashPrice,
-        retailCashPrice: currentRetailCashPrice,
+        wholesalePrice: resolvedPrices.wholesalePrice,
+        retailPrice: resolvedPrices.retailPrice,
+        wholesaleCashPrice: resolvedPrices.wholesaleCashPrice,
+        retailCashPrice: resolvedPrices.retailCashPrice,
         cashPrice: resolvedPrices.cashPrice,
         sku: selectedSizeOption.sku,
       };
@@ -703,15 +703,15 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
         id: `var-${resolvedPrices.priceControllingOptionName}`,
         name: resolvedPrices.priceControllingOptionName,
         images: [],
-        wholesalePrice: currentWholesalePrice,
-        retailPrice: currentRetailPrice,
-        wholesaleCashPrice: currentWholesaleCashPrice,
-        retailCashPrice: currentRetailCashPrice,
+        wholesalePrice: resolvedPrices.wholesalePrice,
+        retailPrice: resolvedPrices.retailPrice,
+        wholesaleCashPrice: resolvedPrices.wholesaleCashPrice,
+        retailCashPrice: resolvedPrices.retailCashPrice,
         cashPrice: resolvedPrices.cashPrice,
       };
     }
     return undefined;
-  }, [selectedSizeOption, resolvedPrices, currentWholesalePrice, currentRetailPrice, currentWholesaleCashPrice, currentRetailCashPrice]);
+  }, [selectedSizeOption, resolvedPrices]);
 
   // User-friendly selected variants map for cart/order representation
   const userFriendlySelectedVariants = useMemo(() => {

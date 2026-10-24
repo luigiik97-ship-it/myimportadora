@@ -622,6 +622,94 @@ async function executeAdaptiveProductWrite(
   return { success: false, error: 'Max retry attempts reached' };
 }
 
+/**
+ * Extrae de forma canónica y autoritativa los cuatro precios o precios en efectivo (mayorista, minorista y base)
+ * de un producto, verificando columnas de tabla (snake_case y camelCase) y especificaciones internas (__specs).
+ */
+export function extractProductCashPrices(item: any, rawSpecs?: any): {
+  cashPrice?: number;
+  retailCashPrice?: number;
+  wholesaleCashPrice?: number;
+} {
+  let specsList: any[] = [];
+  if (Array.isArray(rawSpecs)) {
+    specsList = rawSpecs;
+  } else if (typeof rawSpecs === 'string' && rawSpecs.trim().startsWith('[')) {
+    try {
+      specsList = JSON.parse(rawSpecs);
+    } catch {}
+  } else if (Array.isArray(item?.specs)) {
+    specsList = item.specs;
+  } else if (typeof item?.specs === 'string' && item.specs.trim().startsWith('[')) {
+    try {
+      specsList = JSON.parse(item.specs);
+    } catch {}
+  }
+
+  const checkNum = (val: any): number | undefined => {
+    if (val !== undefined && val !== null && val !== '' && !isNaN(Number(val)) && Number(val) > 0) {
+      return Number(val);
+    }
+    return undefined;
+  };
+
+  let resolvedCashPrice: number | undefined =
+    checkNum(item?.cash_price) ??
+    checkNum(item?.cashPrice);
+
+  if (resolvedCashPrice === undefined && specsList.length > 0) {
+    const cashSpec = specsList.find(
+      (s: any) => s && (s.key === '__cash_price' || s.label === '__cash_price' || s.key === 'cashPrice' || s.label === 'cashPrice')
+    );
+    if (cashSpec && cashSpec.value) {
+      resolvedCashPrice = checkNum(cashSpec.value);
+    }
+  }
+
+  let resolvedRetailCashPrice: number | undefined =
+    checkNum(item?.retail_cash_price) ??
+    checkNum(item?.retailCashPrice);
+
+  if (resolvedRetailCashPrice === undefined && specsList.length > 0) {
+    const retailCashSpec = specsList.find(
+      (s: any) => s && (s.key === '__retail_cash_price' || s.label === '__retail_cash_price' || s.key === 'retailCashPrice' || s.label === 'retailCashPrice')
+    );
+    if (retailCashSpec && retailCashSpec.value) {
+      resolvedRetailCashPrice = checkNum(retailCashSpec.value);
+    }
+  }
+
+  let resolvedWholesaleCashPrice: number | undefined =
+    checkNum(item?.wholesale_cash_price) ??
+    checkNum(item?.wholesaleCashPrice);
+
+  if (resolvedWholesaleCashPrice === undefined && specsList.length > 0) {
+    const wholesaleCashSpec = specsList.find(
+      (s: any) => s && (s.key === '__wholesale_cash_price' || s.label === '__wholesale_cash_price' || s.key === 'wholesaleCashPrice' || s.label === 'wholesaleCashPrice')
+    );
+    if (wholesaleCashSpec && wholesaleCashSpec.value) {
+      resolvedWholesaleCashPrice = checkNum(wholesaleCashSpec.value);
+    }
+  }
+
+  // Fallbacks cruzados
+  if (resolvedRetailCashPrice === undefined && resolvedCashPrice !== undefined) {
+    resolvedRetailCashPrice = resolvedCashPrice;
+  }
+  if (resolvedWholesaleCashPrice === undefined && resolvedCashPrice !== undefined) {
+    resolvedWholesaleCashPrice = resolvedCashPrice;
+  }
+  if (resolvedCashPrice === undefined) {
+    resolvedCashPrice = resolvedWholesaleCashPrice ?? resolvedRetailCashPrice;
+  }
+
+  return {
+    cashPrice: resolvedCashPrice,
+    retailCashPrice: resolvedRetailCashPrice,
+    wholesaleCashPrice: resolvedWholesaleCashPrice,
+  };
+}
+
 export const fetchProducts = async (options?: { force?: boolean }): Promise<Product[]> => {
   const now = Date.now();
   const lastSavedTime = getProductsCacheTimestamp();
@@ -682,55 +770,10 @@ export const fetchProducts = async (options?: { force?: boolean }): Promise<Prod
 
               const prodImages = extractProductImages(item);
 
-              let resolvedCashPrice: number | undefined = undefined;
-              if (item.cash_price !== undefined && item.cash_price !== null && item.cash_price !== '') {
-                resolvedCashPrice = Number(item.cash_price);
-              } else if (item.cashPrice !== undefined && item.cashPrice !== null && item.cashPrice !== '') {
-                resolvedCashPrice = Number(item.cashPrice);
-              } else if (Array.isArray(rawSpecs)) {
-                const cashSpec = rawSpecs.find(
-                  (s: any) => s && (s.key === '__cash_price' || s.label === '__cash_price' || s.key === 'cashPrice' || s.label === 'cashPrice')
-                );
-                if (cashSpec && cashSpec.value && !isNaN(Number(cashSpec.value))) {
-                  resolvedCashPrice = Number(cashSpec.value);
-                }
-              }
-
-              let resolvedRetailCashPrice: number | undefined = undefined;
-              if (item.retail_cash_price !== undefined && item.retail_cash_price !== null && item.retail_cash_price !== '') {
-                resolvedRetailCashPrice = Number(item.retail_cash_price);
-              } else if (item.retailCashPrice !== undefined && item.retailCashPrice !== null && item.retailCashPrice !== '') {
-                resolvedRetailCashPrice = Number(item.retailCashPrice);
-              } else if (Array.isArray(rawSpecs)) {
-                const retailCashSpec = rawSpecs.find(
-                  (s: any) => s && (s.key === '__retail_cash_price' || s.label === '__retail_cash_price' || s.key === 'retailCashPrice' || s.label === 'retailCashPrice')
-                );
-                if (retailCashSpec && retailCashSpec.value && !isNaN(Number(retailCashSpec.value))) {
-                  resolvedRetailCashPrice = Number(retailCashSpec.value);
-                }
-              }
-              // Fallback to resolvedCashPrice if specific retail cash price was not configured
-              if (resolvedRetailCashPrice === undefined && resolvedCashPrice !== undefined) {
-                resolvedRetailCashPrice = resolvedCashPrice;
-              }
-
-              let resolvedWholesaleCashPrice: number | undefined = undefined;
-              if (item.wholesale_cash_price !== undefined && item.wholesale_cash_price !== null && item.wholesale_cash_price !== '') {
-                resolvedWholesaleCashPrice = Number(item.wholesale_cash_price);
-              } else if (item.wholesaleCashPrice !== undefined && item.wholesaleCashPrice !== null && item.wholesaleCashPrice !== '') {
-                resolvedWholesaleCashPrice = Number(item.wholesaleCashPrice);
-              } else if (Array.isArray(rawSpecs)) {
-                const wholesaleCashSpec = rawSpecs.find(
-                  (s: any) => s && (s.key === '__wholesale_cash_price' || s.label === '__wholesale_cash_price' || s.key === 'wholesaleCashPrice' || s.label === 'wholesaleCashPrice')
-                );
-                if (wholesaleCashSpec && wholesaleCashSpec.value && !isNaN(Number(wholesaleCashSpec.value))) {
-                  resolvedWholesaleCashPrice = Number(wholesaleCashSpec.value);
-                }
-              }
-              // Fallback to resolvedCashPrice if specific wholesale cash price was not configured
-              if (resolvedWholesaleCashPrice === undefined && resolvedCashPrice !== undefined) {
-                resolvedWholesaleCashPrice = resolvedCashPrice;
-              }
+              const cashPrices = extractProductCashPrices(item, rawSpecs);
+              const resolvedCashPrice = cashPrices.cashPrice;
+              const resolvedRetailCashPrice = cashPrices.retailCashPrice;
+              const resolvedWholesaleCashPrice = cashPrices.wholesaleCashPrice;
 
               let resolvedAdditionalImage: string | undefined = undefined;
               if (item.additional_image || item.additionalImage || item.lifestyle_image || item.lifestyleImage) {
@@ -933,32 +976,10 @@ export const fetchSingleProduct = async (id: string): Promise<Product | null> =>
     const specs = cleanSpecsList(rawSpecs);
     const prodImages = extractProductImages(data);
 
-    let resolvedCashPrice: number | undefined = undefined;
-    if (data.cash_price !== undefined && data.cash_price !== null && data.cash_price !== '') {
-      resolvedCashPrice = Number(data.cash_price);
-    } else if (data.cashPrice !== undefined && data.cashPrice !== null && data.cashPrice !== '') {
-      resolvedCashPrice = Number(data.cashPrice);
-    }
-
-    let resolvedRetailCashPrice: number | undefined = undefined;
-    if (data.retail_cash_price !== undefined && data.retail_cash_price !== null && data.retail_cash_price !== '') {
-      resolvedRetailCashPrice = Number(data.retail_cash_price);
-    } else if (data.retailCashPrice !== undefined && data.retailCashPrice !== null && data.retailCashPrice !== '') {
-      resolvedRetailCashPrice = Number(data.retailCashPrice);
-    }
-    if (resolvedRetailCashPrice === undefined && resolvedCashPrice !== undefined) {
-      resolvedRetailCashPrice = resolvedCashPrice;
-    }
-
-    let resolvedWholesaleCashPrice: number | undefined = undefined;
-    if (data.wholesale_cash_price !== undefined && data.wholesale_cash_price !== null && data.wholesale_cash_price !== '') {
-      resolvedWholesaleCashPrice = Number(data.wholesale_cash_price);
-    } else if (data.wholesaleCashPrice !== undefined && data.wholesaleCashPrice !== null && data.wholesaleCashPrice !== '') {
-      resolvedWholesaleCashPrice = Number(data.wholesaleCashPrice);
-    }
-    if (resolvedWholesaleCashPrice === undefined && resolvedCashPrice !== undefined) {
-      resolvedWholesaleCashPrice = resolvedCashPrice;
-    }
+    const cashPrices = extractProductCashPrices(data, rawSpecs);
+    const resolvedCashPrice = cashPrices.cashPrice;
+    const resolvedRetailCashPrice = cashPrices.retailCashPrice;
+    const resolvedWholesaleCashPrice = cashPrices.wholesaleCashPrice;
 
     let resolvedReviewsCount: number = 0;
     if (data.reviews_count !== undefined && data.reviews_count !== null && !isNaN(Number(data.reviews_count))) {
@@ -1893,6 +1914,17 @@ export const verifyAndSanitizeOrderPayload = async (
 
         if (dbProducts && Array.isArray(dbProducts)) {
           dbProducts.forEach((item: any) => {
+            let rawSpecs = item.specs;
+            if (typeof rawSpecs === 'string') {
+              try {
+                rawSpecs = JSON.parse(rawSpecs);
+              } catch {
+                rawSpecs = [];
+              }
+            }
+
+            const cashPrices = extractProductCashPrices(item, rawSpecs);
+
             const mappedProd: Product = {
               id: item.id || String(item.product_id),
               title: item.title,
@@ -1903,11 +1935,11 @@ export const verifyAndSanitizeOrderPayload = async (
               minWholesaleQty: Number(item.min_wholesale_qty || item.minWholesaleQty || 1),
               wholesalePrice: Number(item.wholesale_price || item.wholesalePrice || 0),
               retailPrice: Number(item.retail_price || item.retailPrice || 0),
-              cashPrice: item.cash_price !== undefined ? Number(item.cash_price) : undefined,
-              retailCashPrice: item.retail_cash_price !== undefined ? Number(item.retail_cash_price) : undefined,
-              wholesaleCashPrice: item.wholesale_cash_price !== undefined ? Number(item.wholesale_cash_price) : undefined,
+              cashPrice: cashPrices.cashPrice,
+              retailCashPrice: cashPrices.retailCashPrice,
+              wholesaleCashPrice: cashPrices.wholesaleCashPrice,
               colors: Array.isArray(item.colors) ? item.colors : [],
-              sizeVariants: Array.isArray(item.size_variants) ? item.size_variants : [],
+              sizeVariants: Array.isArray(item.size_variants) ? item.size_variants : cleanSizeVariantsList(item.sizeVariants || []),
               variantTypes: Array.isArray(item.variant_types) ? item.variant_types : normalizeVariantTypes(item),
               stock: Number(item.stock || 0),
               soldCount: Number(item.sold_count || item.soldCount || 0),
@@ -2122,14 +2154,18 @@ export const saveOrder = async (
 
   const createdAt = new Date().toISOString();
 
+  const effectiveSubtotal = orderData.paymentMethod === 'cash'
+    ? verified.verifiedItems.reduce((acc, it) => acc + (it.totalPrice || 0), 0)
+    : verified.verifiedSubtotal;
+
   const newOrder: Order = {
     ...orderData,
     id: orderId,
     orderNumber,
     createdAt,
     items: verified.verifiedItems,
-    subtotal: verified.verifiedSubtotal,
-    cashDiscount: verified.verifiedCashDiscount,
+    subtotal: effectiveSubtotal,
+    cashDiscount: orderData.paymentMethod === 'cash' ? Math.max(0, verified.verifiedSubtotal - effectiveSubtotal) : 0,
     shippingCost: verified.verifiedShippingCost,
     total: verified.verifiedTotal,
   };

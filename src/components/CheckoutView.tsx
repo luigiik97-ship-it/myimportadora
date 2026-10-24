@@ -473,7 +473,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           selectedSizeVariant: item.selectedSizeVariant,
           selectedColor: item.selectedColor,
         })),
-        subtotal: transferProductsSubtotal,
+        subtotal: paymentMethod === 'cash' ? cashProductsSubtotal : transferProductsSubtotal,
         wholesaleDiscount: 0,
         cashDiscount: paymentMethod === 'cash' ? Math.max(0, transferProductsSubtotal - cashProductsSubtotal) : 0,
         shippingCost,

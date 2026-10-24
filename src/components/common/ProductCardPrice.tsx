@@ -1,7 +1,7 @@
 import React from 'react';
 import { Banknote } from 'lucide-react';
 import { Product } from '../../types';
-import { isProductCompletelyOutOfStock } from '../../utils/variantHelpers';
+import { isProductCompletelyOutOfStock, getResolvedProductPrices } from '../../utils/variantHelpers';
 import { usePurchaseMode, PurchaseMode } from '../../context/PurchaseModeContext';
 
 interface ProductCardPriceProps {
@@ -17,30 +17,16 @@ export const ProductCardPrice: React.FC<ProductCardPriceProps> = ({
   theme = 'light',
   modeOverride,
 }) => {
-  const { purchaseMode: contextMode, isCashMode: contextIsCash } = usePurchaseMode();
+  const { purchaseMode: contextMode } = usePurchaseMode();
   const effectiveMode = modeOverride || contextMode;
   const isCash = effectiveMode === 'cash';
 
   const isOutOfStock = isProductCompletelyOutOfStock(product);
   const isDark = theme === 'dark';
 
-  // Compute wholesale price according to active purchase mode
-  const effectiveWholesalePrice = isCash
-    ? (product.wholesaleCashPrice !== undefined && product.wholesaleCashPrice > 0
-        ? product.wholesaleCashPrice
-        : product.cashPrice !== undefined && product.cashPrice > 0
-        ? product.cashPrice
-        : product.wholesalePrice)
-    : product.wholesalePrice;
-
-  // Compute retail price according to active purchase mode
-  const effectiveRetailPrice = isCash
-    ? (product.retailCashPrice !== undefined && product.retailCashPrice > 0
-        ? product.retailCashPrice
-        : product.cashPrice !== undefined && product.cashPrice > 0
-        ? product.cashPrice
-        : product.retailPrice)
-    : product.retailPrice;
+  const resolved = getResolvedProductPrices(product);
+  const effectiveWholesalePrice = isCash ? resolved.wholesaleCashPrice : resolved.wholesalePrice;
+  const effectiveRetailPrice = isCash ? resolved.retailCashPrice : resolved.retailPrice;
 
   return (
     <div className={`pt-0 sm:pt-0.5 ${className}`}>
