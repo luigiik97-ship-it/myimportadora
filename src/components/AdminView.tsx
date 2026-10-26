@@ -1455,7 +1455,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
       });
       setActionFeedback({
         type: 'success',
-        message: `Medio de pago actualizado a ${newMethod === 'cash' ? 'Efectivo' : 'Transferencia'} y precios recalculados.`,
+        text: `Medio de pago actualizado a ${newMethod === 'cash' ? 'Efectivo' : 'Transferencia'} y precios recalculados.`,
       });
     } catch (err) {
       console.warn('Error updating order payment method:', err);

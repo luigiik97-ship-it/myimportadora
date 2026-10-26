@@ -61,6 +61,7 @@ export interface Product {
   category: string; // 'Bijuteria' | 'Tecnología' | 'Juguetes' | 'Perfumes' | 'Textil'
   subcategory?: string;
   images: string[];
+  image?: string; // Compatibilidad con formularios administrativos anteriores
   additionalImage?: string; // Imagen adicional / Banner lifestyle debajo de la descripción
   videoUrl?: string; // URL directa de Cloudinary MP4 (Video del producto)
   lifestyleTagline?: string;
@@ -133,6 +134,7 @@ export interface Order {
     street: string;
     number: string;
     floor?: string;
+    floorApt?: string;
     city: string;
     postalCode: string;
     province: string;

@@ -2570,6 +2570,50 @@ export const subscribeToProductsAndSystemConfig = (callbacks: ProductsConfigCall
   };
 };
 
+/**
+ * Restablece promesas en vuelo que pudieron quedar estancadas tras suspensión
+ * del navegador o restauración de pestañas en Chrome móvil.
+ */
+export const resetInFlightPromises = () => {
+  inFlightProductsPromise = null;
+  inFlightCategoriesPromise = null;
+  inFlightOrdersPromise = null;
+};
+
+/**
+ * Reconecta de forma segura y transparente los canales Realtime de Supabase
+ * si el socket fue cerrado o expiró tras suspensión en BFCache o bloqueo de pantalla.
+ */
+export const reconnectRealtimeChannels = () => {
+  if (!isSupabaseConfigured() || !supabaseInstance) return;
+
+  try {
+    if (sharedProductsChannel && productsConfigSubscribers.size > 0) {
+      const state = (sharedProductsChannel as any)?.state;
+      if (state === 'closed' || state === 'errored' || state === 'timed_out') {
+        try { supabaseInstance.removeChannel(sharedProductsChannel); } catch {}
+        sharedProductsChannel = null;
+        const subs = Array.from(productsConfigSubscribers);
+        productsConfigSubscribers.clear();
+        subs.forEach((cb) => subscribeToProductsAndSystemConfig(cb));
+      }
+    }
+
+    if (sharedOrdersChannel && ordersSubscribers.size > 0) {
+      const state = (sharedOrdersChannel as any)?.state;
+      if (state === 'closed' || state === 'errored' || state === 'timed_out') {
+        try { supabaseInstance.removeChannel(sharedOrdersChannel); } catch {}
+        sharedOrdersChannel = null;
+        const subs = Array.from(ordersSubscribers);
+        ordersSubscribers.clear();
+        subs.forEach((cb) => subscribeToOrders(cb));
+      }
+    }
+  } catch (e) {
+    console.warn('[Realtime] Aviso al restaurar canales:', e);
+  }
+};
+
 export const updateOrderStatus = async (orderId: string, status: Order['status']): Promise<void> => {
   requireAdminAuth('actualizar estado de pedido');
   if (isSupabaseConfigured() && supabaseInstance) {

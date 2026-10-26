@@ -211,13 +211,13 @@ export const HomeReelsCarousel: React.FC<HomeReelsCarouselProps> = ({
           return (
             <div
               key={vid.id || idx}
-              ref={(el) => (cardRefs.current[idx] = el)}
+              ref={(el) => { cardRefs.current[idx] = el; }}
               onClick={() => onOpenViewer(idx)}
               className="snap-start shrink-0 aspect-[9/16] w-[136px] sm:w-[165px] md:w-[195px] rounded-xl sm:rounded-2xl overflow-hidden relative bg-neutral-950 shadow-xs sm:shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer group/card border border-gray-200/80 hover:border-[#0058bb]/50"
             >
               {/* Cloudinary MP4 Video Element (Always muted on Home) */}
               <video
-                ref={(el) => (videoRefs.current[idx] = el)}
+                ref={(el) => { videoRefs.current[idx] = el; }}
                 src={optimizedUrl}
                 poster={posterUrl || undefined}
                 playsInline

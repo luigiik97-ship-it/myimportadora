@@ -25,6 +25,7 @@ interface NavbarProps {
   currentUser?: UserProfile | null;
   onOpenAuth?: () => void;
   onOpenAccount?: () => void;
+  isOffline?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -45,6 +46,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   onOpenAuth,
   onOpenAccount,
+  isOffline = false,
 }) => {
   const location = useLocation();
   const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
@@ -61,6 +63,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   const mobileSearchContainerRef = useRef<HTMLDivElement>(null);
   const mobileSearchOpenTimeRef = useRef<number>(0);
   const mobileSearchInitialScrollYRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (isOffline) {
+      setIsCategoriesOpen(false);
+      setIsMobileSearchOpen(false);
+    }
+  }, [isOffline]);
 
   useEffect(() => {
     if (isMobileSearchOpen && mobileSearchInputRef.current) {
@@ -244,13 +253,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header
       id="main-header"
-      className={
-        isQuickBuyActive
+      className={`
+        ${isQuickBuyActive
           ? isCategoriesOpen
             ? 'relative z-50 shadow-md'
             : 'relative z-30 shadow-md'
-          : 'sticky top-0 z-50 shadow-md'
-      }
+          : 'sticky top-0 z-50 shadow-md'}
+        ${isOffline ? 'pointer-events-none select-none' : ''}
+      `}
     >
       {/* Top micro announcement bar */}
       {showTopBar && (

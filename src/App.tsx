@@ -7,7 +7,20 @@ import {
   useLocation,
 } from 'react-router-dom';
 import { Product, CartItem, Order, SizeVariant, ViewMode, Category, UserProfile } from './types';
-import { fetchProducts, fetchCategories, getCachedProducts, getCachedCategories, saveOrder, updateProduct, getSupabase, isSupabaseConfigured, subscribeToProductsAndSystemConfig } from './services/supabase';
+import {
+  fetchProducts,
+  fetchCategories,
+  getCachedProducts,
+  getCachedCategories,
+  saveOrder,
+  updateProduct,
+  getSupabase,
+  isSupabaseConfigured,
+  subscribeToProductsAndSystemConfig,
+  resetInFlightPromises,
+  reconnectRealtimeChannels,
+  isProductsCacheStale,
+} from './services/supabase';
 import { userToProfile } from './services/auth';
 import { getActiveVariantImages, getItemEffectiveNormalPrice, getSelectedVariantStock, deductStockFromProduct, getProductCoverImage } from './utils/variantHelpers';
 import { slugifyCategory, reconcileCategoriesWithProducts } from './utils/categoryHelpers';
@@ -28,6 +41,7 @@ import {
 } from './components/routes/RouteWrappers';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
+import { OfflineNotice } from './components/common/OfflineNotice';
 import { HomeView } from './components/HomeView';
 import { CartView } from './components/CartView';
 import { CheckoutView } from './components/CheckoutView';
@@ -108,6 +122,13 @@ export default function App() {
   }, []);
   const [lastShoppingView, setLastShoppingView] = useState<'home' | 'category' | 'quick_buy'>('home');
   const [isLaunchesVisible, setIsLaunchesVisible] = useState<boolean>(() => isLaunchesSectionVisible());
+  const [isOffline, setIsOffline] = useState<boolean>(() => {
+    if (typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean') {
+      return !navigator.onLine;
+    }
+    return false;
+  });
+  const [isCheckingConnection, setIsCheckingConnection] = useState<boolean>(false);
 
   // Sincronizar visibilidad de Próximos Lanzamientos desde cambios en administración o pestañas
   useEffect(() => {
@@ -467,6 +488,114 @@ export default function App() {
     fetchStoreSettingsFromSupabase().catch(() => {});
     fetchLaunchesVisibilityFromSupabase().then((vis) => setIsLaunchesVisible(vis)).catch(() => {});
   }, []);
+
+  // Verificación de conectividad real ligera (evita falsos positivos o dependencias pesadas)
+  const verifyInternetConnection = useCallback(async (): Promise<boolean> => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      return false;
+    }
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch(`/favicon.ico?probe=${Date.now()}`, {
+        method: 'HEAD',
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      return res.ok || res.type === 'opaque' || res.status < 500;
+    } catch {
+      return typeof navigator !== 'undefined' ? navigator.onLine : false;
+    }
+  }, []);
+
+  // Reintento manual de conexión desde la pantalla sin conexión
+  const handleRetryConnection = useCallback(async () => {
+    setIsCheckingConnection(true);
+    try {
+      const online = await verifyInternetConnection();
+      if (online) {
+        setIsOffline(false);
+        resetInFlightPromises();
+        reconnectRealtimeChannels();
+        loadData(false);
+      } else {
+        setIsOffline(true);
+      }
+    } catch {
+      setIsOffline(true);
+    } finally {
+      setIsCheckingConnection(false);
+    }
+  }, [verifyInternetConnection]);
+
+  // Manejo de eventos nativos online y offline del navegador (sin polling continuo innecesario)
+  useEffect(() => {
+    const handleOffline = () => {
+      setIsOffline(true);
+    };
+
+    const handleOnline = async () => {
+      const isReallyOnline = await verifyInternetConnection();
+      if (isReallyOnline) {
+        setIsOffline(false);
+        resetInFlightPromises();
+        reconnectRealtimeChannels();
+        loadData(false);
+      }
+    };
+
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [verifyInternetConnection]);
+
+  // Manejo de restauración de pestañas en Chrome móvil y BFCache (Back/Forward Cache & Tab Resumption)
+  // Al reanudar una pestaña hibernada tras 30+ minutos, Chrome despierta el hilo de JS:
+  // - Limpiamos promesas de red en vuelo congeladas
+  // - Verificamos estado de red
+  // - Reconectamos canales de Supabase Realtime si se desconectaron durante la suspensión
+  // - Sincronizamos en segundo plano si los datos están desactualizados
+  useEffect(() => {
+    const handleTabRestoreOrWake = async () => {
+      resetInFlightPromises();
+
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        setIsOffline(true);
+        return;
+      }
+
+      reconnectRealtimeChannels();
+
+      if (isProductsCacheStale() || products.length === 0) {
+        loadData(false);
+      }
+    };
+
+    const handlePageShow = () => {
+      handleTabRestoreOrWake();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        handleTabRestoreOrWake();
+      }
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('resume', handleTabRestoreOrWake as EventListener);
+
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('resume', handleTabRestoreOrWake as EventListener);
+    };
+  }, [products.length]);
 
   // Redirigir a modo Compra Rápida si se accede mediante el enlace personalizado
   useEffect(() => {
@@ -929,6 +1058,7 @@ export default function App() {
       } text-[#1b1c1c] font-sans antialiased`}>
       {/* Global Navigation Header (Royal Blue) */}
       <Navbar
+        isOffline={isOffline}
         showTopBar={showTopBar}
         currentCategory={currentCategory}
         categories={categories}
@@ -964,8 +1094,17 @@ export default function App() {
         onOpenAccount={() => setIsAccountModalOpen(true)}
       />
 
-      {/* Main Content Area with Real Browser Routes */}
-      <main className={`flex-1 w-full max-w-full ${isConfirmation ? 'bg-white' : isCheckout ? 'bg-white md:bg-transparent' : ''}`}>
+      {/* Pantalla sin conexión al estilo Mercado Libre: Mantiene el encabezado exacto visible e inactivo,
+          y reemplaza limpiamente el contenido inferior evitando imágenes rotas, layouts desordenados o consultas fallidas */}
+      {isOffline ? (
+        <OfflineNotice
+          onRetry={handleRetryConnection}
+          isChecking={isCheckingConnection}
+        />
+      ) : (
+        <>
+          {/* Main Content Area with Real Browser Routes */}
+          <main className={`flex-1 w-full max-w-full ${isConfirmation ? 'bg-white' : isCheckout ? 'bg-white md:bg-transparent' : ''}`}>
         <Routes>
           <Route
             path="/"
@@ -1199,6 +1338,8 @@ export default function App() {
           onNavigateToInfo={handleOpenInfoPage}
           className={isFooterHiddenOnMobile ? 'hidden md:block' : ''}
         />
+      )}
+        </>
       )}
 
       {/* Global Auth Modal */}

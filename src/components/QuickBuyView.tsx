@@ -155,6 +155,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedCategoryTab, setSelectedCategoryTab] = useState<string>('all');
+  const [activeCategoryName, setActiveCategoryName] = useState<string>('');
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [lightboxData, setLightboxData] = useState<{
     images: string[];
@@ -163,6 +164,8 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
     variantText?: string;
   } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const isClickScrollingRef = useRef(false);
+  const clickScrollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Restore scroll position if returning from Cart
   useEffect(() => {
@@ -389,6 +392,101 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
 
     return groups;
   }, [filteredItems, categories]);
+
+  // Sincronizar categoría activa inicial y según groupedCategories
+  useEffect(() => {
+    if (groupedCategories.length > 0 && (!activeCategoryName || !groupedCategories.some((g) => g.categoryName === activeCategoryName))) {
+      setActiveCategoryName(groupedCategories[0].categoryName);
+    }
+  }, [groupedCategories, activeCategoryName]);
+
+  // Detector de categoría visible al desplazarse verticalmente por la tienda (actualiza barra dinámica sin saltos)
+  useEffect(() => {
+    if (typeof window === 'undefined' || groupedCategories.length === 0) return;
+
+    const checkActiveCategoryOnScroll = () => {
+      // Si el desplazamiento fue iniciado por un clic en una pestaña de categoría, respetar la selección
+      if (isClickScrollingRef.current) return;
+
+      // Si el cliente está arriba de las secciones, la primera categoría es la activa
+      if (window.scrollY < 260) {
+        if (groupedCategories[0] && activeCategoryName !== groupedCategories[0].categoryName) {
+          setActiveCategoryName(groupedCategories[0].categoryName);
+        }
+        return;
+      }
+
+      const stickyHeader = document.getElementById('quick-buy-sticky-header');
+      const targetOffset = stickyHeader ? stickyHeader.offsetHeight + 40 : 150;
+      let detectedCategory = groupedCategories[0]?.categoryName || '';
+
+      for (let i = 0; i < groupedCategories.length; i++) {
+        const cat = groupedCategories[i];
+        const el = document.getElementById(`category-section-${cat.categoryName.replace(/\s+/g, '-')}`);
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          if (rect.top <= targetOffset && rect.bottom > targetOffset) {
+            detectedCategory = cat.categoryName;
+            break;
+          } else if (rect.top > targetOffset && i > 0) {
+            detectedCategory = groupedCategories[i - 1].categoryName;
+            break;
+          } else if (i === groupedCategories.length - 1 && rect.top <= targetOffset) {
+            detectedCategory = cat.categoryName;
+          }
+        }
+      }
+
+      if (detectedCategory && detectedCategory !== activeCategoryName) {
+        setActiveCategoryName(detectedCategory);
+        setSelectedCategoryTab(detectedCategory);
+      }
+    };
+
+    let ticking = false;
+    const handleScrollThrottled = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          checkActiveCategoryOnScroll();
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', handleScrollThrottled, { passive: true });
+    checkActiveCategoryOnScroll();
+
+    return () => {
+      window.removeEventListener('scroll', handleScrollThrottled);
+    };
+  }, [groupedCategories, activeCategoryName]);
+
+  // Categoría activa resuelta e información de progreso mayorista
+  const activeGroup = useMemo(() => {
+    if (groupedCategories.length === 0) return null;
+    return groupedCategories.find((g) => g.categoryName === activeCategoryName) || groupedCategories[0];
+  }, [groupedCategories, activeCategoryName]);
+
+  const activeCategoryWholesaleInfo = useMemo(() => {
+    if (!activeGroup) return null;
+    const categoryName = activeGroup.categoryName;
+    const catQtyInCart = categoryQuantitiesInCart[categoryName] || 0;
+    const sampleMinQty = activeGroup.items[0]?.minWholesaleQty || 12;
+    const safeMin = Math.max(1, sampleMinQty);
+    const isReached = catQtyInCart >= safeMin;
+    const percentage = Math.min(100, Math.max(0, Math.round((catQtyInCart / safeMin) * 100)));
+    const remainingQty = Math.max(1, safeMin - catQtyInCart);
+
+    return {
+      categoryName,
+      catQtyInCart,
+      sampleMinQty: safeMin,
+      isReached,
+      percentage,
+      remainingQty,
+    };
+  }, [activeGroup, categoryQuantitiesInCart]);
 
   // Calculate live Cart totals with the active payment method & delivery selection
   const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
@@ -832,15 +930,29 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
   // Scroll to a specific category section
   const handleScrollToCategory = (catName: string) => {
     setSelectedCategoryTab(catName);
+    if (clickScrollTimerRef.current) {
+      clearTimeout(clickScrollTimerRef.current);
+    }
+    isClickScrollingRef.current = true;
+    clickScrollTimerRef.current = setTimeout(() => {
+      isClickScrollingRef.current = false;
+    }, 900);
+
     if (catName === 'all') {
+      if (groupedCategories[0]) {
+        setActiveCategoryName(groupedCategories[0].categoryName);
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
+
+    setActiveCategoryName(catName);
     const elem = document.getElementById(`category-section-${catName.replace(/\s+/g, '-')}`);
     if (elem) {
-      const yOffset = -140; // accounts for sticky header & selectors
-      const y = elem.getBoundingClientRect().top + window.pageYOffset + yOffset;
-      window.scrollTo({ top: y, behavior: 'smooth' });
+      const stickyHeader = document.getElementById('quick-buy-sticky-header');
+      const stickyHeight = stickyHeader ? stickyHeader.offsetHeight : 105;
+      const y = elem.getBoundingClientRect().top + window.pageYOffset - stickyHeight - 6;
+      window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
     }
   };
 
@@ -1261,112 +1373,201 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
           </div>
         </div>
 
-        {/* 2. Barra Anclada Unificada: Logo + Categorías + Buscador (Lupa) en un solo renglón */}
-        <div className="sticky top-0 z-35 bg-white/95 backdrop-blur-md py-2.5 px-2.5 sm:px-4 -mx-1 sm:-mx-4 border-b border-gray-200 shadow-xs transition-all">
-          <div className="flex items-center gap-2 max-w-full">
-            {/* Logo de marca al lado izquierdo de "Todas" */}
-            <button
-              type="button"
-              id="quick-sticky-brand-logo-btn"
-              onClick={() => {
-                if (onGoToHome) {
-                  onGoToHome();
-                } else {
-                  handleScrollToCategory('all');
-                }
-              }}
-              className="p-1 rounded-xl bg-white border border-gray-200 hover:border-blue-400 hover:shadow-xs transition-all shrink-0 flex items-center justify-center cursor-pointer group active:scale-95"
-              title="Ir a la página de inicio"
-            >
-              <img
-                src="https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/fvbf.pnj.webp"
-                alt="Logo"
-                loading="lazy"
-                decoding="async"
-                className="w-7 h-7 sm:w-8 sm:h-8 object-contain transition-transform group-hover:scale-105"
-                referrerPolicy="no-referrer"
-              />
-            </button>
-
-            {/* Recuadros de Categorías (Desplazamiento horizontal sin números) */}
-            <div className="flex-1 flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs py-0.5 min-w-0">
+        {/* 2. Barra Anclada Unificada: Logo + Categorías + Buscador + Barra Secundaria de Progreso Mayorista Dinámica */}
+        <div id="quick-buy-sticky-header" className="sticky top-0 z-35 bg-white/95 backdrop-blur-md -mx-1 sm:-mx-4 md:-ml-[calc(50vw-50%)] md:-mr-[calc(50vw-50%)] md:w-screen md:max-w-none border-b border-gray-200 shadow-xs transition-all">
+          {/* Fila Principal: Logo + Píldoras de Categorías + Buscador */}
+          <div className="py-2.5 px-2.5 sm:px-4 md:px-4">
+            <div className="flex items-center gap-2 max-w-full md:max-w-[1240px] md:mx-auto">
+              {/* Logo de marca al lado izquierdo de "Todas" */}
               <button
                 type="button"
-                id="quick-cat-tab-all"
-                onClick={() => handleScrollToCategory('all')}
-                className={`px-3 py-1.5 rounded-full font-bold whitespace-nowrap cursor-pointer transition-all shrink-0 ${
-                  selectedCategoryTab === 'all'
-                    ? 'bg-[#0058bb] text-white shadow-xs'
-                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-                }`}
+                id="quick-sticky-brand-logo-btn"
+                onClick={() => {
+                  if (onGoToHome) {
+                    onGoToHome();
+                  } else {
+                    handleScrollToCategory('all');
+                  }
+                }}
+                className="p-1 rounded-xl bg-white border border-gray-200 hover:border-blue-400 hover:shadow-xs transition-all shrink-0 flex items-center justify-center cursor-pointer group active:scale-95"
+                title="Ir a la página de inicio"
               >
-                Todas
+                <img
+                  src="https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/fvbf.pnj.webp"
+                  alt="Logo"
+                  loading="lazy"
+                  decoding="async"
+                  className="w-7 h-7 sm:w-8 sm:h-8 object-contain transition-transform group-hover:scale-105"
+                  referrerPolicy="no-referrer"
+                />
               </button>
 
-              {groupedCategories.map((group) => {
-                const isActive = selectedCategoryTab === group.categoryName;
-                return (
-                  <button
-                    key={group.categoryName}
-                    type="button"
-                    id={`quick-cat-tab-${group.categoryName.replace(/\s+/g, '-')}`}
-                    onClick={() => handleScrollToCategory(group.categoryName)}
-                    className={`px-3 py-1.5 rounded-full font-semibold whitespace-nowrap cursor-pointer transition-all shrink-0 ${
-                      isActive
-                        ? 'bg-[#0058bb] text-white font-bold shadow-xs'
-                        : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-                    }`}
-                  >
-                    <span>{group.categoryName}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Buscador reducido a Icono de Lupa al extremo derecho */}
-            <div className="shrink-0 flex items-center">
-              {isSearchOpen || searchQuery ? (
-                <div className="relative flex items-center animate-in fade-in zoom-in-95 duration-150">
-                  <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 pointer-events-none" />
-                  <input
-                    ref={searchInputRef}
-                    id="quick-buy-search-input"
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Buscar producto o SKU..."
-                    className="w-36 sm:w-48 md:w-64 bg-white text-gray-900 placeholder-gray-400 text-xs sm:text-sm rounded-full py-1.5 pl-7 pr-7 border border-blue-400 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#0058bb] transition-all"
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    id="quick-buy-clear-search-btn"
-                    onClick={() => {
-                      setSearchQuery('');
-                      setIsSearchOpen(false);
-                    }}
-                    className="absolute right-2 text-xs text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-full w-4 h-4 flex items-center justify-center cursor-pointer transition-colors"
-                    title="Cerrar buscador"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ) : (
+              {/* Recuadros de Categorías (Desplazamiento horizontal sin números) */}
+              <div className="flex-1 flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs py-0.5 min-w-0">
                 <button
                   type="button"
-                  id="quick-buy-open-search-btn"
-                  onClick={() => {
-                    setIsSearchOpen(true);
-                    setTimeout(() => searchInputRef.current?.focus(), 50);
-                  }}
-                  className="p-2 sm:px-2.5 sm:py-1.5 rounded-full bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 hover:border-gray-300 transition-all shrink-0 flex items-center justify-center cursor-pointer shadow-xs active:scale-95"
-                  title="Buscar productos"
+                  id="quick-cat-tab-all"
+                  onClick={() => handleScrollToCategory('all')}
+                  className={`px-3 py-1.5 rounded-full font-bold whitespace-nowrap cursor-pointer transition-all shrink-0 ${
+                    selectedCategoryTab === 'all'
+                      ? 'bg-[#0058bb] text-white shadow-xs'
+                      : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                  }`}
                 >
-                  <Search className="w-4 h-4 text-gray-700" />
+                  Todas
                 </button>
-              )}
+
+                {groupedCategories.map((group) => {
+                  const isActive = selectedCategoryTab === group.categoryName;
+                  return (
+                    <button
+                      key={group.categoryName}
+                      type="button"
+                      id={`quick-cat-tab-${group.categoryName.replace(/\s+/g, '-')}`}
+                      onClick={() => handleScrollToCategory(group.categoryName)}
+                      className={`px-3 py-1.5 rounded-full font-semibold whitespace-nowrap cursor-pointer transition-all shrink-0 ${
+                        isActive
+                          ? 'bg-[#0058bb] text-white font-bold shadow-xs'
+                          : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                      }`}
+                    >
+                      <span>{group.categoryName}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Buscador reducido a Icono de Lupa al extremo derecho */}
+              <div className="shrink-0 flex items-center">
+                {isSearchOpen || searchQuery ? (
+                  <div className="relative flex items-center animate-in fade-in zoom-in-95 duration-150">
+                    <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 pointer-events-none" />
+                    <input
+                      ref={searchInputRef}
+                      id="quick-buy-search-input"
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Buscar producto o SKU..."
+                      className="w-36 sm:w-48 md:w-64 bg-white text-gray-900 placeholder-gray-400 text-xs sm:text-sm rounded-full py-1.5 pl-7 pr-7 border border-blue-400 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#0058bb] transition-all"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      id="quick-buy-clear-search-btn"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setIsSearchOpen(false);
+                      }}
+                      className="absolute right-2 text-xs text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-full w-4 h-4 flex items-center justify-center cursor-pointer transition-colors"
+                      title="Cerrar buscador"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    id="quick-buy-open-search-btn"
+                    onClick={() => {
+                      setIsSearchOpen(true);
+                      setTimeout(() => searchInputRef.current?.focus(), 50);
+                    }}
+                    className="p-2 sm:px-2.5 sm:py-1.5 rounded-full bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 hover:border-gray-300 transition-all shrink-0 flex items-center justify-center cursor-pointer shadow-xs active:scale-95"
+                    title="Buscar productos"
+                  >
+                    <Search className="w-4 h-4 text-gray-700" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
+
+          {/* Fila Secundaria: Barra compacta y dinámica de progreso mayorista por categoría */}
+          {activeCategoryWholesaleInfo && (
+            <div className="border-t border-gray-100/90 bg-[#fafafa]/95 px-2.5 sm:px-4 md:px-4 py-1.5 sm:py-2 transition-colors">
+              <div className="max-w-full md:max-w-[1240px] md:mx-auto space-y-1">
+                {/* Encabezado informativo compacto */}
+                <div className="flex items-center justify-between gap-2 text-xs sm:text-xs md:text-sm">
+                  {/* Lado izquierdo: Categoría actual y contador (oculto mientras no haya productos agregados) */}
+                  <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                    <span className="font-extrabold text-[12px] sm:text-sm text-gray-900 tracking-tight uppercase truncate">
+                      {activeCategoryWholesaleInfo.categoryName}
+                    </span>
+                    {activeCategoryWholesaleInfo.catQtyInCart > 0 && (
+                      <>
+                        <span className="text-gray-400 font-normal select-none">-</span>
+                        <span
+                          className={`inline-flex items-center text-[10.5px] sm:text-xs font-bold px-2 py-0.5 rounded-full border leading-none shrink-0 transition-colors ${
+                            activeCategoryWholesaleInfo.isReached
+                              ? 'bg-emerald-50 text-[#00a650] border-emerald-300'
+                              : 'bg-blue-50 text-[#0058bb] border-blue-200'
+                          }`}
+                        >
+                          {activeCategoryWholesaleInfo.catQtyInCart}/{activeCategoryWholesaleInfo.sampleMinQty}&nbsp;unids
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Lado derecho: Mensaje dinámico según estado */}
+                  <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 text-right">
+                    {activeCategoryWholesaleInfo.isReached ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#00a650] shrink-0" />
+                    ) : activeCategoryWholesaleInfo.catQtyInCart > 0 ? (
+                      <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0058bb] shrink-0" />
+                    ) : (
+                      <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 fill-amber-500 shrink-0" />
+                    )}
+                    <span
+                      className={`text-[11px] sm:text-xs leading-tight transition-colors ${
+                        activeCategoryWholesaleInfo.isReached
+                          ? 'text-[#00a650] font-bold'
+                          : activeCategoryWholesaleInfo.catQtyInCart > 0
+                          ? 'text-[#0058bb] font-semibold'
+                          : 'text-gray-500 font-medium'
+                      }`}
+                    >
+                      {activeCategoryWholesaleInfo.isReached ? (
+                        '¡Alcanzaste el precio mayorista!'
+                      ) : activeCategoryWholesaleInfo.catQtyInCart > 0 ? (
+                        'Para alcanzar el precio mayorista'
+                      ) : (
+                        `Precio mayorista a partir de ${activeCategoryWholesaleInfo.sampleMinQty} unids`
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Barra de progreso dinámica estilo Mercado Libre */}
+                <div
+                  className="relative w-full h-1.5 sm:h-2 bg-gray-200 rounded-full overflow-visible"
+                  role="progressbar"
+                  aria-valuenow={activeCategoryWholesaleInfo.catQtyInCart}
+                  aria-valuemin={0}
+                  aria-valuemax={activeCategoryWholesaleInfo.sampleMinQty}
+                  aria-label={`Progreso mayorista de ${activeCategoryWholesaleInfo.categoryName}`}
+                >
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ease-out ${
+                      activeCategoryWholesaleInfo.isReached ? 'bg-[#00a650]' : 'bg-[#0058bb]'
+                    }`}
+                    style={{ width: `${activeCategoryWholesaleInfo.percentage}%` }}
+                  />
+                  {activeCategoryWholesaleInfo.percentage > 0 && (
+                    <div
+                      className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full border-2 border-white shadow-xs pointer-events-none transition-all duration-300 ease-out ${
+                        activeCategoryWholesaleInfo.isReached ? 'bg-[#00a650]' : 'bg-[#0058bb]'
+                      }`}
+                      style={{
+                        left: `clamp(4px, ${activeCategoryWholesaleInfo.percentage}%, calc(100% - 4px))`,
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 3. Products List Grouped by Category */}
@@ -1396,7 +1597,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
               <section
                 key={group.categoryName}
                 id={`category-section-${group.categoryName.replace(/\s+/g, '-')}`}
-                className="bg-transparent md:bg-white rounded-none md:rounded-2xl border-0 md:border md:border-gray-200/90 shadow-none md:shadow-xs overflow-hidden scroll-mt-36 pb-3"
+                className="bg-transparent md:bg-white rounded-none md:rounded-2xl border-0 md:border md:border-gray-200/90 shadow-none md:shadow-xs overflow-hidden scroll-mt-28 md:scroll-mt-32 pb-3"
               >
                 {/* Category Header - Seamless on mobile */}
                 <div className="bg-transparent md:bg-gradient-to-r md:from-gray-50 md:via-white md:to-gray-50 px-1 sm:px-3.5 py-2 border-b border-gray-200 flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
@@ -1410,7 +1611,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
 
                     {/* Texto explicativo compacto al lado del nombre de la categoría */}
                     <span className="text-[11px] sm:text-xs text-gray-500 font-normal leading-tight">
-                      compra desde 1 unidad, combina productos de esta categoría y obtén mejor precio desde {sampleMinQty} unids
+                      Compra desde 1 unidad, combina productos de esta categoría y obtén el precio mayorista desde {sampleMinQty} unids
                     </span>
                   </div>
 

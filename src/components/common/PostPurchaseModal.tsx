@@ -20,6 +20,7 @@ export interface PostPurchaseModalProps {
     paymentMethod?: 'transfer' | 'cash';
     deliveryOption?: 'pickup' | 'delivery' | null;
     shippingMethodName?: string;
+    correoBranch?: string;
     shippingCost?: number;
     cashDiscount?: number;
     customerName?: string;
@@ -34,6 +35,7 @@ export interface PostPurchaseModalProps {
       province?: string;
       postalCode?: string;
       receiverName?: string;
+      correoBranch?: string;
     };
     items?: Array<{
       id?: string;
@@ -42,7 +44,9 @@ export interface PostPurchaseModalProps {
       variantText?: string;
       quantity: number;
       unitPrice: number;
+      cashUnitPrice?: number;
       totalPrice?: number;
+      totalCashPrice?: number;
       isWholesale?: boolean;
     }>;
   };
