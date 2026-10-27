@@ -274,7 +274,7 @@ export const PostPurchaseModal: React.FC<PostPurchaseModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
       {/* Tarjeta Modal Post-Compra */}
       <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 text-center shadow-2xl space-y-4 animate-scale-up border border-emerald-100 my-auto relative">
         {/* Botón "X" en la parte superior derecha */}

@@ -98,6 +98,7 @@ export interface CartItem {
   selectedImage?: string; // The exact image corresponding to the selected variant
   variantText?: string;
   quantity: number;
+  lastModified?: number;
   // Computed values
   unitPrice: number;
   cashUnitPrice?: number;
@@ -169,6 +170,7 @@ export interface UserProfile {
   province?: string;
   postalCode?: string;
   receiverName?: string;
+  favorites?: string[];
   createdAt?: string;
   updatedAt?: string;
 }

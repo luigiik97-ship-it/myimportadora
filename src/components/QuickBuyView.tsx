@@ -26,7 +26,9 @@ import {
   MapPin,
   Clock,
   ChevronDown,
+  Heart,
 } from 'lucide-react';
+import { useFavorites } from '../hooks/useFavorites';
 import { getShippingZoneInfo, ShippingOption } from '../utils/shipping';
 import {
   normalizeVariantTypes,
@@ -103,6 +105,7 @@ interface QuickBuyViewProps {
   onGoToHome?: () => void;
   onSelectProductDetail?: (product: Product, selectedVariants?: Record<string, string>, selectedImage?: string) => void;
   currentUser?: UserProfile | null;
+  onOpenAuth?: () => void;
   onSaveOrder?: (orderPayload: any) => Promise<Order>;
   onClearCart?: () => void;
   onOrderCompleted?: (order: Order) => void;
@@ -125,6 +128,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
   onGoToHome,
   onSelectProductDetail,
   currentUser,
+  onOpenAuth,
   onSaveOrder,
   onClearCart,
   onOrderCompleted,
@@ -156,9 +160,25 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
     };
   }, []);
 
+  const { favorites, isFavorite, toggleFavorite } = useFavorites(currentUser);
+  const handleToggleFavorite = (productId: string) => {
+    if (!currentUser && onOpenAuth) {
+      onOpenAuth();
+      return;
+    }
+    toggleFavorite(productId);
+  };
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [selectedCategoryTab, setSelectedCategoryTab] = useState<string>('all');
+  const [selectedCategoryTab, setSelectedCategoryTab] = useState<string>(() => {
+    try {
+      const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+      const tab = params.get('tab');
+      if (tab === 'favoritos' || tab === 'favorites') return 'favorites';
+    } catch {}
+    return 'all';
+  });
   const [activeCategoryName, setActiveCategoryName] = useState<string>('');
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [lightboxData, setLightboxData] = useState<{
@@ -378,9 +398,15 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         productItemsMap.get(item.productId)!.push(item);
       });
 
+      // Ordenar las publicaciones favoritas primero dentro de su categoría, manteniendo juntas todas las variantes
+      const sortedProductOrder = [
+        ...productOrder.filter((pId) => favorites.includes(pId)),
+        ...productOrder.filter((pId) => !favorites.includes(pId)),
+      ];
+
       // Assemble contiguous list: each product is followed immediately by all its variants
       const contiguousItems: QuickBuyItem[] = [];
-      productOrder.forEach((pId) => {
+      sortedProductOrder.forEach((pId) => {
         const variants = productItemsMap.get(pId) || [];
         contiguousItems.push(...variants);
       });
@@ -395,7 +421,48 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
     });
 
     return groups;
-  }, [filteredItems, categories]);
+  }, [filteredItems, categories, favorites]);
+
+  // Publicaciones favoritas completas para la vista especial «Mis favoritos»
+  // Ordenar por llegada: la última publicación agregada aparece primera siempre, sin agrupar por categorías
+  const favoriteGroupedPublications = useMemo(() => {
+    if (favorites.length === 0) return [];
+    const productMap = new Map<string, Product>();
+    products.forEach((p) => productMap.set(String(p.id), p));
+
+    return favorites
+      .map((favId) => {
+        const prod = productMap.get(String(favId));
+        if (!prod) return null;
+        const items = allFlatItems.filter((it) => it.productId === prod.id);
+        if (items.length === 0) return null;
+        return {
+          product: prod,
+          items,
+        };
+      })
+      .filter((group): group is { product: Product; items: QuickBuyItem[] } => group !== null);
+  }, [favorites, products, allFlatItems]);
+
+  const filteredFavoritePublications = useMemo(() => {
+    if (!searchQuery.trim()) return favoriteGroupedPublications;
+    const q = searchQuery.toLowerCase().trim();
+    return favoriteGroupedPublications
+      .map((pub) => {
+        const matchingItems = pub.items.filter((item) => {
+          const matchTitle = item.title.toLowerCase().includes(q);
+          const matchVariant = item.variantText.toLowerCase().includes(q);
+          const matchCat = item.category.toLowerCase().includes(q);
+          const matchSku = item.sku ? item.sku.toLowerCase().includes(q) : false;
+          return matchTitle || matchVariant || matchCat || matchSku;
+        });
+        return {
+          ...pub,
+          items: matchingItems,
+        };
+      })
+      .filter((pub) => pub.items.length > 0);
+  }, [favoriteGroupedPublications, searchQuery]);
 
   // Sincronizar categoría activa inicial y según groupedCategories
   useEffect(() => {
@@ -409,8 +476,8 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
     if (typeof window === 'undefined' || groupedCategories.length === 0) return;
 
     const checkActiveCategoryOnScroll = () => {
-      // Si el desplazamiento fue iniciado por un clic en una pestaña de categoría, respetar la selección
-      if (isClickScrollingRef.current) return;
+      // Si estamos en la vista especial de favoritos o en desplazamiento por clic, respetar la vista
+      if (selectedCategoryTab === 'favorites' || isClickScrollingRef.current) return;
 
       // Si el cliente está arriba de las secciones, la primera categoría es la activa
       if (window.scrollY < 260) {
@@ -464,7 +531,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
     return () => {
       window.removeEventListener('scroll', handleScrollThrottled);
     };
-  }, [groupedCategories, activeCategoryName]);
+  }, [groupedCategories, activeCategoryName, selectedCategoryTab]);
 
   // Categoría activa resuelta e información de progreso mayorista
   const activeGroup = useMemo(() => {
@@ -950,6 +1017,15 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
       return;
     }
 
+    if (catName === 'favorites') {
+      const stickyHeader = document.getElementById('quick-buy-sticky-header');
+      if (stickyHeader) {
+        const y = stickyHeader.getBoundingClientRect().top + window.pageYOffset - 10;
+        window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+      }
+      return;
+    }
+
     setActiveCategoryName(catName);
     const elem = document.getElementById(`category-section-${catName.replace(/\s+/g, '-')}`);
     if (elem) {
@@ -958,6 +1034,184 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
       const y = elem.getBoundingClientRect().top + window.pageYOffset - stickyHeight - 6;
       window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
     }
+  };
+
+  // Render unificado de tarjeta de variante en Compra Rápida
+  const renderItemRow = (
+    item: QuickBuyItem,
+    isCategoryWholesaleReached: boolean,
+    isFavoritesSection: boolean = false
+  ) => {
+    const currentCartQty = cartQuantityMap[item.itemId] || 0;
+    const isOutOfStock = item.stock <= 0;
+
+    const isCash = deliveryOption === 'pickup' && paymentMethod === 'cash';
+    const wholesalePrice = isCash
+      ? item.prices.wholesaleCashPrice || item.prices.wholesalePrice
+      : item.prices.wholesalePrice;
+    const retailPrice = isCash
+      ? item.prices.retailCashPrice || item.prices.retailPrice
+      : item.prices.retailPrice;
+
+    const activeUnitPrice = isCategoryWholesaleReached ? wholesalePrice : retailPrice;
+    const isFav = isFavorite(item.productId);
+
+    return (
+      <div
+        key={item.itemId}
+        id={`quick-item-${item.itemId}`}
+        className={`p-0 pr-1.5 sm:pr-2.5 md:p-3 transition-colors flex items-center justify-between gap-1.5 sm:gap-3 md:gap-4 h-20 sm:h-auto overflow-hidden ${
+          currentCartQty > 0 ? 'bg-blue-50/40' : 'hover:bg-gray-50/60'
+        }`}
+      >
+        {/* Left: Thumbnail & Details */}
+        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 h-full">
+          {/* Image Thumbnail */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              const variantImgs = getActiveVariantImages(item.product, item.selectedVariants);
+              const gallery = variantImgs.length > 0 ? variantImgs : (item.product.images?.length ? item.product.images : [item.image]);
+              const foundIdx = gallery.findIndex((img) => img === item.image);
+
+              setLightboxData({
+                images: gallery,
+                initialIndex: foundIdx >= 0 ? foundIdx : 0,
+                title: item.title,
+                variantText: item.variantText,
+              });
+            }}
+            className="w-20 h-20 sm:w-14 sm:h-14 md:w-16 md:h-16 aspect-square bg-gray-50 sm:bg-white rounded-none sm:rounded-xl border-0 sm:border border-gray-200/80 p-0 sm:p-0.5 shrink-0 overflow-hidden flex items-center justify-center cursor-pointer hover:border-blue-400 transition-all group/img relative shadow-none sm:shadow-2xs"
+            title={`Ampliar imagen de ${item.title}`}
+          >
+            <ImageWithSkeleton
+              src={item.image}
+              alt={`${item.title} ${item.variantText}`}
+              className="w-full h-full object-cover group-hover/img:scale-105 transition-transform duration-200"
+            />
+          </button>
+
+          {/* Info - Single line title on mobile */}
+          <div className="flex-1 min-w-0 space-y-0.5 overflow-hidden py-1 sm:py-0">
+            <div className="flex items-center gap-1.5 min-w-0 w-full">
+              <button
+                type="button"
+                onClick={() => onSelectProductDetail?.(item.product, item.selectedVariants, item.image)}
+                className="font-bold text-xs sm:text-sm md:text-base text-gray-900 hover:text-[#0058bb] text-left leading-snug transition-colors cursor-pointer truncate block flex-1 sm:whitespace-normal sm:line-clamp-2"
+                title={`Ver detalle de ${item.title}`}
+              >
+                {item.title}
+              </button>
+              {isFavoritesSection ? null : isFav ? (
+                <span
+                  className="p-1 shrink-0 inline-flex items-center justify-center text-red-500 select-none cursor-default"
+                  title="Producto en tus favoritos"
+                  aria-label="Producto en tus favoritos"
+                >
+                  <Heart className="w-3.5 h-3.5 fill-red-500 text-red-500 pointer-events-none" />
+                </span>
+              ) : null}
+            </div>
+
+            {/* Variant chip */}
+            {item.variantText ? (
+              <div className="flex items-center gap-1 pt-0.5">
+                <span className="inline-flex items-center font-bold text-xs text-[#0058bb] bg-blue-50 border border-blue-200/70 px-1.5 sm:px-2 py-0.5 rounded-md leading-none truncate max-w-full">
+                  {item.variantText}
+                </span>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Right: Price & Quantity Controller */}
+        <div className="flex flex-col items-end justify-center gap-1 sm:flex-row sm:items-center sm:gap-4 md:gap-5 shrink-0 ml-auto pl-1">
+          {/* Clean Single Price Display */}
+          <div className="text-right w-full flex justify-end">
+            <span className="text-base sm:text-lg md:text-xl font-bold text-gray-900 font-['Montserrat'] whitespace-nowrap leading-none block text-right">
+              $ {activeUnitPrice.toLocaleString('es-AR')}
+            </span>
+          </div>
+
+          {/* Quantity Controller */}
+          <div className="flex items-center">
+            {isOutOfStock ? (
+              <span className="inline-flex items-center justify-center text-xs sm:text-sm font-semibold text-gray-400 bg-gray-100 border border-gray-200/80 rounded-xl w-[88px] sm:w-[108px] md:w-[120px] h-[39px] sm:h-[36px] md:h-[40px] shrink-0 select-none">
+                Agotado
+              </span>
+            ) : currentCartQty === 0 ? (
+              <button
+                type="button"
+                id={`quick-add-${item.itemId}`}
+                onClick={() =>
+                  onAddToCart(
+                    item.product,
+                    undefined,
+                    undefined,
+                    1,
+                    item.image,
+                    item.selectedVariants
+                  )
+                }
+                className="bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold text-xs sm:text-sm rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer active:scale-95 w-[88px] sm:w-[108px] md:w-[120px] h-[39px] sm:h-[36px] md:h-[40px] shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Agregar</span>
+              </button>
+            ) : (
+              <div className="flex items-center bg-white border-2 border-[#0058bb] rounded-xl overflow-hidden shadow-xs">
+                <button
+                  type="button"
+                  id={`quick-dec-${item.itemId}`}
+                  onClick={() => onUpdateCartQuantity(item.itemId, -1)}
+                  className="w-7 h-[35px] sm:w-8 sm:h-8 md:w-9 md:h-9 flex items-center justify-center text-[#0058bb] hover:bg-blue-50 transition-colors cursor-pointer active:bg-blue-100"
+                  title="Disminuir cantidad"
+                >
+                  <Minus className="w-3.5 h-3.5" />
+                </button>
+
+                <input
+                  type="number"
+                  min={0}
+                  max={item.stock > 0 ? item.stock : 999}
+                  value={currentCartQty}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (isNaN(val) || val <= 0) {
+                      onRemoveCartItem(item.itemId);
+                    } else {
+                      const clamped = item.stock > 0 ? Math.min(val, item.stock) : val;
+                      onSetCartItemQuantity(item.product, item.selectedVariants, item.image, clamped);
+                    }
+                  }}
+                  className="w-7 sm:w-10 md:w-11 h-[35px] sm:h-8 md:h-9 text-center text-xs sm:text-sm font-bold text-gray-900 focus:outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+
+                <button
+                  type="button"
+                  id={`quick-inc-${item.itemId}`}
+                  disabled={item.stock > 0 && currentCartQty >= item.stock}
+                  onClick={() => onUpdateCartQuantity(item.itemId, 1)}
+                  className={`w-7 h-[35px] sm:w-8 sm:h-8 md:w-9 md:h-9 flex items-center justify-center text-[#0058bb] hover:bg-blue-50 transition-colors cursor-pointer active:bg-blue-100 ${
+                    item.stock > 0 && currentCartQty >= item.stock
+                      ? 'opacity-30 cursor-not-allowed'
+                      : ''
+                  }`}
+                  title={
+                    item.stock > 0 && currentCartQty >= item.stock
+                      ? 'Stock máximo alcanzado'
+                      : 'Aumentar cantidad'
+                  }
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -1421,6 +1675,29 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                   Todas
                 </button>
 
+                <button
+                  type="button"
+                  id="quick-cat-tab-favorites"
+                  onClick={() => handleScrollToCategory('favorites')}
+                  className={`px-3 py-1.5 rounded-full font-semibold whitespace-nowrap cursor-pointer transition-all shrink-0 inline-flex items-center gap-1.5 ${
+                    selectedCategoryTab === 'favorites'
+                      ? 'bg-[#0058bb] text-white font-bold shadow-xs'
+                      : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                  }`}
+                >
+                  <Heart className={`w-3.5 h-3.5 ${selectedCategoryTab === 'favorites' ? 'fill-white text-white' : 'text-red-500 fill-red-500'}`} />
+                  <span className="hidden sm:inline">Mis favoritos</span>
+                  {favorites.length > 0 && (
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                        selectedCategoryTab === 'favorites' ? 'bg-white text-[#0058bb]' : 'bg-red-50 text-red-600'
+                      }`}
+                    >
+                      {favorites.length}
+                    </span>
+                  )}
+                </button>
+
                 {groupedCategories.map((group) => {
                   const isActive = selectedCategoryTab === group.categoryName;
                   return (
@@ -1487,8 +1764,25 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
             </div>
           </div>
 
-          {/* Fila Secundaria: Barra compacta y dinámica de progreso mayorista por categoría */}
-          {activeCategoryWholesaleInfo && (
+          {/* Fila Secundaria: En 'favorites' muestra la barra informativa especial; en categorías muestra la barra de progreso mayorista */}
+          {selectedCategoryTab === 'favorites' ? (
+            <div className="border-t border-gray-100/90 bg-[#fafafa]/95 px-2.5 sm:px-4 md:px-4 py-2 transition-colors">
+              <div className="max-w-full md:max-w-[1240px] md:mx-auto flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-500 fill-red-500 shrink-0" />
+                  <span className="font-extrabold text-[12px] sm:text-sm text-gray-900 tracking-tight uppercase">
+                    Mis favoritos
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 text-gray-600 min-w-0">
+                  <Info className="w-3.5 h-3.5 text-[#0058bb] shrink-0" />
+                  <span className="text-[11px] sm:text-xs text-gray-600 leading-tight">
+                    Los productos pueden pertenecer a distintas categorías. Los mínimos de compra se calculan por categoría.
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : activeCategoryWholesaleInfo ? (
             <div className="border-t border-gray-100/90 bg-[#fafafa]/95 px-2.5 sm:px-4 md:px-4 py-1.5 sm:py-2 transition-colors">
               <div className="max-w-full md:max-w-[1240px] md:mx-auto space-y-1">
                 {/* Encabezado informativo compacto */}
@@ -1571,11 +1865,67 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                 </div>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
 
-        {/* 3. Products List Grouped by Category */}
-        {groupedCategories.length === 0 ? (
+        {/* 3. Products List Grouped by Category OR Special Favorites View */}
+        {selectedCategoryTab === 'favorites' ? (
+          filteredFavoritePublications.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-200 p-10 sm:p-14 text-center space-y-3">
+              <Heart className="w-12 h-12 text-gray-300 mx-auto" />
+              <h3 className="text-lg font-bold text-gray-800">No tenés productos en favoritos</h3>
+              <p className="text-sm text-gray-500 max-w-md mx-auto">
+                {searchQuery
+                  ? `No se encontraron productos favoritos para "${searchQuery}".`
+                  : 'Guardá publicaciones tocando el ícono de corazón para encontrarlas rápidamente aquí.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => handleScrollToCategory('all')}
+                className="bg-[#0058bb] hover:bg-[#004bb0] text-white text-xs font-bold px-4 py-2 rounded-lg cursor-pointer transition-colors"
+              >
+                Ver todo el catálogo
+              </button>
+            </div>
+          ) : (
+            filteredFavoritePublications.map((pub) => {
+              const catQtyInCart = categoryQuantitiesInCart[pub.product.category || 'General'] || 0;
+              const sampleMinQty = pub.items[0]?.minWholesaleQty || 12;
+              const isCategoryWholesaleReached = catQtyInCart >= sampleMinQty;
+
+              return (
+                <section
+                  key={pub.product.id}
+                  id={`favorite-pub-${pub.product.id}`}
+                  className="bg-transparent md:bg-white rounded-none md:rounded-2xl border-0 md:border md:border-gray-200/90 shadow-none md:shadow-xs overflow-hidden pb-3"
+                >
+                  <div className="bg-transparent md:bg-gradient-to-r md:from-gray-50 md:via-white md:to-gray-50 px-2 sm:px-3.5 py-1.5 sm:py-2 border-b border-gray-200 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                      <span className="w-2 h-2 rounded-full bg-[#0058bb] shrink-0" />
+                      <h2 className="text-xs sm:text-sm md:text-base font-black font-['Montserrat'] text-gray-900 uppercase tracking-tight truncate leading-none">
+                        {pub.product.category || 'General'}
+                      </h2>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleFavorite(pub.product.id)}
+                      className="p-1 sm:p-1.5 min-w-[34px] min-h-[34px] flex items-center justify-center rounded-full text-red-500 hover:text-red-600 hover:bg-red-50 active:scale-90 transition-all cursor-pointer shrink-0 ml-auto"
+                      title={`Quitar ${pub.product.title} de mis favoritos`}
+                      aria-label={`Quitar ${pub.product.title} de mis favoritos`}
+                    >
+                      <Heart className="w-4 h-4 sm:w-4.5 sm:h-4.5 fill-red-500 text-red-500" />
+                    </button>
+                  </div>
+
+                  <div className="divide-y divide-gray-100 bg-white md:bg-transparent rounded-xl md:rounded-none border border-gray-200/80 md:border-0 overflow-hidden shadow-2xs md:shadow-none">
+                    {pub.items.map((item) => renderItemRow(item, isCategoryWholesaleReached, true))}
+                  </div>
+                </section>
+              );
+            })
+          )
+        ) : groupedCategories.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center space-y-3">
             <Package className="w-12 h-12 text-gray-300 mx-auto" />
             <h3 className="text-lg font-bold text-gray-800">No se encontraron productos</h3>
@@ -1595,7 +1945,6 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
             const catQtyInCart = categoryQuantitiesInCart[group.categoryName] || 0;
             const sampleMinQty = group.items[0]?.minWholesaleQty || 12;
             const isCategoryWholesaleReached = catQtyInCart >= sampleMinQty;
-            const remainingToCategoryWholesale = Math.max(0, sampleMinQty - catQtyInCart);
 
             return (
               <section
@@ -1638,169 +1987,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
 
                 {/* Items List - Seamless rows with subtle hairline dividers */}
                 <div className="divide-y divide-gray-100 bg-white md:bg-transparent rounded-xl md:rounded-none border border-gray-200/80 md:border-0 overflow-hidden shadow-2xs md:shadow-none">
-                  {group.items.map((item) => {
-                    const currentCartQty = cartQuantityMap[item.itemId] || 0;
-                    const isOutOfStock = item.stock <= 0;
-
-                    // Resolve price display based on current delivery + payment
-                    const isCash = deliveryOption === 'pickup' && paymentMethod === 'cash';
-                    const wholesalePrice = isCash
-                      ? item.prices.wholesaleCashPrice || item.prices.wholesalePrice
-                      : item.prices.wholesalePrice;
-                    const retailPrice = isCash
-                      ? item.prices.retailCashPrice || item.prices.retailPrice
-                      : item.prices.retailPrice;
-
-                    const activeUnitPrice = isCategoryWholesaleReached ? wholesalePrice : retailPrice;
-
-                    return (
-                      <div
-                        key={item.itemId}
-                        id={`quick-item-${item.itemId}`}
-                        className={`p-0 pr-1.5 sm:pr-2.5 md:p-3 transition-colors flex items-center justify-between gap-1.5 sm:gap-3 md:gap-4 h-20 sm:h-auto overflow-hidden ${
-                          currentCartQty > 0 ? 'bg-blue-50/40' : 'hover:bg-gray-50/60'
-                        }`}
-                      >
-                        {/* Left: Thumbnail & Details */}
-                        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 h-full">
-                          {/* Image Thumbnail - Square, full height of row, 0 border, 0 padding on mobile */}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const variantImgs = getActiveVariantImages(item.product, item.selectedVariants);
-                              const gallery = variantImgs.length > 0 ? variantImgs : (item.product.images?.length ? item.product.images : [item.image]);
-                              const foundIdx = gallery.findIndex((img) => img === item.image);
-
-                              setLightboxData({
-                                images: gallery,
-                                initialIndex: foundIdx >= 0 ? foundIdx : 0,
-                                title: item.title,
-                                variantText: item.variantText
-                              });
-                            }}
-                            className="w-20 h-20 sm:w-14 sm:h-14 md:w-16 md:h-16 aspect-square bg-gray-50 sm:bg-white rounded-none sm:rounded-xl border-0 sm:border border-gray-200/80 p-0 sm:p-0.5 shrink-0 overflow-hidden flex items-center justify-center cursor-pointer hover:border-blue-400 transition-all group/img relative shadow-none sm:shadow-2xs"
-                            title={`Ampliar imagen de ${item.title}`}
-                          >
-                            <ImageWithSkeleton
-                              src={item.image}
-                              alt={`${item.title} ${item.variantText}`}
-                              className="w-full h-full object-cover group-hover/img:scale-105 transition-transform duration-200"
-                            />
-                          </button>
-
-                          {/* Info - Single line title on mobile, never breaking into two lines */}
-                          <div className="flex-1 min-w-0 space-y-0.5 overflow-hidden py-1 sm:py-0">
-                            <div className="flex items-center min-w-0 w-full">
-                              <button
-                                type="button"
-                                onClick={() => onSelectProductDetail?.(item.product, item.selectedVariants, item.image)}
-                                className="font-bold text-xs sm:text-sm md:text-base text-gray-900 hover:text-[#0058bb] text-left leading-snug transition-colors cursor-pointer truncate block w-full sm:whitespace-normal sm:line-clamp-2"
-                                title={`Ver detalle de ${item.title}`}
-                              >
-                                {item.title}
-                              </button>
-                            </div>
-
-                            {/* Variant chip */}
-                            {item.variantText ? (
-                              <div className="flex items-center gap-1 pt-0.5">
-                                <span className="inline-flex items-center font-bold text-xs text-[#0058bb] bg-blue-50 border border-blue-200/70 px-1.5 sm:px-2 py-0.5 rounded-md leading-none truncate max-w-full">
-                                  {item.variantText}
-                                </span>
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        {/* Right: Price & Quantity Controller - Price placed above quantity selector on mobile */}
-                        <div className="flex flex-col items-end justify-center gap-1 sm:flex-row sm:items-center sm:gap-4 md:gap-5 shrink-0 ml-auto pl-1">
-                          {/* Clean Single Price Display */}
-                          <div className="text-right w-full flex justify-end">
-                            <span className="text-base sm:text-lg md:text-xl font-bold text-gray-900 font-['Montserrat'] whitespace-nowrap leading-none block text-right">
-                              $ {activeUnitPrice.toLocaleString('es-AR')}
-                            </span>
-                          </div>
-
-                          {/* Quantity Controller */}
-                          <div className="flex items-center">
-                            {isOutOfStock ? (
-                              <span className="inline-flex items-center justify-center text-xs sm:text-sm font-semibold text-gray-400 bg-gray-100 border border-gray-200/80 rounded-xl w-[88px] sm:w-[108px] md:w-[120px] h-[39px] sm:h-[36px] md:h-[40px] shrink-0 select-none">
-                                Agotado
-                              </span>
-                            ) : currentCartQty === 0 ? (
-                              <button
-                                type="button"
-                                id={`quick-add-${item.itemId}`}
-                                onClick={() =>
-                                  onAddToCart(
-                                    item.product,
-                                    undefined,
-                                    undefined,
-                                    1,
-                                    item.image,
-                                    item.selectedVariants
-                                  )
-                                }
-                                className="bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold text-xs sm:text-sm rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer active:scale-95 w-[88px] sm:w-[108px] md:w-[120px] h-[39px] sm:h-[36px] md:h-[40px] shrink-0"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                                <span>Agregar</span>
-                              </button>
-                            ) : (
-                              <div className="flex items-center bg-white border-2 border-[#0058bb] rounded-xl overflow-hidden shadow-xs">
-                                <button
-                                  type="button"
-                                  id={`quick-dec-${item.itemId}`}
-                                  onClick={() => onUpdateCartQuantity(item.itemId, -1)}
-                                  className="w-7 h-[35px] sm:w-8 sm:h-8 md:w-9 md:h-9 flex items-center justify-center text-[#0058bb] hover:bg-blue-50 transition-colors cursor-pointer active:bg-blue-100"
-                                  title="Disminuir cantidad"
-                                >
-                                  <Minus className="w-3.5 h-3.5" />
-                                </button>
-
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={item.stock > 0 ? item.stock : 999}
-                                  value={currentCartQty}
-                                  onChange={(e) => {
-                                    const val = parseInt(e.target.value, 10);
-                                    if (isNaN(val) || val <= 0) {
-                                      onRemoveCartItem(item.itemId);
-                                    } else {
-                                      const clamped = item.stock > 0 ? Math.min(val, item.stock) : val;
-                                      onSetCartItemQuantity(item.product, item.selectedVariants, item.image, clamped);
-                                    }
-                                  }}
-                                  className="w-7 sm:w-10 md:w-11 h-[35px] sm:h-8 md:h-9 text-center text-xs sm:text-sm font-bold text-gray-900 focus:outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                />
-
-                                <button
-                                  type="button"
-                                  id={`quick-inc-${item.itemId}`}
-                                  disabled={item.stock > 0 && currentCartQty >= item.stock}
-                                  onClick={() => onUpdateCartQuantity(item.itemId, 1)}
-                                  className={`w-7 h-[35px] sm:w-8 sm:h-8 md:w-9 md:h-9 flex items-center justify-center text-[#0058bb] hover:bg-blue-50 transition-colors cursor-pointer active:bg-blue-100 ${
-                                    item.stock > 0 && currentCartQty >= item.stock
-                                      ? 'opacity-30 cursor-not-allowed'
-                                      : ''
-                                  }`}
-                                  title={
-                                    item.stock > 0 && currentCartQty >= item.stock
-                                      ? 'Stock máximo alcanzado'
-                                      : 'Aumentar cantidad'
-                                  }
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {group.items.map((item) => renderItemRow(item, isCategoryWholesaleReached))}
                 </div>
               </section>
             );
@@ -1938,7 +2125,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
 
       {/* Modal de Error al Registrar Pedido (No abre WhatsApp si el guardado falla) */}
       {orderSaveError && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 text-center shadow-2xl space-y-4 animate-scale-up border border-red-100">
             <div className="w-16 h-16 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto border border-red-100 shadow-xs">
               <AlertCircle className="w-9 h-9" />

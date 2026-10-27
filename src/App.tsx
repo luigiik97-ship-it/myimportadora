@@ -24,6 +24,7 @@ import {
 import { userToProfile } from './services/auth';
 import { getActiveVariantImages, getItemEffectiveNormalPrice, getSelectedVariantStock, deductStockFromProduct, getProductCoverImage, getVariantPrimaryImage } from './utils/variantHelpers';
 import { slugifyCategory, reconcileCategoriesWithProducts } from './utils/categoryHelpers';
+import { reorderCartOnProductAdd } from './utils/cartOrdering';
 import { recordSiteVisit } from './services/analytics';
 import { isQuickBuyCustomLinkActive, fetchQuickBuyLinkConfigFromSupabase } from './services/quickBuyLink';
 import { isLaunchesSectionVisible, fetchLaunchesVisibilityFromSupabase, LAUNCHES_VISIBILITY_EVENT } from './services/launches';
@@ -48,6 +49,7 @@ import { CheckoutView } from './components/CheckoutView';
 import { AdminView } from './components/AdminView';
 import { QuickBuyView } from './components/QuickBuyView';
 import { LaunchesView } from './components/launches/LaunchesView';
+import { FavoritesView } from './components/FavoritesView';
 import { AuthModal } from './components/AuthModal';
 import { AccountModal } from './components/AccountModal';
 import { AddedToCartNotification, CartNotificationData } from './components/common/AddedToCartNotification';
@@ -152,13 +154,14 @@ export default function App() {
   const isCategory = location.pathname.startsWith('/categoria');
   const isQuickBuy = location.pathname === '/compra-rapida' || location.pathname === '/quick-buy' || location.pathname === '/quick_buy';
   const isLaunches = location.pathname === '/lanzamientos' || location.pathname.startsWith('/lanzamientos');
+  const isFavorites = location.pathname === '/favoritos' || location.pathname === '/mis-favoritos';
   const isCart = location.pathname === '/carrito' || location.pathname.startsWith('/carrito/');
   const isCheckout = location.pathname === '/checkout' || location.pathname.startsWith('/checkout/');
   const isConfirmation = location.pathname === '/confirmacion' || location.pathname.startsWith('/confirmacion/');
   const isFooterHiddenOnMobile = isCart || isCheckout || isConfirmation;
   const isAdmin = location.pathname === '/k97';
   const isProductDetail = location.pathname.startsWith('/producto');
-  const showTopBar = isHome || isCategory;
+  const showTopBar = isHome || isCategory || isFavorites;
 
   // Dismiss cart notification immediately whenever navigating away from product_detail
   useEffect(() => {
@@ -646,6 +649,7 @@ export default function App() {
 
     setCart((prev) => {
       const existingIdx = prev.findIndex((item) => item.id === itemKey);
+      let updatedList: CartItem[];
       if (existingIdx !== -1) {
         const updated = [...prev];
         let targetQty = updated[existingIdx].quantity + quantity;
@@ -655,7 +659,7 @@ export default function App() {
         updated[existingIdx].quantity = targetQty;
         // Garantizar que la imagen del carrito sea la primera imagen de la variante
         updated[existingIdx].selectedImage = resolvedImage;
-        return updated;
+        updatedList = updated;
       } else {
         const wholesaleUnitPrice = getItemEffectiveNormalPrice(
           product,
@@ -686,8 +690,17 @@ export default function App() {
           totalPrice: wholesaleUnitPrice * finalQty,
           variantText,
         };
-        return [...prev, newItem];
+        updatedList = [...prev, newItem];
       }
+
+      // Reordenar: la categoría de la publicación sube completa al primer lugar del carrito conservando sus productos y barra,
+      // y dentro de esa categoría la publicación recién agregada aparece primero.
+      return reorderCartOnProductAdd(
+        updatedList,
+        product.id,
+        product.category || 'General',
+        itemKey
+      );
     });
 
     if (showNotification) {
@@ -807,6 +820,7 @@ export default function App() {
 
     setCart((prev) => {
       const existingIndex = prev.findIndex((item) => item.id === itemId);
+      let updatedList: CartItem[];
       if (existingIndex > -1) {
         const updated = [...prev];
         updated[existingIndex] = {
@@ -814,7 +828,7 @@ export default function App() {
           quantity: finalQty,
           totalPrice: updated[existingIndex].unitPrice * finalQty,
         };
-        return updated;
+        updatedList = updated;
       } else {
         const wholesaleUnitPrice = getItemEffectiveNormalPrice(
           product,
@@ -834,8 +848,15 @@ export default function App() {
           isWholesale: true,
           totalPrice: wholesaleUnitPrice * finalQty,
         };
-        return [...prev, newItem];
+        updatedList = [...prev, newItem];
       }
+
+      return reorderCartOnProductAdd(
+        updatedList,
+        product.id,
+        product.category || 'General',
+        itemId
+      );
     });
   };
 
@@ -981,6 +1002,13 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleGoToFavorites = () => {
+    setCartNotification(null);
+    setLastShoppingView('home');
+    navigate('/favoritos');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleGoToCart = () => {
     setCartNotification(null);
     setIsFromQuickBuyCashPickup(false);
@@ -1101,6 +1129,8 @@ export default function App() {
         onOpenLaunches={isLaunchesVisible ? handleGoToLaunches : undefined}
         isLaunchesActive={isLaunchesVisible && isLaunches}
         isLaunchesVisible={isLaunchesVisible}
+        onOpenFavorites={handleGoToFavorites}
+        isFavoritesActive={isFavorites}
         currentUser={currentUser}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onOpenAccount={() => setIsAccountModalOpen(true)}
@@ -1169,6 +1199,8 @@ export default function App() {
                 selectedProductVariants={selectedProductVariants}
                 selectedProductImage={selectedProductImage}
                 previousView={previousView}
+                currentUser={currentUser}
+                onOpenAuth={() => setIsAuthModalOpen(true)}
                 onGoToCart={handleGoToCart}
                 onAddToCart={handleAddToCart}
                 onBuyNow={handleBuyNow}
@@ -1280,6 +1312,7 @@ export default function App() {
                   handleSelectProduct(prod, variants, img);
                 }}
                 currentUser={currentUser}
+                onOpenAuth={() => setIsAuthModalOpen(true)}
                 onSaveOrder={handleSaveOrderToSupabaseAndEmail}
                 onClearCart={() => setCart([])}
                 onOrderCompleted={handleOrderCompleted}
@@ -1310,6 +1343,23 @@ export default function App() {
             path="/proximos-lanzamientos"
             element={<Navigate to={isLaunchesVisible ? "/lanzamientos" : "/"} replace />}
           />
+
+          {/* ❤️ Mis Favoritos */}
+          <Route
+            path="/favoritos"
+            element={
+              <FavoritesView
+                products={products}
+                isLoadingData={isLoadingData}
+                currentUser={currentUser}
+                onOpenAuth={() => setIsAuthModalOpen(true)}
+                onSelectProduct={handleSelectProduct}
+                onGoHome={handleGoHome}
+                onOpenQuickBuy={handleGoToQuickBuy}
+              />
+            }
+          />
+          <Route path="/mis-favoritos" element={<Navigate to="/favoritos" replace />} />
 
           {/* Institutional / Terms / Info routes */}
           <Route

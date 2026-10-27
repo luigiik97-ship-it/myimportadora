@@ -26,6 +26,11 @@ let savedBodyStyles: {
 } | null = null;
 let savedHtmlOverflow: string | null = null;
 
+let savedHeaderTransform: string | null = null;
+let savedHeaderTransition: string | null = null;
+let savedQuickBuyTransform: string | null = null;
+let savedQuickBuyTransition: string | null = null;
+
 export function lockBackgroundScroll(): void {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
@@ -66,6 +71,30 @@ export function lockBackgroundScroll(): void {
   if (scrollbarWidth > 0) {
     document.body.style.paddingRight = `${scrollbarWidth}px`;
   }
+
+  // 5. Mantener el encabezado fijo y visible exactamente en su posición original detrás del modal
+  const mainHeader = document.getElementById('main-header');
+  if (mainHeader && savedScrollY > 0) {
+    const isSticky = window.getComputedStyle(mainHeader).position === 'sticky';
+    if (isSticky) {
+      savedHeaderTransform = mainHeader.style.transform;
+      savedHeaderTransition = mainHeader.style.transition;
+      mainHeader.style.transition = 'none';
+      mainHeader.style.transform = `translateY(${savedScrollY}px)`;
+    }
+  }
+
+  const quickBuyStickyHeader = document.getElementById('quick-buy-sticky-header');
+  if (quickBuyStickyHeader) {
+    const isSticky = window.getComputedStyle(quickBuyStickyHeader).position === 'sticky';
+    if (isSticky && savedScrollY > quickBuyStickyHeader.offsetTop) {
+      savedQuickBuyTransform = quickBuyStickyHeader.style.transform;
+      savedQuickBuyTransition = quickBuyStickyHeader.style.transition;
+      const offset = savedScrollY - quickBuyStickyHeader.offsetTop;
+      quickBuyStickyHeader.style.transition = 'none';
+      quickBuyStickyHeader.style.transform = `translateY(${offset}px)`;
+    }
+  }
 }
 
 export function unlockBackgroundScroll(): void {
@@ -83,7 +112,40 @@ export function unlockBackgroundScroll(): void {
     return;
   }
 
-  // 5. Restaurar estilos previos de html y body
+  // 6. Restaurar posición y transformaciones del encabezado
+  const mainHeader = document.getElementById('main-header');
+  if (mainHeader) {
+    if (savedHeaderTransform !== null) {
+      mainHeader.style.transform = savedHeaderTransform;
+      savedHeaderTransform = null;
+    } else {
+      mainHeader.style.transform = '';
+    }
+    if (savedHeaderTransition !== null) {
+      mainHeader.style.transition = savedHeaderTransition;
+      savedHeaderTransition = null;
+    } else {
+      mainHeader.style.transition = '';
+    }
+  }
+
+  const quickBuyStickyHeader = document.getElementById('quick-buy-sticky-header');
+  if (quickBuyStickyHeader) {
+    if (savedQuickBuyTransform !== null) {
+      quickBuyStickyHeader.style.transform = savedQuickBuyTransform;
+      savedQuickBuyTransform = null;
+    } else {
+      quickBuyStickyHeader.style.transform = '';
+    }
+    if (savedQuickBuyTransition !== null) {
+      quickBuyStickyHeader.style.transition = savedQuickBuyTransition;
+      savedQuickBuyTransition = null;
+    } else {
+      quickBuyStickyHeader.style.transition = '';
+    }
+  }
+
+  // 7. Restaurar estilos previos de html y body
   if (savedBodyStyles) {
     document.body.style.position = savedBodyStyles.position;
     document.body.style.top = savedBodyStyles.top;
@@ -110,7 +172,7 @@ export function unlockBackgroundScroll(): void {
     document.documentElement.style.overflow = '';
   }
 
-  // 6. Restituir exactamente la posición original del scroll sin saltos ni animaciones
+  // 8. Restituir exactamente la posición original del scroll sin saltos ni animaciones
   const restoreY = savedScrollY;
   window.scrollTo({
     top: restoreY,

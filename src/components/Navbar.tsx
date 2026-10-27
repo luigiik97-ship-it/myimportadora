@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Search, ShoppingCart, User, ChevronDown, ChevronRight, Layers, ArrowLeft, Zap, Rocket } from 'lucide-react';
+import { Search, ShoppingCart, User, ChevronDown, ChevronRight, Layers, ArrowLeft, Zap, Rocket, Heart } from 'lucide-react';
 import { CartItem, Category, UserProfile } from '../types';
 import { reconcileCategoriesWithProducts } from '../utils/categoryHelpers';
 import { getOptimizedImageUrl } from '../utils/imageOptimizer';
 import { usePurchaseMode } from '../context/PurchaseModeContext';
 import { calculateCartTotal } from '../utils/variantHelpers';
+import { useFavorites } from '../hooks/useFavorites';
 
 interface NavbarProps {
   currentCategory: string;
@@ -20,6 +21,8 @@ interface NavbarProps {
   onOpenLaunches?: () => void;
   isLaunchesActive?: boolean;
   isLaunchesVisible?: boolean;
+  onOpenFavorites?: () => void;
+  isFavoritesActive?: boolean;
   showTopBar?: boolean;
   categories?: Category[];
   currentUser?: UserProfile | null;
@@ -41,6 +44,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenLaunches,
   isLaunchesActive = false,
   isLaunchesVisible = true,
+  onOpenFavorites,
+  isFavoritesActive = false,
   showTopBar = true,
   categories: customCategories,
   currentUser,
@@ -49,6 +54,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   isOffline = false,
 }) => {
   const location = useLocation();
+  const { favoritesCount } = useFavorites(currentUser, onOpenAuth);
   const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
   const { isCashMode } = usePurchaseMode();
   const cartTotal = useMemo(() => {
@@ -339,7 +345,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="button"
                 id="header-quick-buy-btn"
                 onClick={onOpenQuickBuy}
-                className={`flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 md:px-3.5 py-1.5 md:py-2 rounded-full font-black text-xs md:text-sm transition-all cursor-pointer select-none shrink-0 shadow-sm border border-yellow-300/40 min-h-[38px] ${
+                className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 min-[380px]:px-2 sm:px-3 md:px-3.5 py-1.5 md:py-2 rounded-full font-black text-xs md:text-sm transition-all cursor-pointer select-none shrink-0 shadow-sm border border-yellow-300/40 min-h-[36px] sm:min-h-[38px] ${
                   isQuickBuyActive
                     ? 'bg-yellow-400 text-gray-950 ring-2 ring-white shadow-md'
                     : 'bg-yellow-400 hover:bg-yellow-300 text-gray-950 hover:shadow-md active:scale-95'
@@ -388,9 +394,28 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }}
                 aria-label="Abrir buscador"
                 title="Buscar productos"
-                className="md:hidden p-2 min-w-[38px] min-h-[38px] sm:min-w-[40px] sm:min-h-[40px] justify-center text-white hover:bg-white/10 rounded-full transition-colors flex items-center cursor-pointer shrink-0"
+                className="md:hidden p-1 sm:p-2 w-7 sm:w-auto min-w-0 sm:min-w-[40px] h-9 sm:h-10 justify-center text-white hover:bg-white/10 rounded-full transition-colors flex items-center cursor-pointer shrink-0"
               >
                 <Search className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.2]" />
+              </button>
+
+              {/* Ícono de corazón minimalista en la primera fila del encabezado */}
+              <button
+                type="button"
+                id="header-favorites-btn"
+                onClick={onOpenFavorites}
+                className="relative p-1 sm:p-2 w-7 sm:w-auto min-w-0 sm:min-w-[40px] h-9 sm:h-10 justify-center text-white hover:bg-white/10 rounded-full transition-colors flex items-center cursor-pointer shrink-0"
+                title="Mis favoritos"
+                aria-label="Mis favoritos"
+              >
+                <div className="relative inline-flex items-center justify-center">
+                  <Heart className="w-5 h-5 sm:w-5.5 sm:h-5.5 stroke-[2.2] text-white transition-colors" />
+                  {favoritesCount > 0 && (
+                    <span className="absolute -top-2.5 -right-1.5 left-auto bg-white text-[#0058bb] font-bold text-xs rounded-full min-w-[20px] h-[20px] flex items-center justify-center px-1.5 shadow-md border-2 border-[#0058bb] whitespace-nowrap tabular-nums pointer-events-none select-none origin-right">
+                      {favoritesCount}
+                    </span>
+                  )}
+                </div>
               </button>
 
               {/* Iniciar sesión / Mi cuenta Button */}
@@ -398,10 +423,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="header-account-btn"
                   onClick={onOpenAccount}
-                  className="flex items-center justify-center gap-1.5 p-2 sm:px-2.5 sm:py-1.5 min-h-[38px] min-w-[38px] bg-white/10 hover:bg-white/20 border border-white/25 rounded-full transition-all text-xs md:text-sm font-semibold cursor-pointer shrink-0"
+                  className="flex items-center justify-center gap-1.5 w-9 h-9 sm:w-auto sm:h-auto p-1.5 sm:px-2.5 sm:py-1.5 min-h-[36px] sm:min-h-[38px] bg-white/15 hover:bg-white/25 border border-white/25 rounded-full shadow-xs transition-all text-xs md:text-sm font-semibold cursor-pointer shrink-0 text-white"
                   title="Mi Cuenta"
                 >
-                  <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white text-[#0058bb] flex items-center justify-center font-bold text-xs">
+                  <div className="w-5.5 h-5.5 sm:w-6 sm:h-6 rounded-full bg-white text-[#0058bb] flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
                     {currentUser.fullName ? currentUser.fullName.charAt(0).toUpperCase() : 'U'}
                   </div>
                   <span className="hidden md:inline max-w-[100px] truncate">
@@ -412,7 +437,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   id="header-login-btn"
                   onClick={onOpenAuth}
-                  className="flex items-center justify-center gap-1.5 p-2 sm:px-3 sm:py-1.5 min-h-[38px] min-w-[38px] bg-white/10 hover:bg-white/20 border border-white/25 rounded-full transition-all text-xs md:text-sm font-medium cursor-pointer shrink-0"
+                  className="flex items-center justify-center gap-1.5 w-9 h-9 sm:w-auto sm:h-auto p-1.5 sm:px-3 sm:py-1.5 min-h-[36px] sm:min-h-[38px] bg-white/15 hover:bg-white/25 border border-white/25 rounded-full shadow-xs transition-all text-xs md:text-sm font-medium cursor-pointer shrink-0 text-white"
                   title="Iniciar Sesión"
                 >
                   <User className="w-4 h-4 md:w-4.5 md:h-4.5" />
@@ -441,7 +466,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 id="header-cart-btn"
                 onClick={onOpenCart}
-                className="relative p-2 min-w-[38px] min-h-[38px] sm:min-w-[40px] sm:min-h-[40px] justify-center text-white hover:bg-white/10 rounded-full transition-colors flex items-center cursor-pointer shrink-0 mr-0.5 sm:mr-0"
+                className="relative p-1.5 sm:p-2 min-w-[34px] sm:min-w-[40px] min-h-[34px] sm:min-h-[40px] justify-center text-white hover:bg-white/10 rounded-full transition-colors flex items-center cursor-pointer shrink-0 mr-0.5 sm:mr-0"
                 title="Ver Carrito de Compras"
               >
                 <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 stroke-[2.2]" />
@@ -538,6 +563,38 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               );
             })}
+
+            {/* «Mis favoritos» como última opción de la barra horizontal de categorías */}
+            <button
+              id="category-tab-favoritos"
+              type="button"
+              onClick={() => {
+                setIsCategoriesOpen(false);
+                onOpenFavorites?.();
+              }}
+              className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                isFavoritesActive
+                  ? 'bg-white text-[#0058bb] shadow-sm font-semibold'
+                  : 'text-white/90 hover:bg-white/15'
+              }`}
+              title="Mis favoritos"
+            >
+              <Heart
+                className={`w-3.5 h-3.5 transition-colors ${
+                  isFavoritesActive ? 'fill-rose-500 text-rose-500' : 'text-white/90'
+                }`}
+              />
+              <span>Mis favoritos</span>
+              {favoritesCount > 0 && (
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    isFavoritesActive ? 'bg-blue-100 text-[#0058bb]' : 'bg-white/20 text-white'
+                  }`}
+                >
+                  {favoritesCount}
+                </span>
+              )}
+            </button>
           </div>
 
           {/* Mobile Cart Total: fixed under the cart button area on the right, perfectly centered and symmetrical */}

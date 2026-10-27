@@ -114,7 +114,7 @@ export const StoreLocationMapModal: React.FC<StoreLocationMapModalProps> = ({
           onClose();
         }
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-xs transition-opacity animate-fadeIn"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-xs transition-opacity animate-fadeIn"
       role="dialog"
       aria-modal="true"
       aria-labelledby="store-map-modal-title"

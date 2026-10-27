@@ -19,6 +19,7 @@ import {
   recordModelVote,
 } from '../../services/launches';
 import { LaunchProposalModal } from './LaunchProposalModal';
+import { useModalScrollLock } from '../../utils/scrollLock';
 
 interface LaunchesViewProps {
   currentUser: UserProfile | null;
@@ -72,6 +73,8 @@ export const LaunchesView: React.FC<LaunchesViewProps> = ({
   const [isProposalModalOpen, setIsProposalModalOpen] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<{ url: string; letter: string } | null>(null);
   const [voteToast, setVoteToast] = useState<{ message: string; modelLetter: string } | null>(null);
+
+  useModalScrollLock(Boolean(zoomedImage));
 
   // Load collections & votes from cookies/localStorage
   useEffect(() => {
@@ -390,7 +393,7 @@ export const LaunchesView: React.FC<LaunchesViewProps> = ({
       {/* Image Zoom Modal */}
       {zoomedImage && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-150"
+          className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-150"
           onClick={() => setZoomedImage(null)}
         >
           <div

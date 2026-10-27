@@ -36,6 +36,7 @@ export const userToProfile = (user: any, dbProfile?: any): UserProfile => {
     province: dbProfile?.province || meta.province || '',
     postalCode: dbProfile?.postal_code || meta.postal_code || dbProfile?.postalCode || meta.postalCode || '',
     receiverName: dbProfile?.receiver_name || meta.receiver_name || dbProfile?.receiverName || meta.receiverName || '',
+    favorites: Array.isArray(meta.favorites) ? meta.favorites : Array.isArray(dbProfile?.favorites) ? dbProfile.favorites : [],
     createdAt: dbProfile?.created_at || user?.created_at,
     updatedAt: dbProfile?.updated_at || user?.updated_at,
   };

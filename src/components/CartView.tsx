@@ -212,6 +212,10 @@ export const CartView: React.FC<CartViewProps> = ({
   const activeSubtotal = isCashMode ? cashSubtotalProducts : subtotalProducts;
 
   // Group processed items by category for visual grouping and wholesale summary
+  // Al agregar un producto o modificar la cantidad de cualquier variante:
+  // 1. La categoría de esa publicación sube completa al primer lugar del carrito conservando todos sus productos y su barra.
+  // 2. Dentro de esa categoría, la publicación recién agregada o modificada aparece primero.
+  // 3. El orden se actualiza de inmediato y se mantiene al recargar.
   const categoryGroups = useMemo(() => {
     const map = new Map<string, typeof processedItems>();
     processedItems.forEach((item) => {
@@ -222,17 +226,51 @@ export const CartView: React.FC<CartViewProps> = ({
       map.get(cat)!.push(item);
     });
 
-    return Array.from(map.entries()).map(([categoryName, items]) => {
-      const totalUnits = items.reduce((acc, i) => acc + i.quantity, 0);
-      const minQty = items[0]?.minQty || 1;
+    const groups = Array.from(map.entries()).map(([categoryName, items]) => {
+      // Agrupar items por publicación (productId) para mantener todas sus variantes juntas
+      const pubMap = new Map<string, typeof items>();
+      items.forEach((item) => {
+        const pId = String(item.productId || item.product.id);
+        if (!pubMap.has(pId)) {
+          pubMap.set(pId, []);
+        }
+        pubMap.get(pId)!.push(item);
+      });
+
+      // Ordenar las publicaciones dentro de la categoría: la publicación recién agregada o modificada aparece primero
+      const sortedPubs = Array.from(pubMap.entries()).sort(([, itemsA], [, itemsB]) => {
+        const maxTimeA = Math.max(...itemsA.map((i) => i.lastModified || 0));
+        const maxTimeB = Math.max(...itemsB.map((i) => i.lastModified || 0));
+        return maxTimeB - maxTimeA;
+      });
+
+      // Ensamblar los items de la categoría ordenados por publicación, y dentro de cada publicación la variante más reciente primero
+      const orderedItems: typeof items = [];
+      sortedPubs.forEach(([, pubItems]) => {
+        const sortedVariants = [...pubItems].sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0));
+        orderedItems.push(...sortedVariants);
+      });
+
+      const totalUnits = orderedItems.reduce((acc, i) => acc + i.quantity, 0);
+      const minQty = orderedItems[0]?.minQty || 1;
+      const categoryLastModified = Math.max(...orderedItems.map((i) => i.lastModified || 0));
+
       return {
         categoryName,
-        items,
+        items: orderedItems,
         totalUnits,
         minQty,
+        categoryLastModified,
       };
     });
+
+    // Ordenar las categorías: la categoría de la publicación recién agregada o modificada sube completa al primer lugar
+    return groups.sort((a, b) => b.categoryLastModified - a.categoryLastModified);
   }, [processedItems]);
+
+  const orderedSummaryItems = useMemo(() => {
+    return categoryGroups.flatMap((g) => g.items);
+  }, [categoryGroups]);
 
   if (cartItems.length === 0) {
     return (
@@ -496,7 +534,7 @@ export const CartView: React.FC<CartViewProps> = ({
 
             {/* Itemized summary */}
             <div className="space-y-2 pt-1 text-sm text-gray-600 border-b border-gray-100 pb-3">
-              {processedItems.map((item) => {
+              {orderedSummaryItems.map((item) => {
                 const rawVariantList: string[] =
                   item.selectedVariants && Object.keys(item.selectedVariants).length > 0
                     ? (Object.values(item.selectedVariants).filter(Boolean) as string[])

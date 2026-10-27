@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams, Navigate } from 'react-router-dom';
 import { ArrowLeft, ShoppingBag } from 'lucide-react';
-import { Product, Category, SizeVariant, Order, CartItem } from '../../types';
+import { Product, Category, SizeVariant, Order, CartItem, UserProfile } from '../../types';
 import { slugifyCategory, isObsoleteDefaultCategory } from '../../utils/categoryHelpers';
 import { fetchSingleProduct } from '../../services/supabase';
 import { ProductDetailView } from '../ProductDetailView';
@@ -17,6 +17,8 @@ export function ProductDetailRouteWrapper({
   selectedProductImage,
   previousView,
   cartItems,
+  currentUser,
+  onOpenAuth,
   onGoToCart,
   onAddToCart,
   onBuyNow,
@@ -28,6 +30,8 @@ export function ProductDetailRouteWrapper({
   selectedProductImage?: string;
   previousView?: string;
   cartItems?: CartItem[];
+  currentUser?: UserProfile | null;
+  onOpenAuth?: () => void;
   onGoToCart: () => void;
   onAddToCart: (
     product: Product,
@@ -161,6 +165,8 @@ export function ProductDetailRouteWrapper({
       onAddToCart={onAddToCart}
       onBuyNow={onBuyNow}
       onSelectRelated={onSelectRelated}
+      currentUser={currentUser}
+      onOpenAuth={onOpenAuth}
     />
   );
 }
