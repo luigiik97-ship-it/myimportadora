@@ -19,6 +19,7 @@ import {
   getCloudinaryVideoPosterUrl,
   preloadVideo,
 } from '../../utils/cloudinaryVideoOptimizer';
+import { useModalScrollLock } from '../../utils/scrollLock';
 
 interface VideoViewerModalProps {
   isOpen: boolean;
@@ -41,6 +42,7 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
   showAssociatedProduct = true,
   loop = false,
 }) => {
+  useModalScrollLock(isOpen);
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isPlaying, setIsPlaying] = useState(true);
   // Default unmuted as requested: "comienza automáticamente con sonido y en loop"

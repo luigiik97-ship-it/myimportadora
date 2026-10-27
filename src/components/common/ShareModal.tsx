@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Check, Copy, Share2, ExternalLink } from 'lucide-react';
 import { OfficialWhatsAppIcon } from '../admin/QuickBuyLinkManager';
 import { Product } from '../../types';
+import { useModalScrollLock } from '../../utils/scrollLock';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   customUrl,
   customImage,
 }) => {
+  useModalScrollLock(isOpen);
   const [feedback, setFeedback] = useState<string | null>(null);
 
   if (!isOpen) return null;

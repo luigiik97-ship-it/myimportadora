@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, ZoomIn, ZoomOut, RotateCcw, MapPin, Store } from 'lucide-react';
+import { useModalScrollLock } from '../../utils/scrollLock';
 
 export interface StoreLocationMapModalProps {
   isOpen: boolean;
@@ -36,15 +37,8 @@ export const StoreLocationMapModal: React.FC<StoreLocationMapModalProps> = ({
     }
   }, [isOpen, onClose]);
 
-  // Lock body scroll
-  useEffect(() => {
-    if (!isOpen) return;
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = originalOverflow;
-    };
-  }, [isOpen]);
+  // Bloqueo de scroll del fondo mientras el modal de mapa esté abierto
+  useModalScrollLock(isOpen);
 
   const handleZoomIn = () => {
     setZoomLevel((prev) => Math.min(prev + 0.35, 2.5));

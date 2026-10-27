@@ -958,6 +958,38 @@ export function getActiveVariantImages(
   return cover ? [cover] : [defaultPlaceholder];
 }
 
+/**
+ * Obtiene la imagen principal de referencia obligatoria para una variante.
+ * 
+ * Reglas mandatorias:
+ * 1. Corresponde SIEMPRE a la primera posición (posición 0) de la variante seleccionada,
+ *    según el orden de imágenes establecido en el editor.
+ * 2. NUNCA utiliza la imagen que el cliente esté mirando en la galería en ese momento (imagen visualizada).
+ * 3. Si el cliente cambia de variante, retorna la primera imagen de esa nueva variante.
+ * 4. Si la variante no posee imágenes propias o el producto no tiene variantes, retorna la portada principal.
+ */
+export function getVariantPrimaryImage(
+  product: Product | Partial<Product> | null | undefined,
+  selectedOptionNames: Record<string, string> = {},
+  preferredVariantTypeId?: string
+): string {
+  if (!product) {
+    return 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
+  }
+
+  const variantImages = getActiveVariantImages(
+    product as Product,
+    selectedOptionNames,
+    preferredVariantTypeId
+  );
+
+  if (Array.isArray(variantImages) && variantImages.length > 0 && variantImages[0]) {
+    return variantImages[0];
+  }
+
+  return getProductCoverImage(product);
+}
+
 export interface ResolvedProductPrices {
   wholesalePrice: number;
   retailPrice: number;

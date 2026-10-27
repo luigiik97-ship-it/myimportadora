@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Bell, CheckCircle2, Phone, User, ArrowRight } from 'lucide-react';
 import { registerStockNotification } from '../../services/stockNotifications';
+import { useModalScrollLock } from '../../utils/scrollLock';
 
 interface StockNotificationModalProps {
   isOpen: boolean;
@@ -42,6 +43,9 @@ export const StockNotificationModal: React.FC<StockNotificationModalProps> = ({
       setErrorMessage('');
     }
   }, [isOpen, alreadyRegisteredDirectly, defaultPhone, defaultName]);
+
+  // Bloqueo de scroll del fondo mientras la ventana modal esté abierta
+  useModalScrollLock(isOpen);
 
   if (!isOpen) return null;
 

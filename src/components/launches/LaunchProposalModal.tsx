@@ -3,6 +3,7 @@ import { X, Upload, Image as ImageIcon, Sparkles, CheckCircle2, AlertCircle } fr
 import { LaunchCollection, UserProfile } from '../../types';
 import { uploadProductImage } from '../../services/supabase';
 import { submitCustomerProposal } from '../../services/launches';
+import { useModalScrollLock } from '../../utils/scrollLock';
 
 interface LaunchProposalModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export const LaunchProposalModal: React.FC<LaunchProposalModalProps> = ({
   selectedCollectionId,
   onProposalSubmitted,
 }) => {
+  useModalScrollLock(isOpen);
   const [collectionId, setCollectionId] = useState<string>(
     selectedCollectionId || collections[0]?.id || 'otra'
   );

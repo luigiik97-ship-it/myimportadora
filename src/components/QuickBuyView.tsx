@@ -36,10 +36,12 @@ import {
   getItemEffectiveNormalPrice,
   getItemEffectiveCashPrice,
   getProductCoverImage,
+  getVariantPrimaryImage,
   ResolvedProductPrices
 } from '../utils/variantHelpers';
 import { ImageWithSkeleton } from './common/ImageWithSkeleton';
 import { ProductImageLightbox } from './common/ProductImageLightbox';
+import { useModalScrollLock } from '../utils/scrollLock';
 import {
   isQuickBuyCustomLinkActive,
   getQuickBuyLinkConfig,
@@ -133,6 +135,8 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
   });
   const [isSubmittingWhatsAppOrder, setIsSubmittingWhatsAppOrder] = useState(false);
   const [orderSaveError, setOrderSaveError] = useState<string | null>(null);
+
+  useModalScrollLock(Boolean(orderSaveError));
 
   // Mantener actualizado el modo de enlace personalizado si cambia la URL o la configuración
   useEffect(() => {
@@ -248,7 +252,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
           const variantKey = `${vt1.name}:${opt.name}`;
           const itemId = `${product.id}-${variantKey}`;
           const prices = getResolvedProductPrices(product, selectedVariants);
-          const image = (opt.images && opt.images[0]) || getActiveVariantImages(product, selectedVariants)[0];
+          const image = getVariantPrimaryImage(product, selectedVariants);
           const stock = getSelectedVariantStock(product, selectedVariants);
 
           list.push({
@@ -283,7 +287,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
               .join('|');
             const itemId = `${product.id}-${variantKey}`;
             const prices = getResolvedProductPrices(product, selectedVariants);
-            const image = (opt1.images && opt1.images[0]) || (opt2.images && opt2.images[0]) || getActiveVariantImages(product, selectedVariants)[0];
+            const image = getVariantPrimaryImage(product, selectedVariants);
             const stock = getSelectedVariantStock(product, selectedVariants);
 
             list.push({

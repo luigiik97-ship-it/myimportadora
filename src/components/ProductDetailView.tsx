@@ -12,6 +12,7 @@ import {
   getResolvedProductPrices,
   getProductCoverImage,
   getActiveVariantOutOfStockBadge,
+  getVariantPrimaryImage,
 } from '../utils/variantHelpers';
 import { ClassicStar as Star } from './common/ClassicStar';
 import { MichyOfficialBadge } from './common/MichyOfficialBadge';
@@ -159,6 +160,14 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   // Last interacted variant type ID to prioritize its gallery when multiple variants exist
   const [lastSelectedTypeId, setLastSelectedTypeId] = useState<string | undefined>(() => {
     const norm = normalizeVariantTypes(product);
+    if (initialSelectedVariants && Object.keys(initialSelectedVariants).length > 0) {
+      const matched = norm.find((vt) =>
+        Object.keys(initialSelectedVariants).some(
+          (k) => k.toLowerCase() === vt.id.toLowerCase() || k.toLowerCase() === vt.name.toLowerCase()
+        )
+      );
+      if (matched) return matched.id;
+    }
     return norm[0]?.id;
   });
 
@@ -291,7 +300,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     return () => clearTimeout(timer);
   }, [product.id, galleryMedia, product.variantTypes, product.additionalImage]);
 
-  // Current active image index for lightbox and cart
+  // Imagen visualizada activa en la galería del producto (solo para el visor / lightbox)
   const activeImageIndex = galleryMedia[activeMediaIndex]?.imageIndex ?? 0;
 
   // Current stock for the actively selected variant option(s) or base product
@@ -409,19 +418,51 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     }
   };
 
+  // Serialized representation to avoid unnecessary re-initializations on re-renders
+  const initialVariantsKey = useMemo(() => {
+    if (!initialSelectedVariants) return '';
+    return Object.entries(initialSelectedVariants)
+      .map(([k, v]) => `${k}:${v}`)
+      .sort()
+      .join('|');
+  }, [initialSelectedVariants]);
+
+  const lastInitializedKeyRef = useRef<string | null>(null);
+
   // Reset or initialize variant selections & active image when product or initial selection changes
   useEffect(() => {
-    const initial = resolveInitialOptions(product, initialSelectedVariants);
-    setSelectedOptions(initial);
-    const norm = normalizeVariantTypes(product);
-    setLastSelectedTypeId(norm[0]?.id);
-    setActiveMediaIndex(0);
-    setQuantity(1);
-  }, [product.id, initialSelectedVariants]);
+    const currentKey = `${product.id}-${initialVariantsKey}`;
+    if (lastInitializedKeyRef.current !== currentKey) {
+      lastInitializedKeyRef.current = currentKey;
+      const initial = resolveInitialOptions(product, initialSelectedVariants);
+      setSelectedOptions(initial);
+      const norm = normalizeVariantTypes(product);
+      let targetTypeId = norm[0]?.id;
+      if (initialSelectedVariants && Object.keys(initialSelectedVariants).length > 0) {
+        const matched = norm.find((vt) =>
+          Object.keys(initialSelectedVariants).some(
+            (k) => k.toLowerCase() === vt.id.toLowerCase() || k.toLowerCase() === vt.name.toLowerCase()
+          )
+        );
+        if (matched) targetTypeId = matched.id;
+      }
+      setLastSelectedTypeId(targetTypeId);
+      setActiveMediaIndex(0);
+      setQuantity(1);
+    }
+  }, [product.id, initialVariantsKey, initialSelectedVariants]);
 
-  // If initialSelectedImage is passed and found in activeImages, focus that image
+  // Solo aplicar la imagen inicial una única vez al entrar al producto/variante,
+  // permitiendo luego que el usuario navegue libremente por todas las imágenes de la variante
+  const appliedInitialImageRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (initialSelectedImage && activeImages.length > 0) {
+    if (!initialSelectedImage) return;
+    const key = `${product.id}-${initialSelectedImage}`;
+    if (appliedInitialImageRef.current === key) return;
+
+    if (activeImages.length > 0) {
+      appliedInitialImageRef.current = key;
       const idx = activeImages.findIndex((img) => img === initialSelectedImage);
       if (idx >= 0) {
         const mediaIdx = galleryMedia.findIndex(
@@ -432,14 +473,14 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
         }
       }
     }
-  }, [initialSelectedImage, activeImages, galleryMedia]);
+  }, [product.id, initialSelectedImage, activeImages, galleryMedia]);
 
   // Reset active media index if out of bounds
   useEffect(() => {
-    if (activeMediaIndex >= galleryMedia.length) {
+    if (galleryMedia.length > 0 && activeMediaIndex >= galleryMedia.length) {
       setActiveMediaIndex(0);
     }
-  }, [galleryMedia, activeMediaIndex]);
+  }, [galleryMedia.length, activeMediaIndex]);
 
   // Showcase video player state (reproduce una sola vez sin sonido y luego se pausa)
   const showcaseVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -770,16 +811,26 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   };
 
   const handleAdd = () => {
-    const activeMainImage = activeImages[activeImageIndex] || activeImages[0] || getProductCoverImage(product);
-    onAddToCart(product, selectedColorName, selectedSizeVariantObj, quantity, activeMainImage, userFriendlySelectedVariants);
+    // La imagen del carrito SIEMPRE debe ser la primera imagen (posición 0) de la variante seleccionada,
+    // NUNCA la imagen que el cliente esté mirando en la galería en ese momento (imagen visualizada).
+    const variantPrimaryImage =
+      getVariantPrimaryImage(product, selectedOptions, lastSelectedTypeId) ||
+      activeImages[0] ||
+      getProductCoverImage(product);
+    onAddToCart(product, selectedColorName, selectedSizeVariantObj, quantity, variantPrimaryImage, userFriendlySelectedVariants);
     setShowAddedFeedback(true);
     setHasAddedToCart(true);
     setTimeout(() => setShowAddedFeedback(false), 2500);
   };
 
   const handleBuy = () => {
-    const activeMainImage = activeImages[activeImageIndex] || activeImages[0] || getProductCoverImage(product);
-    onBuyNow(product, selectedColorName, selectedSizeVariantObj, quantity, activeMainImage, userFriendlySelectedVariants);
+    // La imagen del carrito SIEMPRE debe ser la primera imagen (posición 0) de la variante seleccionada,
+    // NUNCA la imagen que el cliente esté mirando en la galería en ese momento (imagen visualizada).
+    const variantPrimaryImage =
+      getVariantPrimaryImage(product, selectedOptions, lastSelectedTypeId) ||
+      activeImages[0] ||
+      getProductCoverImage(product);
+    onBuyNow(product, selectedColorName, selectedSizeVariantObj, quantity, variantPrimaryImage, userFriendlySelectedVariants);
   };
 
   // Touch swipe support for mobile gallery

@@ -4,6 +4,7 @@ import {
   getCloudinaryVideoPosterUrl,
   optimizeCloudinaryVideoUrl,
 } from '../../utils/cloudinaryVideoOptimizer';
+import { useModalScrollLock } from '../../utils/scrollLock';
 
 export interface LightboxMediaItem {
   type: 'image' | 'video';
@@ -83,17 +84,8 @@ export const ProductImageLightbox: React.FC<ProductImageLightboxProps> = ({
     }
   }, [isOpen, initialIndex, items.length]);
 
-  // Lock body scroll when lightbox is open
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      document.body.style.overflow = originalOverflow;
-    };
-  }, [isOpen]);
+  // Bloqueo de scroll del fondo mientras el visor está abierto, restituyendo la posición exacta al cerrar
+  useModalScrollLock(isOpen);
 
   // Helper to filter out synthetic/ghost mouse events triggered by mobile touch
   const isSyntheticOrRecentTouch = () => {

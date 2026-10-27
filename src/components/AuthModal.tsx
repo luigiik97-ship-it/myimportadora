@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Mail, Lock, User, Phone, Eye, EyeOff, Loader2, CheckCircle2, AlertCircle, ArrowLeft, KeyRound } from 'lucide-react';
 import { signInWithEmail, signUpWithEmail, sendPasswordReset, updateUserPassword, normalizeEmail } from '../services/auth';
 import { UserProfile } from '../types';
+import { useModalScrollLock } from '../utils/scrollLock';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -51,6 +52,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       }
     }
   }, [initialMode, prefilledEmail, errorMessageFromUrl, isOpen]);
+
+  // Bloqueo de scroll del fondo mientras la ventana modal esté abierta
+  useModalScrollLock(isOpen);
 
   if (!isOpen) return null;
 

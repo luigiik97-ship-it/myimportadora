@@ -7,6 +7,7 @@ import {
   normalizeVariantText,
 } from '../../services/quickBuyLink';
 import { generateReceiptPdfBlob, ReceiptData } from '../../utils/receiptCanvas';
+import { useModalScrollLock } from '../../utils/scrollLock';
 
 export interface PostPurchaseModalProps {
   isOpen: boolean;
@@ -70,6 +71,7 @@ export const PostPurchaseModal: React.FC<PostPurchaseModalProps> = ({
   order,
   onContinueShopping,
 }) => {
+  useModalScrollLock(isOpen);
   const [generatingAction, setGeneratingAction] = useState<'detail' | 'summary' | 'whatsapp' | null>(null);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 

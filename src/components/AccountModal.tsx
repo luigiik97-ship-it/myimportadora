@@ -6,6 +6,7 @@ import {
 import { UserProfile, Order, Product, CartItem } from '../types';
 import { saveUserProfile, signOutUser, fetchUserOrders } from '../services/auth';
 import { buildUniversalWhatsAppUrl } from '../services/quickBuyLink';
+import { useModalScrollLock } from '../utils/scrollLock';
 
 interface AccountModalProps {
   isOpen: boolean;
@@ -98,6 +99,9 @@ export const AccountModal: React.FC<AccountModalProps> = ({
       setLoadingOrders(false);
     }
   };
+
+  // Bloqueo de scroll del fondo mientras la ventana modal esté abierta
+  useModalScrollLock(isOpen);
 
   if (!isOpen) return null;
 

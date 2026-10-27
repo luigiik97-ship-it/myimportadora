@@ -22,7 +22,7 @@ import {
   isProductsCacheStale,
 } from './services/supabase';
 import { userToProfile } from './services/auth';
-import { getActiveVariantImages, getItemEffectiveNormalPrice, getSelectedVariantStock, deductStockFromProduct, getProductCoverImage } from './utils/variantHelpers';
+import { getActiveVariantImages, getItemEffectiveNormalPrice, getSelectedVariantStock, deductStockFromProduct, getProductCoverImage, getVariantPrimaryImage } from './utils/variantHelpers';
 import { slugifyCategory, reconcileCategoriesWithProducts } from './utils/categoryHelpers';
 import { recordSiteVisit } from './services/analytics';
 import { isQuickBuyCustomLinkActive, fetchQuickBuyLinkConfigFromSupabase } from './services/quickBuyLink';
@@ -369,18 +369,15 @@ export default function App() {
               }
             }
 
-            // Ensure selectedImage is preserved or recovered from variant gallery
+            // Garantizar que la imagen del artículo del carrito sea siempre la primera imagen configurada para la variante seleccionada
             let resolvedImage = cartItem.selectedImage;
-            if (!resolvedImage || resolvedImage.trim().length === 0) {
-              if (cartItem.selectedVariants) {
-                const variantImgs = getActiveVariantImages(matchingProduct, cartItem.selectedVariants);
-                if (variantImgs && variantImgs.length > 0) {
-                  resolvedImage = variantImgs[0];
-                }
+            if (cartItem.selectedVariants && Object.keys(cartItem.selectedVariants).length > 0) {
+              const primaryVariantImg = getVariantPrimaryImage(matchingProduct, cartItem.selectedVariants);
+              if (primaryVariantImg) {
+                resolvedImage = primaryVariantImg;
               }
-              if (!resolvedImage) {
-                resolvedImage = matchingProduct.images?.[0] || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
-              }
+            } else if (!resolvedImage || resolvedImage.trim().length === 0) {
+              resolvedImage = matchingProduct.images?.[0] || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
             }
 
             // Recompute unit price from updated product data and exact variant choices
@@ -630,6 +627,23 @@ export default function App() {
     const itemKey = `${product.id}-${variantSuffix}`;
     const maxAvailableStock = getSelectedVariantStock(product, selectedVariants || {});
 
+    // Resolver la imagen principal de la variante:
+    // La imagen de referencia del artículo en el carrito SIEMPRE debe ser la primera imagen (posición 0) de la variante seleccionada,
+    // garantizando que nunca se use la imagen que el cliente esté mirando en la galería en ese momento.
+    const hasVariantSelected =
+      (selectedVariants && Object.keys(selectedVariants).length > 0) ||
+      Boolean(selectedColor) ||
+      Boolean(selectedSizeVariant);
+
+    const variantPrimaryImage = hasVariantSelected
+      ? getVariantPrimaryImage(
+          product,
+          selectedVariants || (selectedColor ? { 'vt-color': selectedColor, 'Color / Modelo': selectedColor } : {})
+        )
+      : (selectedImage || getProductCoverImage(product));
+
+    const resolvedImage = variantPrimaryImage || selectedImage || getProductCoverImage(product);
+
     setCart((prev) => {
       const existingIdx = prev.findIndex((item) => item.id === itemKey);
       if (existingIdx !== -1) {
@@ -639,7 +653,8 @@ export default function App() {
           targetQty = maxAvailableStock;
         }
         updated[existingIdx].quantity = targetQty;
-        if (selectedImage) updated[existingIdx].selectedImage = selectedImage;
+        // Garantizar que la imagen del carrito sea la primera imagen de la variante
+        updated[existingIdx].selectedImage = resolvedImage;
         return updated;
       } else {
         const wholesaleUnitPrice = getItemEffectiveNormalPrice(
@@ -648,8 +663,6 @@ export default function App() {
           selectedSizeVariant,
           true
         );
-
-        const resolvedImage = selectedImage || getProductCoverImage(product);
 
         const finalQty = maxAvailableStock > 0 ? Math.min(quantity, maxAvailableStock) : quantity;
 
@@ -685,7 +698,6 @@ export default function App() {
         selectedSizeVariant,
         true
       );
-      const resolvedImage = selectedImage || getProductCoverImage(product);
       const finalQty = maxAvailableStock > 0 ? Math.min(quantity, maxAvailableStock) : quantity;
 
       let variantSummary = '';
