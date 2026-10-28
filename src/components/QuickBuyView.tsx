@@ -27,6 +27,8 @@ import {
   Clock,
   ChevronDown,
   Heart,
+  Tag,
+  Check,
 } from 'lucide-react';
 import { useFavorites } from '../hooks/useFavorites';
 import { getShippingZoneInfo, ShippingOption } from '../utils/shipping';
@@ -139,6 +141,9 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
   });
   const [isSubmittingWhatsAppOrder, setIsSubmittingWhatsAppOrder] = useState(false);
   const [orderSaveError, setOrderSaveError] = useState<string | null>(null);
+  const [isWholesalePreview, setIsWholesalePreview] = useState<boolean>(false);
+  const [showWholesaleWarning, setShowWholesaleWarning] = useState<boolean>(false);
+  const [showFloatingPriceUpdated, setShowFloatingPriceUpdated] = useState<boolean>(false);
 
   useModalScrollLock(Boolean(orderSaveError));
 
@@ -559,6 +564,41 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
     };
   }, [activeGroup, categoryQuantitiesInCart]);
 
+  // Categorías presentes en el carrito que no alcanzan la cantidad mínima para precio mayorista
+  const pendingCategories = useMemo(() => {
+    const list: {
+      categoryName: string;
+      currentQty: number;
+      minQty: number;
+      missingQty: number;
+    }[] = [];
+
+    const categoriesInCart = new Set<string>();
+    cartItems.forEach((item) => {
+      const cat = item.product.category || 'General';
+      categoriesInCart.add(cat);
+    });
+
+    categoriesInCart.forEach((catName) => {
+      const currentQty = categoryQuantitiesInCart[catName] || 0;
+      const group = groupedCategories.find(
+        (g) => g.categoryName.toLowerCase() === catName.toLowerCase()
+      );
+      const minQty = group?.items[0]?.minWholesaleQty || 12;
+
+      if (currentQty < minQty) {
+        list.push({
+          categoryName: catName,
+          currentQty,
+          minQty,
+          missingQty: minQty - currentQty,
+        });
+      }
+    });
+
+    return list;
+  }, [cartItems, categoryQuantitiesInCart, groupedCategories]);
+
   // Calculate live Cart totals with the active payment method & delivery selection
   const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
@@ -572,7 +612,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
       const cat = item.product.category || 'General';
       const catQty = categoryQuantitiesInCart[cat] || 0;
       const minQty = item.product.minWholesaleQty || 1;
-      const isWholesale = catQty >= minQty;
+      const isWholesale = isWholesalePreview || (catQty >= minQty);
 
       const wholesaleUnitPrice = getItemEffectiveNormalPrice(
         item.product,
@@ -623,7 +663,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
       cashDiscount,
       totalSavings,
     };
-  }, [cartItems, categoryQuantitiesInCart, deliveryOption, paymentMethod]);
+  }, [cartItems, categoryQuantitiesInCart, deliveryOption, paymentMethod, isWholesalePreview]);
 
   // Gestión centralizada de envíos por Código Postal
   const [quickBuyPostalCode, setQuickBuyPostalCode] = useState<string>(() => {
@@ -998,6 +1038,49 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
     }
   };
 
+  const handleToggleWholesalePreview = () => {
+    setIsWholesalePreview((prev) => !prev);
+    setShowWholesaleWarning(false);
+  };
+
+  const handleInitiatePurchase = (flow: 'normal' | 'customLink') => {
+    if (totalCartCount === 0 || showWholesaleWarning || isSubmittingWhatsAppOrder) return;
+
+    // Al presionar Comprar, si alguna categoría no cumple el mínimo con la vista previa activa:
+    if (isWholesalePreview && pendingCategories.length > 0) {
+      setShowWholesaleWarning(true);
+      return;
+    }
+
+    if (flow === 'customLink') {
+      handleWhatsAppQuickBuy();
+    } else {
+      onProceedToCheckout();
+    }
+  };
+
+  const handleContinueWithUpdatedPrices = () => {
+    setShowWholesaleWarning(false);
+    setIsWholesalePreview(false);
+    setShowFloatingPriceUpdated(true);
+
+    setTimeout(() => {
+      setShowFloatingPriceUpdated(false);
+      if (isCustomLinkMode) {
+        handleWhatsAppQuickBuy();
+      } else {
+        onProceedToCheckout();
+      }
+    }, 1000);
+  };
+
+  const handleKeepAddingProducts = () => {
+    setShowWholesaleWarning(false);
+    if (pendingCategories.length > 0) {
+      handleScrollToCategory(pendingCategories[0].categoryName);
+    }
+  };
+
   // Scroll to a specific category section
   const handleScrollToCategory = (catName: string) => {
     setSelectedCategoryTab(catName);
@@ -1053,7 +1136,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
       ? item.prices.retailCashPrice || item.prices.retailPrice
       : item.prices.retailPrice;
 
-    const activeUnitPrice = isCategoryWholesaleReached ? wholesalePrice : retailPrice;
+    const activeUnitPrice = (isWholesalePreview || isCategoryWholesaleReached) ? wholesalePrice : retailPrice;
     const isFav = isFavorite(item.productId);
 
     return (
@@ -1628,6 +1711,50 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Interruptor: Ver precios mayoristas */}
+            <div id="quick-buy-wholesale-preview-container" className="pt-0.5">
+              <button
+                type="button"
+                id="quick-buy-wholesale-preview-toggle-btn"
+                onClick={handleToggleWholesalePreview}
+                className={`w-full py-2.5 sm:py-3 px-3.5 sm:px-4 rounded-xl border flex items-center justify-between transition-all cursor-pointer select-none shadow-2xs ${
+                  isWholesalePreview
+                    ? 'bg-[#16a34a] text-white border-[#15803d] shadow-xs'
+                    : 'bg-[#f1f3f5] hover:bg-[#e9ecef] text-gray-900 border-gray-300'
+                }`}
+                aria-pressed={isWholesalePreview}
+                title="Activar o desactivar vista previa de precios mayoristas"
+              >
+                <div className="flex items-center gap-2">
+                  <Tag
+                    className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 stroke-[1.9] ${
+                      isWholesalePreview ? 'text-white' : 'text-gray-800'
+                    }`}
+                  />
+                  <span className="font-bold text-xs sm:text-[14px] tracking-tight leading-tight">
+                    Ver precios mayoristas
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className={`text-[11px] sm:text-xs font-semibold ${isWholesalePreview ? 'text-white/90' : 'text-gray-500'}`}>
+                    {isWholesalePreview ? 'Activado' : 'Desactivado'}
+                  </span>
+                  <div
+                    className={`w-10 sm:w-11 h-5 sm:h-6 flex items-center rounded-full p-0.5 transition-colors duration-200 ${
+                      isWholesalePreview ? 'bg-white/35 justify-end' : 'bg-gray-300 justify-start'
+                    }`}
+                  >
+                    <div
+                      className={`w-4 sm:w-5 h-4 sm:h-5 rounded-full bg-white shadow-xs transition-transform duration-200 ${
+                        isWholesalePreview ? 'scale-105' : ''
+                      }`}
+                    />
+                  </div>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1681,17 +1808,17 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                   type="button"
                   id="quick-cat-tab-favorites"
                   onClick={() => handleScrollToCategory('favorites')}
-                  className={`px-3 py-1.5 rounded-full font-semibold whitespace-nowrap cursor-pointer transition-all shrink-0 inline-flex items-center gap-1.5 ${
+                  className={`h-[30px] px-3 py-1.5 rounded-full font-semibold whitespace-nowrap cursor-pointer transition-all shrink-0 inline-flex items-center justify-center gap-1.5 ${
                     selectedCategoryTab === 'favorites'
                       ? 'bg-[#0058bb] text-white font-bold shadow-xs'
                       : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
                   }`}
                 >
-                  <Heart className={`w-3.5 h-3.5 ${selectedCategoryTab === 'favorites' ? 'fill-white text-white' : 'text-red-500 fill-red-500'}`} />
-                  <span className="hidden sm:inline">Mis favoritos</span>
+                  <Heart className={`w-3.5 h-3.5 shrink-0 ${selectedCategoryTab === 'favorites' ? 'fill-white text-white' : 'text-red-500 fill-red-500'}`} />
+                  <span className="hidden sm:inline leading-none">Mis favoritos</span>
                   {favorites.length > 0 && (
                     <span
-                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      className={`text-[10px] leading-none px-1.5 py-0.5 rounded-full font-bold ${
                         selectedCategoryTab === 'favorites' ? 'bg-white text-[#0058bb]' : 'bg-red-50 text-red-600'
                       }`}
                     >
@@ -2012,13 +2139,81 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         )}
       </div>
 
+      {/* Cartel dinámico arriba de la barra inferior cuando no se cumple el mínimo mayorista en vista previa */}
+      {showWholesaleWarning && pendingCategories.length > 0 && (
+        <div
+          id="quick-buy-wholesale-warning-banner"
+          className="fixed bottom-[64px] sm:bottom-[72px] inset-x-2 sm:inset-x-4 max-w-[560px] mx-auto z-50 bg-white/98 backdrop-blur-md rounded-2xl border border-amber-300 shadow-2xl p-3.5 sm:p-4 animate-in slide-in-from-bottom-3 duration-200"
+        >
+          <div className="flex items-start gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
+              <AlertCircle className="w-4 h-4 text-amber-700" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h4 className="font-bold text-xs sm:text-sm text-gray-950 leading-tight">
+                Mínimos para precio mayorista
+              </h4>
+              <p className="text-[11px] sm:text-xs text-gray-600 mt-0.5 leading-snug">
+                Para acceder al precio mayorista en las siguientes categorías, necesitas completar las cantidades mínimas:
+              </p>
+            </div>
+          </div>
+
+          {/* Listado de categorías pendientes con cantidades faltantes */}
+          <div className="mt-2.5 space-y-1.5 max-h-[140px] overflow-y-auto no-scrollbar">
+            {pendingCategories.map((cat) => (
+              <div
+                key={cat.categoryName}
+                className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-amber-50/90 border border-amber-200/80 text-[11px] sm:text-xs"
+              >
+                <span className="font-bold text-gray-900 truncate">
+                  {cat.categoryName}
+                </span>
+                <span className="font-semibold text-amber-900 shrink-0">
+                  Te {cat.missingQty === 1 ? 'falta' : 'faltan'} <strong className="font-black text-amber-950">{cat.missingQty} {cat.missingQty === 1 ? 'unid.' : 'unids.'}</strong> ({cat.currentQty}/{cat.minQty})
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Botones de acción */}
+          <div className="mt-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <button
+              type="button"
+              id="quick-buy-continue-updated-prices-btn"
+              onClick={handleContinueWithUpdatedPrices}
+              className="flex-1 bg-gray-900 hover:bg-black active:scale-95 text-white font-bold text-xs sm:text-[13px] py-2.5 px-3 rounded-xl transition-all shadow-xs cursor-pointer text-center"
+            >
+              Continuar con precios actualizados
+            </button>
+            <button
+              type="button"
+              id="quick-buy-keep-adding-btn"
+              onClick={handleKeepAddingProducts}
+              className="flex-1 bg-[#0058bb] hover:bg-[#004bb0] active:scale-95 text-white font-bold text-xs sm:text-[13px] py-2.5 px-3 rounded-xl transition-all shadow-xs cursor-pointer text-center"
+            >
+              Seguir agregando productos
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 4. Fixed Bottom Bar (Barra inferior fija con cantidad total, importe y botón Ver carrito) */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200/90 shadow-[0_-8px_25px_rgba(0,0,0,0.08)] pl-1.5 sm:pl-2.5 pr-3 sm:pr-4 py-2.5 md:py-3 transition-transform">
         <div className="max-w-[1240px] mx-auto flex items-center justify-between gap-1.5 sm:gap-3">
           {/* Left: Summary Info */}
           <div className="flex items-center min-w-0 flex-1">
             {/* Total price and details */}
-            <div className="min-w-0 flex-1 text-left">
+            <div className="min-w-0 flex-1 text-left relative">
+              {showFloatingPriceUpdated && (
+                <div
+                  id="quick-buy-floating-price-updated"
+                  className="absolute -top-7 sm:-top-8 left-0 z-50 bg-emerald-600 text-white text-[10.5px] sm:text-xs font-bold px-2.5 py-0.5 rounded-md shadow-md whitespace-nowrap animate-in fade-in zoom-in-95 duration-150 flex items-center gap-1 pointer-events-none"
+                >
+                  <Check className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+                  <span>Precios actualizados</span>
+                </div>
+              )}
               <div className="flex items-baseline gap-1 sm:gap-1.5 min-w-0 overflow-visible sm:overflow-hidden whitespace-nowrap justify-start text-left -ml-0.5 sm:-ml-1">
                 <span className="text-xs text-gray-500 font-medium hidden sm:inline shrink-0">Total:</span>
                 <span id="quick-buy-total-amount" className="text-lg md:text-2xl font-bold text-gray-900 font-['Montserrat'] tracking-tight shrink-0">
@@ -2076,10 +2271,10 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
               <button
                 type="button"
                 id="quick-buy-whatsapp-checkout-btn"
-                onClick={handleWhatsAppQuickBuy}
-                disabled={totalCartCount === 0 || isSubmittingWhatsAppOrder}
+                onClick={() => handleInitiatePurchase('customLink')}
+                disabled={totalCartCount === 0 || showWholesaleWarning || isSubmittingWhatsAppOrder}
                 className={`font-bold text-xs sm:text-sm px-3.5 sm:px-5 py-3 sm:py-2.5 min-h-[42px] sm:min-h-[38px] rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer ${
-                  totalCartCount > 0 && !isSubmittingWhatsAppOrder
+                  totalCartCount > 0 && !showWholesaleWarning && !isSubmittingWhatsAppOrder
                     ? 'bg-[#25D366] hover:bg-[#20bd5a] text-white active:scale-95 shadow-emerald-600/20'
                     : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
                 }`}
@@ -2101,10 +2296,10 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
               <button
                 type="button"
                 id="quick-buy-checkout-btn"
-                onClick={onProceedToCheckout}
-                disabled={totalCartCount === 0}
+                onClick={() => handleInitiatePurchase('normal')}
+                disabled={totalCartCount === 0 || showWholesaleWarning}
                 className={`font-bold text-xs sm:text-sm px-3 sm:px-4 py-3 sm:py-2.5 min-h-[42px] sm:min-h-[38px] rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer ${
-                  totalCartCount > 0
+                  totalCartCount > 0 && !showWholesaleWarning
                     ? 'bg-[#0058bb] hover:bg-[#004bb0] text-white active:scale-95'
                     : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
                 }`}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Product, Category } from '../types';
 import { getStorefrontCategories, filterProductsByCategory, slugifyCategory } from '../utils/categoryHelpers';
 import { isProductCompletelyOutOfStock, getProductCoverImage } from '../utils/variantHelpers';
@@ -12,8 +12,68 @@ import {
   buildStandaloneVariantCards,
   getStandaloneVariantsConfig,
   StandaloneVariantsConfig,
+  StandaloneVariantCard,
   fetchStandaloneVariantsFromSupabase,
 } from '../services/standaloneVariants';
+
+/**
+ * Desplaza suavemente un contenedor scrollable con aceleración y desaceleración fluidas (easeInOutCubic)
+ * garantizando una duración perceptible de ~500ms, cancelable si el usuario interactúa manualmente.
+ */
+const smoothScrollContainer = (
+  container: HTMLElement,
+  targetScrollLeft: number,
+  duration = 500
+) => {
+  const maxScroll = container.scrollWidth - container.clientWidth;
+  const clampedTarget = Math.max(0, Math.min(targetScrollLeft, maxScroll));
+  const startScrollLeft = container.scrollLeft;
+  const distance = clampedTarget - startScrollLeft;
+  if (Math.abs(distance) < 2) return;
+
+  const originalScrollBehavior = container.style.scrollBehavior;
+  container.style.scrollBehavior = 'auto';
+
+  let startTime: number | null = null;
+  let animationFrameId: number;
+
+  const easeInOutCubic = (t: number): number => {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  };
+
+  const cleanup = () => {
+    cancelAnimationFrame(animationFrameId);
+    container.removeEventListener('touchstart', onUserInteract);
+    container.removeEventListener('wheel', onUserInteract);
+    container.removeEventListener('mousedown', onUserInteract);
+    container.style.scrollBehavior = originalScrollBehavior;
+  };
+
+  const onUserInteract = () => {
+    cleanup();
+  };
+
+  container.addEventListener('touchstart', onUserInteract, { passive: true });
+  container.addEventListener('wheel', onUserInteract, { passive: true });
+  container.addEventListener('mousedown', onUserInteract, { passive: true });
+
+  const step = (currentTime: number) => {
+    if (!startTime) startTime = currentTime;
+    const elapsed = currentTime - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const ease = easeInOutCubic(progress);
+
+    container.scrollLeft = startScrollLeft + distance * ease;
+
+    if (progress < 1) {
+      animationFrameId = requestAnimationFrame(step);
+    } else {
+      cleanup();
+    }
+  };
+
+  animationFrameId = requestAnimationFrame(step);
+};
 
 interface CategoryViewProps {
   categoryName: string;
@@ -36,12 +96,29 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'recommended' | 'price-asc' | 'price-desc' | 'best-sellers'>('recommended');
+  const navPillsContainerRef = useRef<HTMLDivElement>(null);
 
   // Extract all visible storefront categories for quick navigation pills
   const storefrontCategories = useMemo(
     () => getStorefrontCategories(categories, products),
     [categories, products]
   );
+
+  // Desplazamiento automático suave (500ms) de la barra "Otras categorías" hasta posicionar la categoría seleccionada en el extremo izquierdo
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const container = navPillsContainerRef.current;
+      if (!container) return;
+
+      const activeBtn = container.querySelector('[data-active="true"]:not(.hidden)') as HTMLElement | null;
+      if (activeBtn) {
+        const targetScroll = Math.max(0, activeBtn.offsetLeft);
+        smoothScrollContainer(container, targetScroll, 500);
+      }
+    }, 60);
+
+    return () => clearTimeout(timer);
+  }, [categoryName, storefrontCategories]);
 
   // 1. Filter products belonging dynamically to this category or subcategory from database
   const categoryProducts = useMemo(() => {
@@ -116,9 +193,29 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
     return found;
   }, [storefrontCategories, categories, categoryName, categoryProducts]);
 
-  // 2. Apply search within this category and sorting
-  const displayedProducts = useMemo(() => {
-    let result = categoryProducts.filter((p) => {
+  // Helper para obtener el timestamp de creación exacto (de fecha ISO o timestamp en el ID)
+  const getItemCreationTime = (item: { createdAt?: string; id?: string }): number => {
+    if (item.createdAt) {
+      const t = new Date(item.createdAt).getTime();
+      if (!isNaN(t) && t > 0) return t;
+      const num = Number(item.createdAt);
+      if (!isNaN(num) && num > 0) return num;
+    }
+    if (item.id) {
+      const match = item.id.match(/(\d{10,13})/);
+      if (match) {
+        const extracted = Number(match[1]);
+        if (!isNaN(extracted) && extracted > 1000000000) {
+          return extracted < 10000000000 ? extracted * 1000 : extracted;
+        }
+      }
+    }
+    return 0;
+  };
+
+  // 2. Filtrar publicaciones según búsqueda
+  const filteredCategoryProducts = useMemo(() => {
+    return categoryProducts.filter((p) => {
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       return (
@@ -127,23 +224,59 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
         (p.subcategory && p.subcategory.toLowerCase().includes(q))
       );
     });
+  }, [categoryProducts, searchQuery]);
+
+  // 3. Unifica publicaciones y variantes independientes en un único listado cronológico
+  type CategoryGridItem =
+    | { kind: 'product'; id: string; product: Product; createdAt?: string; wholesalePrice: number; isBestSeller?: boolean }
+    | { kind: 'variant'; id: string; card: StandaloneVariantCard; createdAt?: string; wholesalePrice: number; isBestSeller?: boolean };
+
+  const categoryGridItems = useMemo<CategoryGridItem[]>(() => {
+    const list: CategoryGridItem[] = [
+      ...filteredCategoryProducts.map((p) => ({
+        kind: 'product' as const,
+        id: p.id,
+        product: p,
+        createdAt: p.createdAt,
+        wholesalePrice: p.wholesalePrice,
+        isBestSeller: p.isBestSeller,
+      })),
+      ...standaloneVariantCards.map((c) => ({
+        kind: 'variant' as const,
+        id: c.id,
+        card: c,
+        createdAt: c.createdAt || c.originalProduct?.createdAt,
+        wholesalePrice: c.wholesalePrice,
+        isBestSeller: c.isBestSeller,
+      })),
+    ];
 
     switch (sortBy) {
       case 'price-asc':
-        result.sort((a, b) => a.wholesalePrice - b.wholesalePrice);
+        list.sort((a, b) => a.wholesalePrice - b.wholesalePrice);
         break;
       case 'price-desc':
-        result.sort((a, b) => b.wholesalePrice - a.wholesalePrice);
+        list.sort((a, b) => b.wholesalePrice - a.wholesalePrice);
         break;
       case 'best-sellers':
-        result.sort((a, b) => (b.isBestSeller ? 1 : 0) - (a.isBestSeller ? 1 : 0));
+        list.sort((a, b) => (b.isBestSeller ? 1 : 0) - (a.isBestSeller ? 1 : 0));
         break;
+      case 'recommended':
       default:
+        // Orden cronológico de creación: de más reciente a más antiguo
+        list.sort((a, b) => {
+          const timeA = getItemCreationTime(a);
+          const timeB = getItemCreationTime(b);
+          if (timeA !== timeB) {
+            return timeB - timeA;
+          }
+          return b.id.localeCompare(a.id);
+        });
         break;
     }
 
-    return result;
-  }, [categoryProducts, searchQuery, sortBy]);
+    return list;
+  }, [filteredCategoryProducts, standaloneVariantCards, sortBy]);
 
   return (
     <div className="max-w-[1240px] mx-auto px-2 sm:px-4 py-2 sm:py-3 space-y-1.5 sm:space-y-2.5 animate-fadeIn">
@@ -179,10 +312,14 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
         <div className="flex items-center justify-between text-xs font-semibold text-gray-600">
           <span>Otras categorías</span>
         </div>
-        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-0.5 no-scrollbar">
+        <div
+          ref={navPillsContainerRef}
+          className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-0.5 no-scrollbar"
+        >
           <button
             onClick={() => onSelectCategory('Todo')}
-            className={`px-3 sm:px-3.5 py-1.5 text-xs font-medium rounded-full transition-all whitespace-nowrap cursor-pointer border ${
+            data-active={categoryName.toLowerCase() === 'todo'}
+            className={`hidden px-3 sm:px-3.5 py-1.5 text-xs font-medium rounded-full transition-all whitespace-nowrap cursor-pointer border ${
               categoryName.toLowerCase() === 'todo'
                 ? 'bg-[#0058bb] text-white border-[#0058bb] shadow-xs font-semibold'
                 : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
@@ -198,6 +335,7 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
             return (
               <button
                 key={cat.id ? `${cat.id}-${idx}` : `${cat.name}-${idx}`}
+                data-active={isSelected}
                 onClick={() => onSelectCategory(cat.name)}
                 className={`px-3 sm:px-3.5 py-1.5 text-xs font-medium rounded-full transition-all whitespace-nowrap cursor-pointer border flex items-center gap-1.5 sm:gap-2 ${
                   isSelected
@@ -261,11 +399,11 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
       </div>
 
       {/* Products Grid */}
-      {isLoadingData && displayedProducts.length === 0 && standaloneVariantCards.length === 0 ? (
+      {isLoadingData && categoryGridItems.length === 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-3.5">
           <ProductGridSkeleton count={10} />
         </div>
-      ) : displayedProducts.length === 0 && standaloneVariantCards.length === 0 ? (
+      ) : categoryGridItems.length === 0 ? (
         <div className="text-center py-10 sm:py-14 bg-white rounded-xl border-0 sm:border border-gray-200 p-6 sm:p-8 space-y-3 shadow-xs">
           <ShoppingBag className="w-12 h-12 text-gray-300 mx-auto" />
           <h3 className="text-base font-bold text-gray-800">
@@ -295,48 +433,49 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-3.5">
-          {displayedProducts.map((product) => {
-            const isOutOfStock = isProductCompletelyOutOfStock(product);
+          {categoryGridItems.map((item) => {
+            if (item.kind === 'product') {
+              const product = item.product;
+              const isOutOfStock = isProductCompletelyOutOfStock(product);
 
-            return (
-              <div
-                key={product.id}
-                id={`category-product-${product.id}`}
-                onClick={() => onSelectProduct(product)}
-                className="group bg-white rounded-xl border border-gray-100 sm:border-gray-200/90 overflow-hidden shadow-2xs hover:shadow-lg hover:border-[#0058bb]/50 transition-all cursor-pointer flex flex-col"
-              >
-                {/* Thumbnail with object-cover and zero margin */}
-                <div className="relative aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
-                  <ImageWithSkeleton
-                    src={getProductCoverImage(product)}
-                    alt={product.title}
-                    targetWidth={480}
-                    quality={75}
-                    className={`w-full h-full object-cover ${
-                      isOutOfStock ? 'opacity-60 grayscale-[30%]' : 'group-hover:scale-105'
-                    } transition-transform duration-300`}
-                  />
-                  <ProductCardBadge product={product} />
-                  {isOutOfStock && (
-                    <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded shadow-xs z-10">
-                      Sin stock
-                    </span>
-                  )}
+              return (
+                <div
+                  key={product.id}
+                  id={`category-product-${product.id}`}
+                  onClick={() => onSelectProduct(product)}
+                  className="group bg-white rounded-xl border border-gray-100 sm:border-gray-200/90 overflow-hidden shadow-2xs hover:shadow-lg hover:border-[#0058bb]/50 transition-all cursor-pointer flex flex-col"
+                >
+                  {/* Thumbnail with object-cover and zero margin */}
+                  <div className="relative aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
+                    <ImageWithSkeleton
+                      src={getProductCoverImage(product)}
+                      alt={product.title}
+                      targetWidth={480}
+                      quality={75}
+                      className={`w-full h-full object-cover ${
+                        isOutOfStock ? 'opacity-60 grayscale-[30%]' : 'group-hover:scale-105'
+                      } transition-transform duration-300`}
+                    />
+                    <ProductCardBadge product={product} />
+                    {isOutOfStock && (
+                      <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded shadow-xs z-10">
+                        Sin stock
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Info */}
+                  <div className="px-2 py-2 sm:px-2.5 sm:py-3 flex-1 flex flex-col justify-between space-y-1 sm:space-y-1.5">
+                    <h3 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
+                      {product.title}
+                    </h3>
+                    <ProductCardPrice product={product} />
+                  </div>
                 </div>
+              );
+            }
 
-                {/* Info */}
-                <div className="px-2 py-2 sm:px-2.5 sm:py-3 flex-1 flex flex-col justify-between space-y-1 sm:space-y-1.5">
-                  <h3 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
-                    {product.title}
-                  </h3>
-                  <ProductCardPrice product={product} />
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Tarjetas independientes de variantes seleccionadas */}
-          {standaloneVariantCards.map((card) => {
+            const card = item.card;
             return (
               <div
                 key={card.id}

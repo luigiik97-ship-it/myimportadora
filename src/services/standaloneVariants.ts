@@ -40,6 +40,7 @@ export interface StandaloneVariantCard {
   isOutOfStock: boolean;
   isBestSeller?: boolean;
   virtualProduct: Product;
+  createdAt?: string;
 }
 
 export const STORAGE_KEY_STANDALONE_VARIANTS = 'my_commerce_standalone_variants_v1';
@@ -269,6 +270,7 @@ export const buildStandaloneVariantCards = (
       isOutOfStock,
       isBestSeller: prod.isBestSeller,
       virtualProduct,
+      createdAt: item.createdAt || prod.createdAt,
     });
   }
 

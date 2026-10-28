@@ -32,6 +32,13 @@ import {
   fetchStandaloneVariantsFromSupabase,
 } from '../services/standaloneVariants';
 import { StoreVideo } from '../types';
+import { prefetchImage } from '../utils/imageOptimizer';
+
+const SHIPPING_METHOD_IMAGES = [
+  'https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/btgh.jpg',
+  'https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/btgf.jpg',
+  'https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/bgt.jpg',
+];
 
 interface HomeViewProps {
   products: Product[];
@@ -189,6 +196,62 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const rawHeroBanners = useMemo(() => getNormalizedHeroBanners(storeBanners), [storeBanners]);
   const secondaryBanners1 = useMemo(() => getNormalizedSecondaryBanners1(storeBanners), [storeBanners]);
   const secondaryBanners2 = useMemo(() => getNormalizedSecondaryBanners2(storeBanners), [storeBanners]);
+
+  // Precarga inteligente en segundo plano de imágenes críticas inferiores (Formas de envío, Exhibición y banners secundarios)
+  // Aprovecha el tiempo de reposo del usuario en la parte superior sin competir con los recursos LCP iniciales
+  useEffect(() => {
+    let idleId: number | undefined;
+    let timeoutId: number | undefined;
+
+    const performAnticipatedPreload = () => {
+      // 1. Formas de envío (Prioridad absoluta: Uber Moto, Flex, Correo Argentino)
+      SHIPPING_METHOD_IMAGES.forEach((url) => prefetchImage(url));
+
+      // 2. Exhibición (si está configurada en storeBanners)
+      if (storeBanners.showroomImage && storeBanners.showroomImage.trim()) {
+        prefetchImage(storeBanners.showroomImage.trim());
+      }
+
+      // 3. Primer banner de cada bloque secundario intermedio
+      if (secondaryBanners1[0]?.imageUrl) {
+        prefetchImage(secondaryBanners1[0].imageUrl);
+      }
+      if (secondaryBanners2[0]?.imageUrl) {
+        prefetchImage(secondaryBanners2[0].imageUrl);
+      }
+    };
+
+    if (typeof window === 'undefined') return;
+
+    // Si el usuario empieza a desplazarse antes del idle timer, disparar de inmediato
+    const handleInitialScroll = () => {
+      performAnticipatedPreload();
+      window.removeEventListener('scroll', handleInitialScroll);
+    };
+
+    window.addEventListener('scroll', handleInitialScroll, { passive: true, once: true });
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleId = (window as any).requestIdleCallback(
+        () => performAnticipatedPreload(),
+        { timeout: 2000 }
+      );
+    } else {
+      timeoutId = setTimeout(performAnticipatedPreload, 1500) as unknown as number;
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('scroll', handleInitialScroll);
+        if (idleId && 'cancelIdleCallback' in window) {
+          (window as any).cancelIdleCallback(idleId);
+        }
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [storeBanners.showroomImage, secondaryBanners1, secondaryBanners2]);
 
   const hasCustomImages = useMemo(() => {
     return rawHeroBanners.some((b) => Boolean(b.imageUrl && b.imageUrl.trim()));
@@ -663,12 +726,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <div className="flex items-center justify-between">
             <h2 className="inline-flex items-center">
               <img
-                src="https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/yjgjghkutut.png?v=3"
-                alt="Más vendidos"
+                src="/assets/aistudio/iououioiiiioi_493c9e34.png"
+                alt="Tendencias"
                 className="h-[24px] sm:h-[27px] md:h-[31px] w-auto object-contain select-none pointer-events-none rounded-[6px] sm:rounded-[7px]"
                 draggable={false}
               />
-              <span className="sr-only">Más vendidos</span>
+              <span className="sr-only">Tendencias</span>
             </h2>
           </div>
 
@@ -908,9 +971,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 className="w-full h-full object-cover [image-rendering:-webkit-optimize-contrast] [image-rendering:high-quality] [transform:translateZ(0)] [backface-visibility:hidden]"
                 width={2038}
                 height={512}
-                loading="lazy"
+                loading="eager"
                 decoding="async"
-                referrerPolicy="no-referrer"
               />
             </div>
 
@@ -922,9 +984,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 className="w-full h-full object-cover [image-rendering:-webkit-optimize-contrast] [image-rendering:high-quality] [transform:translateZ(0)] [backface-visibility:hidden]"
                 width={2038}
                 height={512}
-                loading="lazy"
+                loading="eager"
                 decoding="async"
-                referrerPolicy="no-referrer"
               />
             </div>
 
@@ -936,9 +997,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 className="w-full h-full object-cover [image-rendering:-webkit-optimize-contrast] [image-rendering:high-quality] [transform:translateZ(0)] [backface-visibility:hidden]"
                 width={2038}
                 height={512}
-                loading="lazy"
+                loading="eager"
                 decoding="async"
-                referrerPolicy="no-referrer"
               />
             </div>
           </div>
@@ -1034,7 +1094,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <img
                 src={storeBanners.showroomImage}
                 alt="Exhibición"
-                loading="lazy"
+                loading="eager"
                 decoding="async"
                 className={`w-full h-full object-cover ${
                   storeBanners.showroomImageLink ? 'group-hover:scale-105 transition-transform duration-500' : 'hover:scale-105 transition-transform duration-500'

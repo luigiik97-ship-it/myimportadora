@@ -453,3 +453,27 @@ export const getOptimizationStatsForUrl = (url?: string | null): OptimizationRes
   } catch {}
   return null;
 };
+
+// Set en memoria para registrar URLs ya precargadas y evitar descargas duplicadas
+const preloadedImageUrls = new Set<string>();
+
+/**
+ * Precarga de forma inteligente una imagen en segundo plano con baja prioridad,
+ * asegurando que esté disponible en la caché de memoria del navegador sin competir
+ * con los recursos críticos iniciales (LCP).
+ */
+export const prefetchImage = (url?: string | null): void => {
+  if (!url || typeof url !== 'string') return;
+  const cleanUrl = url.trim();
+  if (!cleanUrl || preloadedImageUrls.has(cleanUrl)) return;
+  preloadedImageUrls.add(cleanUrl);
+
+  try {
+    const img = new Image();
+    if ('fetchPriority' in img) {
+      (img as any).fetchPriority = 'low';
+    }
+    img.decoding = 'async';
+    img.src = cleanUrl;
+  } catch {}
+};

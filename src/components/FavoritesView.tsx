@@ -59,9 +59,7 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
                 </div>
               </div>
               <p className="text-xs sm:text-sm text-gray-500 leading-snug">
-                Tus publicaciones favoritas guardadas
-                <br />
-                agrega y quita publicaciones apretando el icono de corazón
+                Tus publicaciones favoritas guardadas, agrega y quita publicaciones apretando el icono de corazón
               </p>
             </div>
           </div>
