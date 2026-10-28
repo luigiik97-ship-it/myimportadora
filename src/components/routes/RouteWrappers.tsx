@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams, Navigate } from 'react-router-
 import { ArrowLeft, ShoppingBag } from 'lucide-react';
 import { Product, Category, SizeVariant, Order, CartItem, UserProfile } from '../../types';
 import { slugifyCategory, isObsoleteDefaultCategory } from '../../utils/categoryHelpers';
+import { normalizeVariantTypes } from '../../utils/variantHelpers';
 import { fetchSingleProduct } from '../../services/supabase';
 import { ProductDetailView } from '../ProductDetailView';
 import { CategoryView } from '../CategoryView';
@@ -58,40 +59,90 @@ export function ProductDetailRouteWrapper({
   const [directProduct, setDirectProduct] = useState<Product | null>(null);
   const [isFetchingDirect, setIsFetchingDirect] = useState<boolean>(false);
 
+  // Derivar de forma síncrona e inmediata el producto desde la lista en memoria (sin latencia ni parpadeos)
   const productFromList = useMemo(() => {
     return products.find((p) => String(p.id) === String(productId));
   }, [products, productId]);
 
-  // Si no está en lista o para asegurar datos 100% frescos de stock y precios al entrar a /producto/:id
+  // Si no está en la lista en memoria (ej. acceso directo por URL o recarga fría),
+  // consultar Supabase de forma protegida para cargar exclusivamente el producto solicitado.
   useEffect(() => {
-    if (productId) {
-      if (!productFromList) {
-        setIsFetchingDirect(true);
-      }
+    let isMounted = true;
+    // Limpiar inmediatamente directProduct al cambiar de productId para evitar retener información desactualizada
+    setDirectProduct(null);
+
+    if (productId && !productFromList) {
+      setIsFetchingDirect(true);
       fetchSingleProduct(productId)
         .then((fetched) => {
-          if (fetched) {
+          if (isMounted && fetched && String(fetched.id) === String(productId)) {
             setDirectProduct(fetched);
           }
         })
+        .catch((err) => {
+          console.warn('Error cargando producto directamente:', err);
+        })
         .finally(() => {
-          setIsFetchingDirect(false);
+          if (isMounted) {
+            setIsFetchingDirect(false);
+          }
         });
+    } else {
+      setIsFetchingDirect(false);
     }
-  }, [productId, productFromList]);
 
-  const product = directProduct || productFromList;
+    return () => {
+      isMounted = false;
+    };
+  }, [productId, Boolean(productFromList)]);
+
+  // Validar estrictamente que directProduct pertenezca al productId actual (evita datos desactualizados)
+  const activeDirectProduct =
+    directProduct && String(directProduct.id) === String(productId)
+      ? directProduct
+      : null;
+
+  // Priorizar el producto de la lista (inmediato, sin espera ni parpadeo) o el obtenido directamente
+  const product = productFromList || activeDirectProduct;
 
   const resolvedInitialVariants = useMemo(() => {
-    if (selectedProductVariants && Object.keys(selectedProductVariants).length > 0) {
-      return selectedProductVariants;
-    }
+    if (!product) return undefined;
     const variantFromUrl = searchParams.get('variante') || searchParams.get('variantOption') || searchParams.get('opt');
-    if (variantFromUrl && product) {
+    if (variantFromUrl) {
       return { variantOption: variantFromUrl };
+    }
+    // Solo aplicar selectedProductVariants si pertenecen genuinamente a las opciones de este producto
+    if (selectedProductVariants && Object.keys(selectedProductVariants).length > 0) {
+      const normTypes = normalizeVariantTypes(product);
+      const isRelevantToThisProduct = normTypes.some((vt) =>
+        vt.options?.some((opt) =>
+          Object.values(selectedProductVariants).some(
+            (v) => v && (String(v).toLowerCase() === opt.name.toLowerCase() || String(v).toLowerCase() === opt.id.toLowerCase())
+          )
+        )
+      );
+      if (isRelevantToThisProduct) {
+        return selectedProductVariants;
+      }
     }
     return undefined;
   }, [selectedProductVariants, searchParams, product]);
+
+  const resolvedInitialImage = useMemo(() => {
+    if (!selectedProductImage || !product) return undefined;
+    const allImages = new Set<string>();
+    if (Array.isArray(product.images)) {
+      product.images.forEach((img) => img && allImages.add(img));
+    }
+    if (Array.isArray(product.variantTypes)) {
+      product.variantTypes.forEach((vt) => {
+        vt.options?.forEach((opt) => {
+          opt.images?.forEach((img) => img && allImages.add(img));
+        });
+      });
+    }
+    return allImages.has(selectedProductImage) ? selectedProductImage : undefined;
+  }, [selectedProductImage, product]);
 
   if ((isLoadingData && products.length === 0) || isFetchingDirect) {
     return (
@@ -148,11 +199,12 @@ export function ProductDetailRouteWrapper({
 
   return (
     <ProductDetailView
+      key={product.id}
       product={product}
       allProducts={products}
       cartItems={cartItems}
       initialSelectedVariants={resolvedInitialVariants}
-      initialSelectedImage={selectedProductImage}
+      initialSelectedImage={resolvedInitialImage}
       backLabel={
         previousView === 'quick_buy'
           ? 'Volver a Compra Rápida'

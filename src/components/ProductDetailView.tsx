@@ -927,9 +927,18 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     touchStartY.current = null;
   };
 
-  const relatedProducts = allProducts
-    .filter((p) => p.id !== product.id && (p.category === product.category || p.isBestSeller))
-    .slice(0, 4);
+  const relatedProducts = useMemo(() => {
+    const primary = allProducts.filter(
+      (p) => p.id !== product.id && (p.category === product.category || p.isBestSeller)
+    );
+    if (primary.length >= 8) {
+      return primary.slice(0, 8);
+    }
+    const remaining = allProducts.filter(
+      (p) => p.id !== product.id && !primary.some((pr) => pr.id === p.id)
+    );
+    return [...primary, ...remaining].slice(0, 8);
+  }, [allProducts, product.id, product.category]);
 
   // --- Shipping Calculator (Informativo) ---
   // Prioridad por rapidez: Uber Moto (1) -> Envío Flex (2) -> Correo Argentino (3) -> Sucursal (4)
@@ -2136,43 +2145,49 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
           Productos Relacionados
         </h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
-          {relatedProducts.map((rel) => (
-            <div
-              key={rel.id}
-              id={`related-product-card-${rel.id}`}
-              onClick={() => onSelectRelated(rel)}
-              className="group bg-white rounded-xl border border-gray-100 sm:border-gray-200/90 overflow-hidden shadow-2xs sm:shadow-xs hover:shadow-lg hover:border-[#0058bb]/50 transition-all cursor-pointer flex flex-col"
-            >
-              <div className="relative aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
-                <ImageWithSkeleton
-                  src={(rel.images && rel.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'}
-                  alt={rel.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                <ProductCardBadge product={rel} />
-              </div>
-              <div className="px-2 py-2 sm:px-2.5 sm:py-3 flex-1 flex flex-col justify-between space-y-1 sm:space-y-1.5">
-                <h4 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
-                  {rel.title}
-                </h4>
-                <div className="pt-0 sm:pt-0.5">
-                  <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap min-w-0">
-                    <span className="text-sm sm:text-base font-bold text-gray-900 font-['Montserrat'] shrink-0">
-                      ${rel.wholesalePrice.toLocaleString('es-AR')}
-                    </span>
-                    <span className="inline-flex items-center text-[11px] sm:text-[13.2px] font-semibold bg-[#16a34a] text-white px-1 py-0.5 rounded leading-tight shrink min-w-0">
-                      <span className="overflow-hidden whitespace-nowrap text-clip block min-w-0">
-                        desde {rel.minWholesaleQty} unids
+          {relatedProducts.map((rel) => {
+            const relPrices = getResolvedProductPrices(rel);
+            const relWholesalePrice = isCashMode ? relPrices.wholesaleCashPrice : relPrices.wholesalePrice;
+            const relRetailPrice = isCashMode ? relPrices.retailCashPrice : relPrices.retailPrice;
+
+            return (
+              <div
+                key={rel.id}
+                id={`related-product-card-${rel.id}`}
+                onClick={() => onSelectRelated(rel)}
+                className="group bg-white rounded-xl border border-gray-100 sm:border-gray-200/90 overflow-hidden shadow-2xs sm:shadow-xs hover:shadow-lg hover:border-[#0058bb]/50 transition-all cursor-pointer flex flex-col"
+              >
+                <div className="relative aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
+                  <ImageWithSkeleton
+                    src={(rel.images && rel.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'}
+                    alt={rel.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <ProductCardBadge product={rel} />
+                </div>
+                <div className="px-2 py-2 sm:px-2.5 sm:py-3 flex-1 flex flex-col justify-between space-y-1 sm:space-y-1.5">
+                  <h4 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
+                    {rel.title}
+                  </h4>
+                  <div className="pt-0 sm:pt-0.5">
+                    <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap min-w-0">
+                      <span className="text-sm sm:text-base font-bold text-gray-900 font-['Montserrat'] shrink-0">
+                        ${relWholesalePrice.toLocaleString('es-AR')}
                       </span>
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-500 font-normal mt-0.5">
-                    1 unidad ${rel.retailPrice.toLocaleString('es-AR')}
+                      <span className="inline-flex items-center text-[11px] sm:text-[13.2px] font-semibold bg-[#16a34a] text-white px-1 py-0.5 rounded leading-tight shrink min-w-0">
+                        <span className="overflow-hidden whitespace-nowrap text-clip block min-w-0">
+                          desde {rel.minWholesaleQty || 1} unids
+                        </span>
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500 font-normal mt-0.5">
+                      1 unidad ${relRetailPrice.toLocaleString('es-AR')}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 

@@ -973,7 +973,7 @@ export default function App() {
       ? `/producto/${product.id}?variante=${encodeURIComponent(variantParam)}`
       : `/producto/${product.id}`;
     navigate(targetUrl);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
   const handleGoHome = () => {
