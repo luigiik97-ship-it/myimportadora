@@ -195,7 +195,23 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   });
 
   // Active media index in the currently displayed gallery (0 = first image as principal)
-  const [activeMediaIndex, setActiveMediaIndex] = useState<number>(0);
+  const [activeMediaIndex, setActiveMediaIndex] = useState<number>(() => {
+    if (!initialSelectedImage) return 0;
+    const initialOpts = resolveInitialOptions(product, initialSelectedVariants);
+    const norm = normalizeVariantTypes(product);
+    let targetTypeId = norm[0]?.id;
+    if (initialSelectedVariants && Object.keys(initialSelectedVariants).length > 0) {
+      const matched = norm.find((vt) =>
+        Object.keys(initialSelectedVariants).some(
+          (k) => k.toLowerCase() === vt.id.toLowerCase() || k.toLowerCase() === vt.name.toLowerCase()
+        )
+      );
+      if (matched) targetTypeId = matched.id;
+    }
+    const baseImages = getActiveVariantImages(product, initialOpts, targetTypeId);
+    const idx = baseImages.findIndex((img) => img === initialSelectedImage);
+    return idx >= 0 ? idx : 0;
+  });
   const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState<boolean>(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
@@ -445,7 +461,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
       .join('|');
   }, [initialSelectedVariants]);
 
-  const lastInitializedKeyRef = useRef<string | null>(null);
+  const lastInitializedKeyRef = useRef<string | null>(`${product.id}-${initialVariantsKey}`);
 
   // Reset or initialize variant selections & active image when product or initial selection changes
   useEffect(() => {
@@ -472,7 +488,9 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
   // Solo aplicar la imagen inicial una única vez al entrar al producto/variante,
   // permitiendo luego que el usuario navegue libremente por todas las imágenes de la variante
-  const appliedInitialImageRef = useRef<string | null>(null);
+  const appliedInitialImageRef = useRef<string | null>(
+    initialSelectedImage ? `${product.id}-${initialSelectedImage}` : null
+  );
 
   useEffect(() => {
     if (!initialSelectedImage) return;
@@ -963,12 +981,32 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     return '';
   };
 
-  const [shippingCpInput, setShippingCpInput] = useState<string>('');
+  const [shippingCpInput, setShippingCpInput] = useState<string>(() => {
+    return getInitialStoredCp();
+  });
   const [shippingResult, setShippingResult] = useState<{
     cp: string;
     options: ShippingOption[];
-  } | null>(null);
-  const [selectedShippingOptionId, setSelectedShippingOptionId] = useState<string | null>(null);
+  } | null>(() => {
+    const saved = getInitialStoredCp();
+    if (!saved) return null;
+    const zoneInfo = getShippingZoneInfo(saved);
+    if (!zoneInfo || !zoneInfo.options || zoneInfo.options.length === 0) return null;
+    const sorted = [...zoneInfo.options].sort(
+      (a, b) => getShippingSpeedRank(a) - getShippingSpeedRank(b)
+    );
+    return { cp: saved, options: sorted };
+  });
+  const [selectedShippingOptionId, setSelectedShippingOptionId] = useState<string | null>(() => {
+    const saved = getInitialStoredCp();
+    if (!saved) return null;
+    try {
+      const preferred = localStorage.getItem('my_commerce_shipping_calc_option');
+      if (preferred) return preferred;
+    } catch {}
+    const zoneInfo = getShippingZoneInfo(saved);
+    return zoneInfo?.options?.[0]?.id || null;
+  });
   const [isShippingDropdownOpen, setIsShippingDropdownOpen] = useState<boolean>(false);
   const [shippingCalcError, setShippingCalcError] = useState<string | null>(null);
 
@@ -1044,8 +1082,16 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     prevCashModeRef.current = isCashMode;
   }, [isCashMode, handleClearShippingCp]);
 
-  // Recalcular automáticamente si hay CP guardado (al abrir otro producto)
+  const lastProcessedProductCpRef = useRef<string>(`${product.id}-${getInitialStoredCp()}`);
+
+  // Recalcular automáticamente si hay CP guardado (al cambiar a otro producto)
   useEffect(() => {
+    const currentKey = `${product.id}-${getInitialStoredCp()}`;
+    if (lastProcessedProductCpRef.current === currentKey) {
+      return;
+    }
+    lastProcessedProductCpRef.current = currentKey;
+
     if (isCashMode) {
       return;
     }
@@ -1065,7 +1111,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
       setIsShippingDropdownOpen(false);
       setShippingCalcError(null);
     }
-  }, [product.id]);
+  }, [product.id, isCashMode, calculateShippingForCp]);
 
   // Actualizar inmediatamente ante cambios de configuración de envíos desde administración
   useEffect(() => {
@@ -1162,8 +1208,8 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
   return (
     <div className="w-full max-w-[1240px] mx-auto px-0 sm:px-4 pt-0 sm:py-5 pb-3 sm:pb-6 space-y-3 sm:space-y-5 md:space-y-6 overflow-x-clip">
-      {/* Breadcrumbs (Hidden on mobile, visible on desktop) */}
-      <nav id="breadcrumbs" className="hidden md:flex items-center gap-2 text-sm text-gray-500 flex-wrap">
+      {/* Breadcrumbs (Hidden) */}
+      <nav id="breadcrumbs" className="hidden">
         <span className="hover:text-gray-800 cursor-pointer">{product.category}</span>
         {product.subcategory && (
           <>

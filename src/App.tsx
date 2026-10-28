@@ -161,7 +161,7 @@ export default function App() {
   const isFooterHiddenOnMobile = isCart || isCheckout || isConfirmation;
   const isAdmin = location.pathname === '/k97';
   const isProductDetail = location.pathname.startsWith('/producto');
-  const showTopBar = isHome || isCategory || isFavorites;
+  const showTopBar = isHome || isCategory || isFavorites || isProductDetail;
 
   // Dismiss cart notification immediately whenever navigating away from product_detail
   useEffect(() => {
@@ -955,7 +955,6 @@ export default function App() {
     initialImage?: string
   ) => {
     setCartNotification(null);
-    setSelectedProduct(product);
     setSelectedProductVariants(initialVariants);
     setSelectedProductImage(initialImage);
     const prev = location.pathname.includes('/compra-rapida')
@@ -973,7 +972,6 @@ export default function App() {
       ? `/producto/${product.id}?variante=${encodeURIComponent(variantParam)}`
       : `/producto/${product.id}`;
     navigate(targetUrl);
-    window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
   const handleGoHome = () => {

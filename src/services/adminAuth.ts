@@ -264,7 +264,7 @@ export const authenticateAdmin = async (
     if (!verifyAdminUsername(effectiveUser)) {
       return {
         success: false,
-        error: 'Acceso no autorizado. Debe ingresar en todo momento con la cuenta: MICHY.K97@GMAIL.COM',
+        error: 'Acceso no autorizado.',
       };
     }
 
@@ -332,8 +332,8 @@ export const authenticateAdmin = async (
       return {
         success: false,
         error: supabaseErrorMessage
-          ? `Error de acceso: ${supabaseErrorMessage}. Verifica la contraseña de tu cuenta MICHY.K97@GMAIL.COM en Supabase.`
-          : 'Contraseña de administrador incorrecta para MICHY.K97@GMAIL.COM.',
+          ? `Error de acceso: ${supabaseErrorMessage}. Verifica la contraseña de administrador.`
+          : 'Contraseña de administrador incorrecta.',
       };
     }
 

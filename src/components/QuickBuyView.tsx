@@ -1254,7 +1254,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3 md:gap-4">
             {/* Modalidad de Entrega */}
-            <div className="space-y-1.5 sm:space-y-1.5 md:space-y-2">
+            <div id="quick-buy-delivery-options" className="space-y-1.5 sm:space-y-1.5 md:space-y-2 scroll-mt-4">
               <label className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
                 <Truck className="w-3.5 h-3.5 text-[#0058bb]" />
                 OPCIONES DE ENTREGA
@@ -1641,14 +1641,16 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                 type="button"
                 id="quick-sticky-brand-logo-btn"
                 onClick={() => {
-                  if (onGoToHome) {
-                    onGoToHome();
+                  const target = document.getElementById('quick-buy-delivery-options');
+                  if (target) {
+                    const y = target.getBoundingClientRect().top + window.pageYOffset - 12;
+                    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
                   } else {
-                    handleScrollToCategory('all');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                   }
                 }}
                 className="p-1 rounded-xl bg-white border border-gray-200 hover:border-blue-400 hover:shadow-xs transition-all shrink-0 flex items-center justify-center cursor-pointer group active:scale-95"
-                title="Ir a la página de inicio"
+                title="Ir a opciones de entrega"
               >
                 <img
                   src="https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/fvbf.pnj.webp"
@@ -1666,7 +1668,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                   type="button"
                   id="quick-cat-tab-all"
                   onClick={() => handleScrollToCategory('all')}
-                  className={`px-3 py-1.5 rounded-full font-bold whitespace-nowrap cursor-pointer transition-all shrink-0 ${
+                  className={`hidden px-3 py-1.5 rounded-full font-bold whitespace-nowrap cursor-pointer transition-all shrink-0 ${
                     selectedCategoryTab === 'all'
                       ? 'bg-[#0058bb] text-white shadow-xs'
                       : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
@@ -1811,11 +1813,11 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                   {/* Lado derecho: Mensaje dinámico según estado */}
                   <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 text-right">
                     {activeCategoryWholesaleInfo.isReached ? (
-                      <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#00a650] shrink-0" />
+                      <CheckCircle2 className="hidden w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#00a650] shrink-0" />
                     ) : activeCategoryWholesaleInfo.catQtyInCart > 0 ? (
-                      <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0058bb] shrink-0" />
+                      <Sparkles className="hidden w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0058bb] shrink-0" />
                     ) : (
-                      <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 fill-amber-500 shrink-0" />
+                      <Zap className="hidden w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 fill-amber-500 shrink-0" />
                     )}
                     <span
                       className={`text-[11px] sm:text-xs leading-tight transition-colors ${
@@ -1829,7 +1831,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                       {activeCategoryWholesaleInfo.isReached ? (
                         '¡Alcanzaste el precio mayorista!'
                       ) : activeCategoryWholesaleInfo.catQtyInCart > 0 ? (
-                        'Para alcanzar el precio mayorista'
+                        'Para el precio mayorista'
                       ) : (
                         `Precio mayorista a partir de ${activeCategoryWholesaleInfo.sampleMinQty} unids`
                       )}
@@ -1902,20 +1904,35 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                   <div className="bg-transparent md:bg-gradient-to-r md:from-gray-50 md:via-white md:to-gray-50 px-2 sm:px-3.5 py-1.5 sm:py-2 border-b border-gray-200 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
                       <span className="w-2 h-2 rounded-full bg-[#0058bb] shrink-0" />
-                      <h2 className="text-xs sm:text-sm md:text-base font-black font-['Montserrat'] text-gray-900 uppercase tracking-tight truncate leading-none">
+                      <h2 className="text-sm sm:text-base font-black font-['Montserrat'] text-gray-900 uppercase tracking-tight truncate leading-none">
                         {pub.product.category || 'General'}
                       </h2>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleToggleFavorite(pub.product.id)}
-                      className="p-1 sm:p-1.5 min-w-[34px] min-h-[34px] flex items-center justify-center rounded-full text-red-500 hover:text-red-600 hover:bg-red-50 active:scale-90 transition-all cursor-pointer shrink-0 ml-auto"
-                      title={`Quitar ${pub.product.title} de mis favoritos`}
-                      aria-label={`Quitar ${pub.product.title} de mis favoritos`}
-                    >
-                      <Heart className="w-4 h-4 sm:w-4.5 sm:h-4.5 fill-red-500 text-red-500" />
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0 ml-auto">
+                      {catQtyInCart > 0 && (
+                        <span
+                          className={`inline-flex items-center text-[11px] sm:text-xs font-bold px-2.5 py-0.5 rounded-full border leading-tight ${
+                            isCategoryWholesaleReached
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                              : 'bg-blue-50 text-[#0058bb] border-blue-200'
+                          }`}
+                          title={isCategoryWholesaleReached ? 'Mejor precio aplicado' : `${catQtyInCart} de ${sampleMinQty} para mejor precio`}
+                        >
+                          {catQtyInCart}/{sampleMinQty}
+                        </span>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleFavorite(pub.product.id)}
+                        className="w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-full bg-white hover:bg-gray-50 active:scale-90 text-red-500 flex items-center justify-center shadow-md border border-gray-100 transition-all cursor-pointer shrink-0"
+                        title={`Quitar ${pub.product.title} de mis favoritos`}
+                        aria-label={`Quitar ${pub.product.title} de mis favoritos`}
+                      >
+                        <Heart className="w-4 h-4 sm:w-4.5 sm:h-4.5 fill-red-500 text-red-500 pointer-events-none" />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="divide-y divide-gray-100 bg-white md:bg-transparent rounded-xl md:rounded-none border border-gray-200/80 md:border-0 overflow-hidden shadow-2xs md:shadow-none">

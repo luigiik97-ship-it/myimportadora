@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useLayoutEffect } from 'react';
 import { useParams, useNavigate, useSearchParams, Navigate } from 'react-router-dom';
 import { ArrowLeft, ShoppingBag } from 'lucide-react';
 import { Product, Category, SizeVariant, Order, CartItem, UserProfile } from '../../types';
@@ -56,40 +56,46 @@ export function ProductDetailRouteWrapper({
   const { productId } = useParams<{ productId: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  // Scroll a la parte superior inmediatamente antes del primer pintado (elimina cualquier visualización del contenido anterior)
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [productId]);
+
   const [directProduct, setDirectProduct] = useState<Product | null>(null);
   const [isFetchingDirect, setIsFetchingDirect] = useState<boolean>(false);
 
-  // Derivar de forma síncrona e inmediata el producto desde la lista en memoria (sin latencia ni parpadeos)
+  // Derivar de forma síncrona e inmediata el producto desde la lista en memoria (igual que navegación por categorías)
   const productFromList = useMemo(() => {
+    if (!productId) return undefined;
     return products.find((p) => String(p.id) === String(productId));
   }, [products, productId]);
 
   // Si no está en la lista en memoria (ej. acceso directo por URL o recarga fría),
   // consultar Supabase de forma protegida para cargar exclusivamente el producto solicitado.
   useEffect(() => {
-    let isMounted = true;
-    // Limpiar inmediatamente directProduct al cambiar de productId para evitar retener información desactualizada
-    setDirectProduct(null);
-
-    if (productId && !productFromList) {
-      setIsFetchingDirect(true);
-      fetchSingleProduct(productId)
-        .then((fetched) => {
-          if (isMounted && fetched && String(fetched.id) === String(productId)) {
-            setDirectProduct(fetched);
-          }
-        })
-        .catch((err) => {
-          console.warn('Error cargando producto directamente:', err);
-        })
-        .finally(() => {
-          if (isMounted) {
-            setIsFetchingDirect(false);
-          }
-        });
-    } else {
-      setIsFetchingDirect(false);
+    if (!productId || productFromList) {
+      if (directProduct) setDirectProduct(null);
+      if (isFetchingDirect) setIsFetchingDirect(false);
+      return;
     }
+
+    let isMounted = true;
+    setIsFetchingDirect(true);
+    fetchSingleProduct(productId)
+      .then((fetched) => {
+        if (isMounted && fetched && String(fetched.id) === String(productId)) {
+          setDirectProduct(fetched);
+        }
+      })
+      .catch((err) => {
+        console.warn('Error cargando producto directamente:', err);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsFetchingDirect(false);
+        }
+      });
 
     return () => {
       isMounted = false;

@@ -491,7 +491,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 setIsCategoriesOpen(false);
                 onSelectCategory('Todo');
               }}
-              className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer ${
+              className={`hidden md:inline-block px-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer ${
                 currentCategory === 'Todo'
                   ? 'bg-white text-[#0058bb] shadow-sm font-semibold'
                   : 'text-white/90 hover:bg-white/15'
