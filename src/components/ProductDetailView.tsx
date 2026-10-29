@@ -1339,32 +1339,8 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   </span>
                 </div>
               )}
-              {/* Botones de acción en la esquina superior derecha: Favorito y Compartir */}
-              <div className="absolute top-2.5 right-2.5 sm:top-4 sm:right-4 z-30 flex items-center gap-2">
-                <button
-                  type="button"
-                  id="btn-favorite-product-detail"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onTouchStart={(e) => e.stopPropagation()}
-                  onTouchMove={(e) => e.stopPropagation()}
-                  onTouchEnd={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    handleToggleFavorite(e);
-                  }}
-                  onClick={handleToggleFavorite}
-                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/95 hover:bg-white active:scale-95 flex items-center justify-center shadow-sm border border-gray-200/90 backdrop-blur-xs transition-all cursor-pointer touch-manipulation ${
-                    isFav ? 'text-red-500' : 'text-gray-700 hover:text-gray-950'
-                  }`}
-                  aria-label={isFav ? 'Quitar de mis favoritos' : 'Guardar en mis favoritos'}
-                  title={isFav ? 'Quitar de mis favoritos' : 'Guardar en mis favoritos'}
-                >
-                  <Heart
-                    className={`w-4 h-4 md:w-5 md:h-5 pointer-events-none transition-transform ${
-                      isFav ? 'fill-red-500 text-red-500 scale-110' : ''
-                    }`}
-                  />
-                </button>
+              {/* Botones de acción en la esquina superior derecha: Compartir arriba y Favorito debajo */}
+              <div className="absolute top-2.5 right-2.5 sm:top-4 sm:right-4 z-30 flex flex-col items-center gap-2">
                 <button
                   type="button"
                   id="btn-share-product-detail"
@@ -1389,6 +1365,30 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   title="Compartir producto"
                 >
                   <Share2 className="w-4 h-4 md:w-5 md:h-5 text-gray-700 hover:text-gray-950 pointer-events-none" />
+                </button>
+                <button
+                  type="button"
+                  id="btn-favorite-product-detail"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchMove={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    handleToggleFavorite(e);
+                  }}
+                  onClick={handleToggleFavorite}
+                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/95 hover:bg-white active:scale-95 flex items-center justify-center shadow-sm border border-gray-200/90 backdrop-blur-xs transition-all cursor-pointer touch-manipulation ${
+                    isFav ? 'text-red-500' : 'text-gray-700 hover:text-gray-950'
+                  }`}
+                  aria-label={isFav ? 'Quitar de mis favoritos' : 'Guardar en mis favoritos'}
+                  title={isFav ? 'Quitar de mis favoritos' : 'Guardar en mis favoritos'}
+                >
+                  <Heart
+                    className={`w-4 h-4 md:w-5 md:h-5 pointer-events-none transition-transform ${
+                      isFav ? 'fill-red-500 text-red-500 scale-110' : ''
+                    }`}
+                  />
                 </button>
               </div>
               {galleryMedia[activeMediaIndex]?.type === 'video' ? (

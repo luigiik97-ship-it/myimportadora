@@ -1808,14 +1808,15 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                   type="button"
                   id="quick-cat-tab-favorites"
                   onClick={() => handleScrollToCategory('favorites')}
-                  className={`h-[30px] px-3 py-1.5 rounded-full font-semibold whitespace-nowrap cursor-pointer transition-all shrink-0 inline-flex items-center justify-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-full font-semibold whitespace-nowrap cursor-pointer transition-all shrink-0 inline-flex items-center justify-center gap-1.5 border ${
                     selectedCategoryTab === 'favorites'
-                      ? 'bg-[#0058bb] text-white font-bold shadow-xs'
-                      : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                      ? 'bg-[#0058bb] text-white border-[#0058bb] font-bold shadow-xs'
+                      : 'bg-white text-gray-700 hover:bg-gray-100 border-gray-200'
                   }`}
                 >
                   <Heart className={`w-3.5 h-3.5 shrink-0 ${selectedCategoryTab === 'favorites' ? 'fill-white text-white' : 'text-red-500 fill-red-500'}`} />
-                  <span className="hidden sm:inline leading-none">Mis favoritos</span>
+                  <span className="hidden sm:inline">Mis favoritos</span>
+                  <span className="sm:hidden inline-block w-0 overflow-hidden select-none pointer-events-none" aria-hidden="true">&#8203;</span>
                   {favorites.length > 0 && (
                     <span
                       className={`text-[10px] leading-none px-1.5 py-0.5 rounded-full font-bold ${
@@ -1835,10 +1836,10 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                       type="button"
                       id={`quick-cat-tab-${group.categoryName.replace(/\s+/g, '-')}`}
                       onClick={() => handleScrollToCategory(group.categoryName)}
-                      className={`px-3 py-1.5 rounded-full font-semibold whitespace-nowrap cursor-pointer transition-all shrink-0 ${
+                      className={`px-3 py-1.5 rounded-full font-semibold whitespace-nowrap cursor-pointer transition-all shrink-0 inline-flex items-center justify-center border ${
                         isActive
-                          ? 'bg-[#0058bb] text-white font-bold shadow-xs'
-                          : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                          ? 'bg-[#0058bb] text-white border-[#0058bb] font-bold shadow-xs'
+                          : 'bg-white text-gray-700 hover:bg-gray-100 border-gray-200'
                       }`}
                     >
                       <span>{group.categoryName}</span>

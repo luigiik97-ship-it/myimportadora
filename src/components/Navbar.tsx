@@ -507,9 +507,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={handleCategoriesToggle}
               aria-expanded={isCategoriesOpen}
               aria-haspopup="true"
-              className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+              className={`pl-0 pr-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                 isCategoriesOpen
-                  ? 'bg-white text-[#0058bb] shadow-sm font-semibold'
+                  ? 'bg-white text-[#0058bb] shadow-sm font-semibold pl-2 sm:pl-3.5'
                   : 'text-white/90 hover:bg-white/15'
               }`}
             >
