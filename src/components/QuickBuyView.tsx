@@ -246,7 +246,11 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
       const minWholesaleQty = product.minWholesaleQty || 1;
       const category = product.category || 'General';
 
-      if (variantTypes.length === 0) {
+      const validVariantTypes = variantTypes.filter(
+        (vt) => Array.isArray(vt.options) && vt.options.length > 0
+      );
+
+      if (validVariantTypes.length === 0) {
         // Product without variants
         const itemId = `${product.id}-none-none`;
         const prices = getResolvedProductPrices(product, {});
@@ -269,12 +273,37 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
           category,
           minWholesaleQty,
         });
-      } else if (variantTypes.length === 1) {
-        // Product with 1 variant type (e.g. Color or Size)
-        const vt1 = variantTypes[0];
-        vt1.options.forEach((opt) => {
-          const selectedVariants: Record<string, string> = { [vt1.name]: opt.name };
-          const variantKey = `${vt1.name}:${opt.name}`;
+      } else {
+        // Dynamic Cartesian product for any number of variant types (1, 2, 3 or more)
+        let combinations: Array<{
+          selectedVariants: Record<string, string>;
+          variantTextParts: string[];
+          sku: string;
+        }> = [{ selectedVariants: {}, variantTextParts: [], sku: '' }];
+
+        for (const vt of validVariantTypes) {
+          const nextCombos: typeof combinations = [];
+          for (const combo of combinations) {
+            for (const opt of vt.options) {
+              nextCombos.push({
+                selectedVariants: {
+                  ...combo.selectedVariants,
+                  [vt.name]: opt.name,
+                },
+                variantTextParts: [...combo.variantTextParts, opt.name],
+                sku: opt.sku || combo.sku || '',
+              });
+            }
+          }
+          combinations = nextCombos;
+        }
+
+        combinations.forEach((combo) => {
+          const selectedVariants = combo.selectedVariants;
+          const variantKey = Object.entries(selectedVariants)
+            .map(([k, v]) => `${k}:${v}`)
+            .sort()
+            .join('|');
           const itemId = `${product.id}-${variantKey}`;
           const prices = getResolvedProductPrices(product, selectedVariants);
           const image = getVariantPrimaryImage(product, selectedVariants);
@@ -285,50 +314,14 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
             productId: product.id,
             product,
             title: product.title,
-            variantText: opt.name,
+            variantText: combo.variantTextParts.join(' • '),
             image,
-            sku: opt.sku || '',
+            sku: combo.sku,
             stock,
             prices,
             selectedVariants,
             category,
             minWholesaleQty,
-          });
-        });
-      } else {
-        // Product with 2 or more variant types (Cartesian product)
-        const vt1 = variantTypes[0];
-        const vt2 = variantTypes[1];
-
-        vt1.options.forEach((opt1) => {
-          vt2.options.forEach((opt2) => {
-            const selectedVariants: Record<string, string> = {
-              [vt1.name]: opt1.name,
-              [vt2.name]: opt2.name,
-            };
-            const variantKey = Object.entries(selectedVariants)
-              .map(([k, v]) => `${k}:${v}`)
-              .sort()
-              .join('|');
-            const itemId = `${product.id}-${variantKey}`;
-            const prices = getResolvedProductPrices(product, selectedVariants);
-            const image = getVariantPrimaryImage(product, selectedVariants);
-            const stock = getSelectedVariantStock(product, selectedVariants);
-
-            list.push({
-              itemId,
-              productId: product.id,
-              product,
-              title: product.title,
-              variantText: `${opt1.name} • ${opt2.name}`,
-              image,
-              sku: opt2.sku || opt1.sku || '',
-              stock,
-              prices,
-              selectedVariants,
-              category,
-              minWholesaleQty,
-            });
           });
         });
       }

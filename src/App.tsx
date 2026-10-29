@@ -620,12 +620,13 @@ export default function App() {
     showNotification: boolean = true
   ) => {
     // Generate unique composite key based on product + selected variants
-    const variantSuffix = selectedVariants
-      ? Object.entries(selectedVariants)
-          .map(([k, v]) => `${k}:${v}`)
-          .sort()
-          .join('|')
-      : `${selectedColor || 'none'}-${selectedSizeVariant?.id || 'none'}`;
+    const variantSuffix =
+      selectedVariants && Object.keys(selectedVariants).length > 0
+        ? Object.entries(selectedVariants)
+            .map(([k, v]) => `${k}:${v}`)
+            .sort()
+            .join('|')
+        : `${selectedColor || 'none'}-${selectedSizeVariant?.id || 'none'}`;
 
     const itemKey = `${product.id}-${variantSuffix}`;
     const maxAvailableStock = getSelectedVariantStock(product, selectedVariants || {});
