@@ -1,22 +1,27 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Play, ChevronLeft, ChevronRight } from 'lucide-react';
-import { StoreVideo } from '../types';
+import { StoreVideo, Product } from '../types';
 import {
   optimizeCloudinaryVideoUrl,
   getCloudinaryVideoPosterUrl,
   preloadVideo,
 } from '../utils/cloudinaryVideoOptimizer';
+import { safePlayVideo, safePauseVideo } from '../utils/videoPlayback';
+import { usePurchaseMode } from '../context/PurchaseModeContext';
 
 interface HomeReelsCarouselProps {
   videos: StoreVideo[];
+  products?: Product[];
   onOpenViewer: (index: number) => void;
   onSelectProduct?: (productId: string) => void;
 }
 
 export const HomeReelsCarousel: React.FC<HomeReelsCarouselProps> = ({
   videos,
+  products = [],
   onOpenViewer,
 }) => {
+  const { getEffectiveWholesalePrice } = usePurchaseMode();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
@@ -76,16 +81,30 @@ export const HomeReelsCarousel: React.FC<HomeReelsCarouselProps> = ({
       if (!vid) return;
       vid.muted = true; // Always muted in Home
       if (isCarouselInView && idx === activePlayingIndex) {
-        const playPromise = vid.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(() => {
-            // Autoplay might be deferred by browser
-          });
-        }
+        safePlayVideo(vid);
       } else {
-        vid.pause();
+        safePauseVideo(vid);
       }
     });
+  }, [activePlayingIndex, isCarouselInView]);
+
+  // Pausar reproducción cuando el navegador pasa a segundo plano y reanudar al regresar
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden || document.visibilityState === 'hidden') {
+        videoRefs.current.forEach((vid) => safePauseVideo(vid));
+      } else if (isCarouselInView) {
+        const vid = videoRefs.current[activePlayingIndex];
+        if (vid) {
+          vid.muted = true;
+          safePlayVideo(vid);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [activePlayingIndex, isCarouselInView]);
 
   // 3. Chained Playback: when video finishes, advance sequentially. If last finishes, loop to first!
@@ -250,7 +269,18 @@ export const HomeReelsCarousel: React.FC<HomeReelsCarouselProps> = ({
                    vid.title.trim().toLowerCase().includes('video reels'))
                 );
                 const showTitle = Boolean(vid.title && !isGenericReelTitle);
-                const showPrice = Boolean(vid.productId && vid.productPrice !== undefined);
+
+                const linkedProduct = vid.productId
+                  ? products.find((p) => p.id === vid.productId)
+                  : undefined;
+
+                const effectiveWholesalePrice = linkedProduct
+                  ? getEffectiveWholesalePrice(linkedProduct)
+                  : vid.productPrice;
+
+                const showPrice = Boolean(
+                  vid.productId && effectiveWholesalePrice !== undefined
+                );
 
                 if (!showTitle && !showPrice) return null;
 
@@ -263,7 +293,7 @@ export const HomeReelsCarousel: React.FC<HomeReelsCarouselProps> = ({
                     )}
                     {showPrice && (
                       <p className="text-[#16a34a] text-[11px] sm:text-xs font-black mt-0.5">
-                        ${vid.productPrice!.toLocaleString('es-AR')}
+                        ${effectiveWholesalePrice!.toLocaleString('es-AR')}
                       </p>
                     )}
                   </div>

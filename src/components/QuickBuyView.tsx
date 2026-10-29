@@ -1066,12 +1066,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
 
     setTimeout(() => {
       setShowFloatingPriceUpdated(false);
-      if (isCustomLinkMode) {
-        handleWhatsAppQuickBuy();
-      } else {
-        onProceedToCheckout();
-      }
-    }, 1000);
+    }, 2000);
   };
 
   const handleKeepAddingProducts = () => {
@@ -1218,7 +1213,15 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
           </div>
 
           {/* Quantity Controller */}
-          <div className="flex items-center">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {isCash && (
+              <span
+                title="Precio en efectivo"
+                className="inline-flex items-center text-[#16a34a] shrink-0 select-none self-end translate-y-0.5"
+              >
+                <Banknote className="w-3.5 h-3.5 text-[#16a34a]" />
+              </span>
+            )}
             {isOutOfStock ? (
               <span className="inline-flex items-center justify-center text-xs sm:text-sm font-semibold text-gray-400 bg-gray-100 border border-gray-200/80 rounded-xl w-[88px] sm:w-[108px] md:w-[120px] h-[39px] sm:h-[36px] md:h-[40px] shrink-0 select-none">
                 Agotado
@@ -1899,14 +1902,14 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
             <div className="border-t border-gray-100/90 bg-[#fafafa]/95 px-2.5 sm:px-4 md:px-4 py-2 transition-colors">
               <div className="max-w-full md:max-w-[1240px] md:mx-auto flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <Heart className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-500 fill-red-500 shrink-0" />
-                  <span className="font-extrabold text-[12px] sm:text-sm text-gray-900 tracking-tight uppercase">
+                  <Heart className="w-4 h-4 text-red-500 fill-red-500 shrink-0" />
+                  <span className="font-extrabold text-[13.5px] sm:text-[15px] md:text-base text-gray-900 tracking-tight uppercase">
                     Mis favoritos
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5 text-gray-600 min-w-0">
-                  <Info className="w-3.5 h-3.5 text-[#0058bb] shrink-0" />
-                  <span className="text-[11px] sm:text-xs text-gray-600 leading-tight">
+                  <Info className="w-4 h-4 text-[#0058bb] shrink-0" />
+                  <span className="text-xs sm:text-[13px] text-gray-600 leading-tight">
                     Los productos pueden pertenecer a distintas categorías. Los mínimos de compra se calculan por categoría.
                   </span>
                 </div>
@@ -1916,17 +1919,17 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
             <div className="border-t border-gray-100/90 bg-[#fafafa]/95 px-2.5 sm:px-4 md:px-4 py-1.5 sm:py-2 transition-colors">
               <div className="max-w-full md:max-w-[1240px] md:mx-auto space-y-1">
                 {/* Encabezado informativo compacto */}
-                <div className="flex items-center justify-between gap-2 text-xs sm:text-xs md:text-sm">
+                <div className="flex items-center justify-between gap-2 text-xs sm:text-sm">
                   {/* Lado izquierdo: Categoría actual y contador (oculto mientras no haya productos agregados) */}
                   <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                    <span className="font-extrabold text-[12px] sm:text-sm text-gray-900 tracking-tight uppercase truncate">
+                    <span className="font-extrabold text-[13.5px] sm:text-[15px] md:text-base text-gray-900 tracking-tight uppercase truncate">
                       {activeCategoryWholesaleInfo.categoryName}
                     </span>
                     {activeCategoryWholesaleInfo.catQtyInCart > 0 && (
                       <>
                         <span className="text-gray-400 font-normal select-none">-</span>
                         <span
-                          className={`inline-flex items-center text-[10.5px] sm:text-xs font-bold px-2 py-0.5 rounded-full border leading-none shrink-0 transition-colors ${
+                          className={`inline-flex items-center text-xs sm:text-[12.5px] font-bold px-1.5 py-0.5 rounded-full border leading-none shrink-0 tracking-tight transition-colors ${
                             activeCategoryWholesaleInfo.isReached
                               ? 'bg-emerald-50 text-[#00a650] border-emerald-300'
                               : 'bg-blue-50 text-[#0058bb] border-blue-200'
@@ -1948,12 +1951,12 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                       <Zap className="hidden w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 fill-amber-500 shrink-0" />
                     )}
                     <span
-                      className={`text-[11px] sm:text-xs leading-tight transition-colors ${
+                      className={`text-xs sm:text-[13px] md:text-sm leading-tight transition-colors ${
                         activeCategoryWholesaleInfo.isReached
                           ? 'text-[#00a650] font-bold'
                           : activeCategoryWholesaleInfo.catQtyInCart > 0
                           ? 'text-[#0058bb] font-semibold'
-                          : 'text-gray-500 font-medium'
+                          : 'text-gray-600 font-medium'
                       }`}
                     >
                       {activeCategoryWholesaleInfo.isReached ? (
@@ -2144,17 +2147,17 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
       {showWholesaleWarning && pendingCategories.length > 0 && (
         <div
           id="quick-buy-wholesale-warning-banner"
-          className="fixed bottom-[64px] sm:bottom-[72px] inset-x-2 sm:inset-x-4 max-w-[560px] mx-auto z-50 bg-white/98 backdrop-blur-md rounded-2xl border border-amber-300 shadow-2xl p-3.5 sm:p-4 animate-in slide-in-from-bottom-3 duration-200"
+          className="fixed bottom-[64px] sm:bottom-[72px] inset-x-2 sm:inset-x-4 max-w-[560px] mx-auto z-50 bg-white rounded-2xl border border-gray-300 shadow-2xl p-3.5 sm:p-4 animate-in slide-from-bottom-3 duration-200"
         >
           <div className="flex items-start gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
-              <AlertCircle className="w-4 h-4 text-amber-700" />
+            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0 mt-0.5">
+              <AlertCircle className="w-4 h-4 text-gray-950" />
             </div>
             <div className="flex-1 min-w-0">
               <h4 className="font-bold text-xs sm:text-sm text-gray-950 leading-tight">
                 Mínimos para precio mayorista
               </h4>
-              <p className="text-[11px] sm:text-xs text-gray-600 mt-0.5 leading-snug">
+              <p className="text-[11px] sm:text-xs text-gray-700 mt-0.5 leading-snug">
                 Para acceder al precio mayorista en las siguientes categorías, necesitas completar las cantidades mínimas:
               </p>
             </div>
@@ -2165,35 +2168,35 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
             {pendingCategories.map((cat) => (
               <div
                 key={cat.categoryName}
-                className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-amber-50/90 border border-amber-200/80 text-[11px] sm:text-xs"
+                className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-[11px] sm:text-xs"
               >
-                <span className="font-bold text-gray-900 truncate">
+                <span className="font-bold text-gray-950 truncate">
                   {cat.categoryName}
                 </span>
-                <span className="font-semibold text-amber-900 shrink-0">
-                  Te {cat.missingQty === 1 ? 'falta' : 'faltan'} <strong className="font-black text-amber-950">{cat.missingQty} {cat.missingQty === 1 ? 'unid.' : 'unids.'}</strong> ({cat.currentQty}/{cat.minQty})
+                <span className="font-medium text-gray-800 shrink-0">
+                  Te {cat.missingQty === 1 ? 'falta' : 'faltan'} <strong className="font-bold text-gray-950">{cat.missingQty} {cat.missingQty === 1 ? 'unid.' : 'unids.'}</strong> ({cat.currentQty}/{cat.minQty})
                 </span>
               </div>
             ))}
           </div>
 
-          {/* Botones de acción */}
-          <div className="mt-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-            <button
-              type="button"
-              id="quick-buy-continue-updated-prices-btn"
-              onClick={handleContinueWithUpdatedPrices}
-              className="flex-1 bg-gray-900 hover:bg-black active:scale-95 text-white font-bold text-xs sm:text-[13px] py-2.5 px-3 rounded-xl transition-all shadow-xs cursor-pointer text-center"
-            >
-              Continuar con precios actualizados
-            </button>
+          {/* Botones de acción horizontales alineados */}
+          <div className="mt-3 flex flex-row items-center gap-2">
             <button
               type="button"
               id="quick-buy-keep-adding-btn"
               onClick={handleKeepAddingProducts}
-              className="flex-1 bg-[#0058bb] hover:bg-[#004bb0] active:scale-95 text-white font-bold text-xs sm:text-[13px] py-2.5 px-3 rounded-xl transition-all shadow-xs cursor-pointer text-center"
+              className="flex-1 bg-white hover:bg-gray-100 active:scale-95 text-gray-950 border border-gray-950 font-bold text-xs sm:text-sm py-2.5 px-2 sm:px-3 rounded-xl transition-all shadow-xs cursor-pointer text-center flex items-center justify-center min-h-[42px] leading-tight"
             >
               Seguir agregando productos
+            </button>
+            <button
+              type="button"
+              id="quick-buy-continue-updated-prices-btn"
+              onClick={handleContinueWithUpdatedPrices}
+              className="flex-1 bg-gray-950 hover:bg-black active:scale-95 text-white font-bold text-xs sm:text-sm py-2.5 px-2 sm:px-3 rounded-xl transition-all shadow-xs cursor-pointer text-center flex items-center justify-center min-h-[42px] leading-tight"
+            >
+              Continuar con precios actualizados
             </button>
           </div>
         </div>
@@ -2215,7 +2218,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                   <span>Precios actualizados</span>
                 </div>
               )}
-              <div className="flex items-baseline gap-1 sm:gap-1.5 min-w-0 overflow-visible sm:overflow-hidden whitespace-nowrap justify-start text-left -ml-0.5 sm:-ml-1">
+              <div className="flex items-baseline gap-1 sm:gap-1.5 min-w-0 overflow-hidden text-clip whitespace-nowrap justify-start text-left -ml-0.5 sm:-ml-1">
                 <span className="text-xs text-gray-500 font-medium hidden sm:inline shrink-0">Total:</span>
                 <span id="quick-buy-total-amount" className="text-lg md:text-2xl font-bold text-gray-900 font-['Montserrat'] tracking-tight shrink-0">
                   $ {(isCustomLinkMode ? cartCalculations.subtotal : finalOrderTotal).toLocaleString('es-AR')}
@@ -2231,7 +2234,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
               </div>
 
               {/* Delivery / Payment mini tag */}
-              <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-gray-500 truncate justify-start text-left -ml-0.5 sm:-ml-1">
+              <div className="flex items-center gap-1.5 text-[11.5px] sm:text-[11px] text-gray-500 overflow-hidden text-clip whitespace-nowrap sm:truncate justify-start text-left -ml-0.5 sm:-ml-1">
                 <span className="text-gray-700">
                   {deliveryOption === 'pickup' ? (
                     <span className="font-semibold">Retiro en local</span>
@@ -2274,7 +2277,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                 id="quick-buy-whatsapp-checkout-btn"
                 onClick={() => handleInitiatePurchase('customLink')}
                 disabled={totalCartCount === 0 || showWholesaleWarning || isSubmittingWhatsAppOrder}
-                className={`font-bold text-xs sm:text-sm px-3.5 sm:px-5 py-3 sm:py-2.5 min-h-[42px] sm:min-h-[38px] rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer ${
+                className={`font-bold text-xs sm:text-sm px-2 sm:px-5 py-3 sm:py-2.5 min-h-[42px] sm:min-h-[38px] w-[88px] sm:w-auto rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
                   totalCartCount > 0 && !showWholesaleWarning && !isSubmittingWhatsAppOrder
                     ? 'bg-[#25D366] hover:bg-[#20bd5a] text-white active:scale-95 shadow-emerald-600/20'
                     : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
@@ -2299,14 +2302,14 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                 id="quick-buy-checkout-btn"
                 onClick={() => handleInitiatePurchase('normal')}
                 disabled={totalCartCount === 0 || showWholesaleWarning}
-                className={`font-bold text-xs sm:text-sm px-3 sm:px-4 py-3 sm:py-2.5 min-h-[42px] sm:min-h-[38px] rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`font-bold text-xs sm:text-sm px-1 sm:px-4 py-3 sm:py-2.5 min-h-[42px] sm:min-h-[38px] w-[88px] sm:w-auto rounded-xl transition-all shadow-xs flex items-center justify-center gap-0.5 sm:gap-1.5 cursor-pointer ${
                   totalCartCount > 0 && !showWholesaleWarning
                     ? 'bg-[#0058bb] hover:bg-[#004bb0] text-white active:scale-95'
                     : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
                 }`}
               >
-                <span>Comprar</span>
-                <ArrowRight className="w-4 h-4" />
+                <span className="leading-none">Comprar</span>
+                <ArrowRight className="w-[18px] h-[18px] sm:w-4 sm:h-4 shrink-0" />
               </button>
             )}
           </div>

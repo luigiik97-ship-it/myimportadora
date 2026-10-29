@@ -19,6 +19,7 @@ import {
   getCloudinaryVideoPosterUrl,
   preloadVideo,
 } from '../../utils/cloudinaryVideoOptimizer';
+import { safePlayVideo, safePauseVideo } from '../../utils/videoPlayback';
 import { useModalScrollLock } from '../../utils/scrollLock';
 
 interface VideoViewerModalProps {
@@ -63,9 +64,7 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
       playbackSessionRef.current = null;
     } else {
       playbackSessionRef.current = null;
-      if (videoRef.current && !videoRef.current.paused) {
-        videoRef.current.pause();
-      }
+      safePauseVideo(videoRef.current);
     }
   }, [isOpen, initialIndex, videos.length]);
 
@@ -103,6 +102,41 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
     };
   }, [isOpen]);
 
+  // Pausar automáticamente el video y silenciar cuando el navegador/pestaña deje de estar visible (segundo plano)
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden || document.visibilityState === 'hidden') {
+        const vid = videoRef.current;
+        if (vid) {
+          safePauseVideo(vid, () => {
+            setIsPlaying(false);
+          });
+          setIsPlaying(false);
+        }
+      }
+    };
+
+    const handlePageHide = () => {
+      const vid = videoRef.current;
+      if (vid) {
+        safePauseVideo(vid, () => {
+          setIsPlaying(false);
+        });
+        setIsPlaying(false);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handlePageHide);
+    };
+  }, [isOpen]);
+
   const currentVideo = videos[currentIndex];
 
   // Reproduce con sonido desde el principio sin bucle
@@ -125,31 +159,32 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
         video.currentTime = 0;
       }
 
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            setIsPlaying(true);
-            setIsMuted(false);
-            video.muted = false;
-          })
-          .catch((err) => {
-            // Si el error es AbortError (interrumpido por carga en curso), no mutear prematuramente
-            if (err && err.name === 'AbortError') {
-              return;
-            }
-            // Si el navegador requiere interacción directa adicional para sonido, reproducir inicialmente en silencio
-            video.muted = true;
-            setIsMuted(true);
-            video.play()
-              .then(() => setIsPlaying(true))
-              .catch(() => setIsPlaying(false));
-          });
-      }
+      safePlayVideo(
+        video,
+        () => {
+          setIsPlaying(true);
+          setIsMuted(false);
+          video.muted = false;
+        },
+        (err) => {
+          // Si el error es AbortError (interrumpido por pausa o navegación), ignorar silenciosamente
+          if (err && err.name === 'AbortError') {
+            return;
+          }
+          // Si el navegador requiere interacción directa para sonido, intentar en silencio
+          video.muted = true;
+          setIsMuted(true);
+          safePlayVideo(
+            video,
+            () => setIsPlaying(true),
+            () => setIsPlaying(false)
+          );
+        }
+      );
     } catch {
       // Ignorar excepciones sincrónicas
     }
-  }, []);
+  }, [loop]);
 
   // Play / Pause toggler & activación directa de sonido con el toque del usuario
   const togglePlay = useCallback(() => {
@@ -165,7 +200,7 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
         vid.removeAttribute('muted');
       } catch {}
       setIsMuted(false);
-      vid.play().then(() => setIsPlaying(true)).catch(() => {});
+      safePlayVideo(vid, () => setIsPlaying(true));
     } else {
       // Si el video está reproduciéndose pero en silencio por restricciones del navegador,
       // el toque del usuario activa el sonido inmediatamente sin pausar
@@ -178,8 +213,7 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
         setIsMuted(false);
         return;
       }
-      vid.pause();
-      setIsPlaying(false);
+      safePauseVideo(vid, () => setIsPlaying(false));
     }
   }, []);
 
@@ -207,9 +241,7 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
   // Reproduce con sonido cada vez que cambia el índice o se abre el modal (controlado por playbackSessionRef para evitar reinicios)
   useEffect(() => {
     if (!isOpen) {
-      if (videoRef.current && !videoRef.current.paused) {
-        videoRef.current.pause();
-      }
+      safePauseVideo(videoRef.current);
       setIsPlaying(false);
       playbackSessionRef.current = null;
       return;
@@ -348,14 +380,12 @@ export const VideoViewerModal: React.FC<VideoViewerModalProps> = ({
                 if (loop) {
                   if (videoRef.current) {
                     videoRef.current.currentTime = 0;
-                    videoRef.current.play().catch(() => {});
+                    safePlayVideo(videoRef.current);
                   }
                   return;
                 }
                 setIsPlaying(false);
-                if (videoRef.current && !videoRef.current.paused) {
-                  videoRef.current.pause();
-                }
+                safePauseVideo(videoRef.current);
               }}
               onPlay={() => {
                 setIsPlaying(true);

@@ -815,6 +815,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {allReelVideos.length > 0 && (
         <HomeReelsCarousel
           videos={allReelVideos}
+          products={products}
           onOpenViewer={(idx) => {
             setSelectedViewerVideoIndex(idx);
             setIsVideoViewerOpen(true);

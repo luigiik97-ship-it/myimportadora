@@ -29,6 +29,7 @@ import {
   optimizeCloudinaryVideoUrl,
   getCloudinaryVideoPosterUrl,
 } from '../../utils/cloudinaryVideoOptimizer';
+import { safePlayVideo, safePauseVideo } from '../../utils/videoPlayback';
 
 interface VideoManagerProps {
   products: Product[];
@@ -433,15 +434,15 @@ export const VideoManager: React.FC<VideoManagerProps> = ({
                     preload="none"
                     className="w-full h-full object-cover"
                     onMouseEnter={(e) => {
-                      try {
-                        e.currentTarget.play();
-                      } catch {}
+                      safePlayVideo(e.currentTarget);
                     }}
                     onMouseLeave={(e) => {
-                      try {
-                        e.currentTarget.pause();
-                        e.currentTarget.currentTime = 0;
-                      } catch {}
+                      const v = e.currentTarget;
+                      safePauseVideo(v, () => {
+                        try {
+                          v.currentTime = 0;
+                        } catch {}
+                      });
                     }}
                   />
 

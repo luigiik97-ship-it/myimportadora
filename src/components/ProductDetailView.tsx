@@ -29,6 +29,7 @@ import {
   getCloudinaryVideoPosterUrl,
   isCloudinaryVideoUrl,
 } from '../utils/cloudinaryVideoOptimizer';
+import { safePlayVideo, safePauseVideo } from '../utils/videoPlayback';
 import { usePurchaseMode } from '../context/PurchaseModeContext';
 import { getStoreSettings, StoreSettings } from '../services/storeSettings';
 import { getLocalStoreVideos } from '../services/storeVideos';
@@ -393,14 +394,18 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
       }
     }
 
-    // Nombre descriptivo y búsqueda del ID de la variante seleccionada
-    const selectedValues = Object.entries(selectedOptions)
-      .map(([_, val]) => val)
-      .filter(Boolean);
+    // Nombre descriptivo y búsqueda del ID de la variante seleccionada sin duplicar nombres
+    const selectedValues = variantTypes
+      .map((vt) => selectedOptions[vt.id] || selectedOptions[vt.name])
+      .filter((v): v is string => Boolean(v && typeof v === 'string' && v.trim()));
+
+    const uniqueValues = selectedValues.length > 0
+      ? Array.from(new Set(selectedValues))
+      : Array.from(new Set(Object.values(selectedOptions).filter(Boolean)));
 
     const variantLabel =
-      selectedValues.length > 0
-        ? selectedValues.join(' / ')
+      uniqueValues.length > 0
+        ? uniqueValues.join(' / ')
         : 'Estándar';
 
     let matchedVariantId: string | undefined = undefined;
@@ -532,9 +537,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     isLightboxOpenRef.current = isLightboxOpen;
     isVideoModalOpenRef.current = isVideoModalOpen;
     if (isLightboxOpen || isVideoModalOpen) {
-      if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
-        showcaseVideoRef.current.pause();
-      }
+      safePauseVideo(showcaseVideoRef.current);
       setIsShowcaseVideoPlaying(false);
       // Al abrir la galería expandida o el visor, marcar para no reiniciar autoplay al salir
       hasShowcaseVideoAutoplayedRef.current = true;
@@ -547,10 +550,22 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     isAutoplayAttemptPendingRef.current = false;
     previousMediaIndexRef.current = 0;
     setIsShowcaseVideoPlaying(false);
-    if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
-      showcaseVideoRef.current.pause();
-    }
+    safePauseVideo(showcaseVideoRef.current);
   }, [product.id]);
+
+  // Pausar el video de muestra si el navegador o pestaña pasa a segundo plano
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden || document.visibilityState === 'hidden') {
+        safePauseVideo(showcaseVideoRef.current);
+        setIsShowcaseVideoPlaying(false);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   // Visibilidad configurable del botón "Comprar ahora" desde la administración
   const [showBuyNowButton, setShowBuyNowButton] = useState<boolean>(() => {
@@ -576,9 +591,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
     // Si el visor a pantalla completa o la galería expandida están abiertos, mantener pausado
     if (isLightboxOpenRef.current || isVideoModalOpenRef.current || isLightboxOpen || isVideoModalOpen) {
-      if (!vid.paused) {
-        vid.pause();
-      }
+      safePauseVideo(vid);
       setIsShowcaseVideoPlaying(false);
       return;
     }
@@ -610,22 +623,18 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     vid.loop = false;
 
     isAutoplayAttemptPendingRef.current = true;
-    const playPromise = vid.play();
-    if (playPromise !== undefined) {
-      playPromise
-        .then(() => {
-          isAutoplayAttemptPendingRef.current = false;
-          hasShowcaseVideoAutoplayedRef.current = true;
-          setIsShowcaseVideoPlaying(true);
-        })
-        .catch(() => {
-          isAutoplayAttemptPendingRef.current = false;
-          // Si el navegador aún no permite play o requiere buffer adicional, NO marcar como reproducido
-          setIsShowcaseVideoPlaying(false);
-        });
-    } else {
-      isAutoplayAttemptPendingRef.current = false;
-    }
+    safePlayVideo(
+      vid,
+      () => {
+        isAutoplayAttemptPendingRef.current = false;
+        hasShowcaseVideoAutoplayedRef.current = true;
+        setIsShowcaseVideoPlaying(true);
+      },
+      () => {
+        isAutoplayAttemptPendingRef.current = false;
+        setIsShowcaseVideoPlaying(false);
+      }
+    );
   }, [isLightboxOpen, isVideoModalOpen]);
 
   // Manejador para click en miniatura de video en la galería
@@ -648,9 +657,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
       }
     } catch {}
 
-    if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
-      showcaseVideoRef.current.pause();
-    }
+    safePauseVideo(showcaseVideoRef.current);
     setIsShowcaseVideoPlaying(false);
     hasShowcaseVideoAutoplayedRef.current = true;
     setIsLightboxOpen(false);
@@ -668,9 +675,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     const prevMedia = galleryMedia[previousMediaIndexRef.current];
 
     if (isLightboxOpen || isVideoModalOpen) {
-      if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
-        showcaseVideoRef.current.pause();
-      }
+      safePauseVideo(showcaseVideoRef.current);
       setIsShowcaseVideoPlaying(false);
       return;
     }
@@ -683,9 +688,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
       // Nota: Si hasShowcaseVideoAutoplayedRef ya es true, el video continúa su reproducción natural o permanece pausado si el usuario volvió de otra imagen
     } else {
       // Si el elemento activo de la galería es una imagen, pausar de inmediato el video
-      if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
-        showcaseVideoRef.current.pause();
-      }
+      safePauseVideo(showcaseVideoRef.current);
       setIsShowcaseVideoPlaying(false);
       // Si venimos de un video a una imagen, marcar para que al regresar permanezca pausado
       if (prevMedia?.type === 'video') {
@@ -1449,9 +1452,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                         onEnded={() => {
                           hasShowcaseVideoAutoplayedRef.current = true;
                           setIsShowcaseVideoPlaying(false);
-                          if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
-                            showcaseVideoRef.current.pause();
-                          }
+                          safePauseVideo(showcaseVideoRef.current);
                         }}
                         onPause={() => setIsShowcaseVideoPlaying(false)}
                         onPlay={() => {
@@ -2241,9 +2242,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
       <ProductImageLightbox
         isOpen={isLightboxOpen}
         onClose={() => {
-          if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
-            showcaseVideoRef.current.pause();
-          }
+          safePauseVideo(showcaseVideoRef.current);
           setIsShowcaseVideoPlaying(false);
           setIsLightboxOpen(false);
         }}
@@ -2256,9 +2255,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             : undefined
         }
         onIndexChange={(newIdx) => {
-          if (showcaseVideoRef.current && !showcaseVideoRef.current.paused) {
-            showcaseVideoRef.current.pause();
-          }
+          safePauseVideo(showcaseVideoRef.current);
           setIsShowcaseVideoPlaying(false);
           setActiveMediaIndex(newIdx);
         }}

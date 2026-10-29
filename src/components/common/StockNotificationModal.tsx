@@ -34,6 +34,14 @@ export const StockNotificationModal: React.FC<StockNotificationModalProps> = ({
   const [isSuccess, setIsSuccess] = useState(alreadyRegisteredDirectly);
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Limpiar y deduplicar nombres repetidos de variante (ej: "Dorado / Dorado" -> "Dorado")
+  const displayVariantName = React.useMemo(() => {
+    if (!variantName) return 'Estándar';
+    const parts = variantName.split(/\s*[\/|,]\s*/).map((p) => p.trim()).filter(Boolean);
+    const unique = Array.from(new Set(parts));
+    return unique.join(' / ') || variantName;
+  }, [variantName]);
+
   // Update success state when modal opens
   React.useEffect(() => {
     if (isOpen) {
@@ -126,7 +134,7 @@ export const StockNotificationModal: React.FC<StockNotificationModalProps> = ({
 
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-left text-gray-600 space-y-0.5">
               <p className="font-semibold text-gray-800 line-clamp-1">{productTitle}</p>
-              <p className="text-emerald-700 font-medium">{variantName}</p>
+              <p className="text-emerald-700 font-medium">{displayVariantName}</p>
             </div>
 
             <button
@@ -155,7 +163,7 @@ export const StockNotificationModal: React.FC<StockNotificationModalProps> = ({
             {/* Variante seleccionada */}
             <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl px-3 py-2 text-xs flex items-center justify-between gap-2">
               <span className="text-gray-600 font-medium">Variante:</span>
-              <span className="font-bold text-emerald-800 text-right truncate">{variantName}</span>
+              <span className="font-bold text-emerald-800 text-right truncate">{displayVariantName}</span>
             </div>
 
             {/* Teléfono / WhatsApp */}
