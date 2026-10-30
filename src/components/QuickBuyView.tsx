@@ -62,6 +62,7 @@ import { getLocalAuthUser, getLocalProfiles } from '../services/auth';
 import { OfficialWhatsAppIcon } from './admin/QuickBuyLinkManager';
 import { useNavigate } from 'react-router-dom';
 import { getOptimizedImageUrl } from '../utils/imageOptimizer';
+import { validateCartStock, StockValidationResult } from '../utils/stockValidation';
 
 export interface QuickBuyItem {
   itemId: string;
@@ -111,6 +112,7 @@ interface QuickBuyViewProps {
   onSaveOrder?: (orderPayload: any) => Promise<Order>;
   onClearCart?: () => void;
   onOrderCompleted?: (order: Order) => void;
+  onStockValidationFailed?: (result: StockValidationResult) => void;
 }
 
 export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
@@ -134,6 +136,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
   onSaveOrder,
   onClearCart,
   onOrderCompleted,
+  onStockValidationFailed,
 }) => {
   const navigate = useNavigate();
   const [isCustomLinkMode, setIsCustomLinkMode] = useState<boolean>(() => {
@@ -787,6 +790,20 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
       }
     }
 
+    // Momento 3: Validación de stock justo antes de finalizar por WhatsApp
+    if (products && products.length > 0) {
+      const stockResult = validateCartStock(cartItems, products);
+      if (stockResult.hasChanges) {
+        setIsSubmittingWhatsAppOrder(false);
+        if (onStockValidationFailed) {
+          onStockValidationFailed(stockResult);
+        } else {
+          onOpenCart?.({ deliveryOption, paymentMethod });
+        }
+        return;
+      }
+    }
+
     setIsSubmittingWhatsAppOrder(true);
     setOrderSaveError(null);
     setShippingValidationError(null);
@@ -1131,7 +1148,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
       <div
         key={item.itemId}
         id={`quick-item-${item.itemId}`}
-        className={`p-0 pr-1.5 sm:pr-2.5 md:p-3 transition-colors flex items-center justify-between gap-1.5 sm:gap-3 md:gap-4 h-20 sm:h-auto overflow-hidden ${
+        className={`p-0 pr-1.5 sm:pr-2.5 md:p-3 transition-colors flex items-center justify-between gap-[3px] sm:gap-3 md:gap-4 h-20 sm:h-auto overflow-hidden ${
           currentCartQty > 0 ? 'bg-blue-50/40' : 'hover:bg-gray-50/60'
         }`}
       >
@@ -1197,7 +1214,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
         </div>
 
         {/* Right: Price & Quantity Controller */}
-        <div className="flex flex-col items-end justify-center gap-1 sm:flex-row sm:items-center sm:gap-4 md:gap-5 shrink-0 ml-auto pl-1">
+        <div className="flex flex-col items-end justify-center gap-1 sm:flex-row sm:items-center sm:gap-4 md:gap-5 shrink-0 ml-auto pl-0 sm:pl-1">
           {/* Clean Single Price Display */}
           <div className="text-right w-full flex justify-end">
             <span className="text-base sm:text-lg md:text-xl font-bold text-gray-900 font-['Montserrat'] whitespace-nowrap leading-none block text-right">
@@ -1206,11 +1223,11 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
           </div>
 
           {/* Quantity Controller */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="relative flex items-center sm:gap-2">
             {isCash && (
               <span
                 title="Precio en efectivo"
-                className="inline-flex items-center text-[#16a34a] shrink-0 select-none self-end translate-y-0.5"
+                className="absolute right-full mr-1.5 bottom-0 translate-y-[2.5px] sm:translate-y-0.5 sm:static sm:right-auto sm:bottom-auto sm:mr-0 inline-flex items-center text-[#16a34a] shrink-0 select-none sm:self-end pointer-events-none"
               >
                 <Banknote className="w-3.5 h-3.5 text-[#16a34a]" />
               </span>
@@ -2212,11 +2229,11 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                 </div>
               )}
               <div className="flex items-baseline gap-1 sm:gap-1.5 min-w-0 overflow-hidden text-clip whitespace-nowrap justify-start text-left -ml-0.5 sm:-ml-1">
-                <span className="text-xs text-gray-500 font-medium hidden sm:inline shrink-0">Total:</span>
+                <span className="text-xs md:text-sm text-gray-500 font-medium hidden sm:inline shrink-0">Total:</span>
                 <span id="quick-buy-total-amount" className="text-lg md:text-2xl font-bold text-gray-900 font-['Montserrat'] tracking-tight shrink-0">
                   $ {(isCustomLinkMode ? cartCalculations.subtotal : finalOrderTotal).toLocaleString('es-AR')}
                 </span>
-                <span className="text-xs text-gray-500 whitespace-nowrap shrink-0">
+                <span className="text-xs md:text-sm text-gray-500 whitespace-nowrap shrink-0">
                   ({totalCartCount} unids.)
                 </span>
                 {shippingCost > 0 && !isCustomLinkMode && (
@@ -2227,7 +2244,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
               </div>
 
               {/* Delivery / Payment mini tag */}
-              <div className="flex items-center gap-1.5 text-[11.5px] sm:text-[11px] text-gray-500 overflow-hidden text-clip whitespace-nowrap sm:truncate justify-start text-left -ml-0.5 sm:-ml-1">
+              <div className="flex items-center gap-1.5 text-[11.5px] sm:text-[13px] md:text-[14.5px] text-gray-500 overflow-hidden text-clip whitespace-nowrap sm:truncate justify-start text-left -ml-0.5 sm:-ml-1">
                 <span className="text-gray-700">
                   {deliveryOption === 'pickup' ? (
                     <span className="font-semibold">Retiro en local</span>

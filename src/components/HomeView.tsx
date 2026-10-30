@@ -584,6 +584,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 onTransitionEnd={handleTransitionEnd}
               >
                 {extendedBanners.map((banner, index) => {
+                  const isVisibleSlide = index === 1;
                   return (
                     <div
                       key={`${banner.id}-slide-${index}`}
@@ -598,8 +599,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         src={banner.customImage}
                         alt={banner.title || 'Banner'}
                         draggable={false}
-                        loading={index === 1 ? 'eager' : 'lazy'}
-                        fetchPriority={index === 1 ? 'high' : 'auto'}
+                        loading={isVisibleSlide ? 'eager' : 'lazy'}
+                        fetchPriority={isVisibleSlide ? 'high' : 'auto'}
+                        decoding={isVisibleSlide ? 'sync' : 'async'}
                         className="absolute inset-0 w-full h-full object-cover z-0 select-none pointer-events-none"
                       />
                     </div>
@@ -702,8 +704,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 alt={cat.name}
                 className="w-full h-full"
                 imgClassName="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                priority={idx < 6}
-                fetchPriority={idx < 3 ? 'high' : 'auto'}
+                priority={idx < 8}
+                fetchPriority={idx < 6 ? 'high' : 'auto'}
+                targetWidth={240}
               />
               <div className="absolute bottom-1.5 sm:bottom-2 inset-x-0 flex items-center justify-center px-1.5 pointer-events-none">
                 <div className="bg-black/90 text-white px-2 sm:px-2.5 py-0.5 rounded-md shadow-sm max-w-[94%] flex items-center justify-center">

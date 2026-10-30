@@ -1,12 +1,13 @@
 import React, { useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { CartItem, Product } from '../types';
-import { Trash2, Plus, Minus, ArrowRight, ArrowLeft, ShieldCheck, Truck, ShoppingBag, Info, CheckCircle2, Banknote, CreditCard, ArrowLeftRight, Store, ChevronRight } from 'lucide-react';
+import { Trash2, Plus, Minus, ArrowRight, ArrowLeft, ShieldCheck, Truck, ShoppingBag, Info, CheckCircle2, Banknote, CreditCard, ArrowLeftRight, Store, ChevronRight, AlertCircle, X } from 'lucide-react';
 import { getItemEffectiveNormalPrice, getItemEffectiveCashPrice, getSelectedVariantStock, getProductCoverImage } from '../utils/variantHelpers';
 import { usePurchaseMode } from '../context/PurchaseModeContext';
 import { getOptimizedImageUrl } from '../utils/imageOptimizer';
 import { WholesaleCategoryProgressCard } from './common/WholesaleCategoryProgressCard';
 import { slugifyCategory } from '../utils/categoryHelpers';
+import { CartStockAlert } from '../utils/stockValidation';
 
 interface CartViewProps {
   cartItems: CartItem[];
@@ -18,6 +19,9 @@ interface CartViewProps {
   onSelectProduct?: (product: Product, selectedVariants?: Record<string, string>, selectedImage?: string) => void;
   onSelectCategory?: (category: string) => void;
   showCashEquivalent?: boolean;
+  stockAlerts?: CartStockAlert[];
+  onDismissStockAlert?: (id: string) => void;
+  onValidateStock?: () => void;
 }
 
 interface CartQuantityInputProps {
@@ -112,10 +116,18 @@ export const CartView: React.FC<CartViewProps> = ({
   onSelectProduct,
   onSelectCategory,
   showCashEquivalent = false,
-}) => {
+  stockAlerts = [],
+  onDismissStockAlert,
+  onValidateStock,
+}: CartViewProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { purchaseMode, setPurchaseMode, isCashMode } = usePurchaseMode();
+
+  // Momento 1: Validación de stock al abrir el carrito
+  React.useEffect(() => {
+    onValidateStock?.();
+  }, [onValidateStock]);
 
   const handleCategoryClick = (categoryName: string) => {
     if (onSelectCategory) {
@@ -274,20 +286,60 @@ export const CartView: React.FC<CartViewProps> = ({
 
   if (cartItems.length === 0) {
     return (
-      <div className="max-w-[1240px] mx-auto px-2 sm:px-4 py-12 sm:py-16 text-center space-y-4 sm:space-y-5">
-        <div className="w-18 h-18 sm:w-20 sm:h-20 bg-blue-50 text-[#0058bb] rounded-full flex items-center justify-center mx-auto shadow-inner">
-          <ShoppingBag className="w-9 h-9 sm:w-10 sm:h-10" />
+      <div className="max-w-[1240px] mx-auto px-2 sm:px-4 py-8 sm:py-12 space-y-4 sm:space-y-6">
+        {/* Avisos de stock para productos que se agotaron y vaciaron el carrito */}
+        {stockAlerts && stockAlerts.length > 0 && (
+          <div id="empty-cart-stock-alerts" className="space-y-2.5 max-w-2xl mx-auto text-left">
+            {stockAlerts.map((alert) => (
+              <div
+                key={alert.id}
+                className={`flex items-start justify-between gap-3 p-3.5 sm:p-4 rounded-xl border text-xs sm:text-sm font-medium shadow-xs ${
+                  alert.type === 'out_of_stock'
+                    ? 'bg-amber-50/95 border-amber-300 text-amber-950'
+                    : 'bg-blue-50/95 border-blue-300 text-blue-950'
+                }`}
+              >
+                <div className="flex items-start gap-2.5 min-w-0">
+                  {alert.type === 'out_of_stock' ? (
+                    <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <Info className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 shrink-0 mt-0.5" />
+                  )}
+                  <div className="min-w-0">
+                    <p className="leading-snug font-semibold">{alert.message}</p>
+                  </div>
+                </div>
+                {onDismissStockAlert && (
+                  <button
+                    type="button"
+                    onClick={() => onDismissStockAlert(alert.id)}
+                    className="p-1 rounded-lg hover:bg-black/10 text-gray-400 hover:text-gray-800 transition-colors cursor-pointer shrink-0"
+                    aria-label="Cerrar aviso"
+                    title="Cerrar aviso"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="text-center space-y-4 sm:space-y-5 py-6">
+          <div className="w-18 h-18 sm:w-20 sm:h-20 bg-blue-50 text-[#0058bb] rounded-full flex items-center justify-center mx-auto shadow-inner">
+            <ShoppingBag className="w-9 h-9 sm:w-10 sm:h-10" />
+          </div>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 font-['Montserrat']">Tu carrito está vacío</h2>
+          <p className="text-xs sm:text-sm text-gray-500 max-w-md mx-auto">
+            Explora nuestro catálogo mayorista y añade productos para aprovechar los mejores precios directos de fábrica.
+          </p>
+          <button
+            onClick={onContinueShopping}
+            className="bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold px-6 sm:px-8 py-3 rounded-lg text-sm sm:text-base transition-colors cursor-pointer inline-flex items-center gap-2 min-h-[44px]"
+          >
+            Ver Catálogo Mayorista
+          </button>
         </div>
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 font-['Montserrat']">Tu carrito está vacío</h2>
-        <p className="text-xs sm:text-sm text-gray-500 max-w-md mx-auto">
-          Explora nuestro catálogo mayorista y añade productos para aprovechar los mejores precios directos de fábrica.
-        </p>
-        <button
-          onClick={onContinueShopping}
-          className="bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold px-6 sm:px-8 py-3 rounded-lg text-sm sm:text-base transition-colors cursor-pointer inline-flex items-center gap-2 min-h-[44px]"
-        >
-          Ver Catálogo Mayorista
-        </button>
       </div>
     );
   }
@@ -308,6 +360,44 @@ export const CartView: React.FC<CartViewProps> = ({
           <span>Seguir comprando</span>
         </button>
       </div>
+
+      {/* Avisos de stock dentro del carrito: permanecen visibles hasta cerrarse con la X, sin ventanas emergentes */}
+      {stockAlerts && stockAlerts.length > 0 && (
+        <div id="cart-stock-alerts" className="space-y-2.5">
+          {stockAlerts.map((alert) => (
+            <div
+              key={alert.id}
+              className={`flex items-start justify-between gap-3 p-3.5 sm:p-4 rounded-xl border text-xs sm:text-sm font-medium shadow-xs transition-all ${
+                alert.type === 'out_of_stock'
+                  ? 'bg-amber-50/95 border-amber-300 text-amber-950'
+                  : 'bg-blue-50/95 border-blue-300 text-blue-950'
+              }`}
+            >
+              <div className="flex items-start gap-2.5 min-w-0">
+                {alert.type === 'out_of_stock' ? (
+                  <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 shrink-0 mt-0.5" />
+                ) : (
+                  <Info className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 shrink-0 mt-0.5" />
+                )}
+                <div className="min-w-0">
+                  <p className="leading-snug font-semibold">{alert.message}</p>
+                </div>
+              </div>
+              {onDismissStockAlert && (
+                <button
+                  type="button"
+                  onClick={() => onDismissStockAlert(alert.id)}
+                  className="p-1 rounded-lg hover:bg-black/10 text-gray-400 hover:text-gray-800 transition-colors cursor-pointer shrink-0"
+                  aria-label="Cerrar aviso"
+                  title="Cerrar aviso"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Banner de Modalidad Activa en Carrito (Oculto) */}
       <div

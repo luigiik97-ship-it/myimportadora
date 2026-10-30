@@ -11,6 +11,7 @@ import {
   getResolvedProductPrices,
   getItemEffectiveNormalPrice,
   getItemEffectiveCashPrice,
+  getSelectedVariantStock,
 } from '../utils/variantHelpers';
 import { isAdminAuthenticated, requireAdminAuth } from './adminAuth';
 import {
@@ -689,6 +690,24 @@ export function extractProductCashPrices(item: any, rawSpecs?: any): {
     );
     if (wholesaleCashSpec && wholesaleCashSpec.value) {
       resolvedWholesaleCashPrice = checkNum(wholesaleCashSpec.value);
+    }
+  }
+
+  // Comprobar metadatos embebidos en size_variants / sizeVariants si alguno aún no fue resuelto
+  if ((resolvedRetailCashPrice === undefined || resolvedWholesaleCashPrice === undefined) && (item?.size_variants || item?.sizeVariants)) {
+    let svList = item.size_variants ?? item.sizeVariants;
+    if (typeof svList === 'string' && svList.trim().startsWith('[')) {
+      try {
+        svList = JSON.parse(svList);
+      } catch {}
+    }
+    if (Array.isArray(svList)) {
+      const meta = svList.find((s: any) => s && (s.id === '__meta_variant_types__' || s.name === '__meta_variant_types__'));
+      if (meta) {
+        if (resolvedWholesaleCashPrice === undefined) resolvedWholesaleCashPrice = checkNum(meta.wholesaleCashPrice);
+        if (resolvedRetailCashPrice === undefined) resolvedRetailCashPrice = checkNum(meta.retailCashPrice);
+        if (resolvedCashPrice === undefined) resolvedCashPrice = checkNum(meta.cashPrice);
+      }
     }
   }
 
@@ -1427,6 +1446,8 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
         wholesalePrice: targetWholesalePrice,
         retailPrice: targetRetailPrice,
         cashPrice: targetCashPrice,
+        retailCashPrice: targetRetailCashPrice,
+        wholesaleCashPrice: targetWholesaleCashPrice,
         colors,
         sizeVariants,
         variantTypes: currentVariantTypes,
@@ -1971,7 +1992,7 @@ export const verifyAndSanitizeOrderPayload = async (
   let calculatedSubtotal = 0;
   let calculatedCashSubtotal = 0;
 
-  const isCash = orderData.paymentMethod === 'cash';
+  const isCash = orderData.paymentMethod === 'cash' && orderData.deliveryOption === 'pickup';
 
   const verifiedItems = orderData.items.map((it) => {
     const qty = Math.max(1, Math.min(9999, Math.floor(Number(it.quantity) || 1)));
@@ -2012,6 +2033,19 @@ export const verifyAndSanitizeOrderPayload = async (
           resolvedSizeVariant = matchedSv;
         }
       }
+    }
+
+    // Validación estricta y autoritativa de stock en backend/servicio para evitar sobreventa
+    const availableStock = getSelectedVariantStock(prod, resolvedVariants);
+    if (availableStock <= 0) {
+      const variantDesc = it.variantText ? ` (${it.variantText})` : '';
+      console.warn(`[SEGURIDAD STOCK] Intento de compra con stock 0 bloqueado: "${prod.title}${variantDesc}"`);
+      throw new Error(`El producto "${prod.title}${variantDesc}" se encuentra agotado (stock disponible: 0).`);
+    }
+    if (qty > availableStock) {
+      const variantDesc = it.variantText ? ` (${it.variantText})` : '';
+      console.warn(`[SEGURIDAD STOCK] Intento de compra sobre stock disponible bloqueado: "${prod.title}${variantDesc}". Solicitado: ${qty}, Disponible: ${availableStock}`);
+      throw new Error(`Stock insuficiente para "${prod.title}${variantDesc}". Disponibles: ${availableStock}, solicitadas: ${qty}.`);
     }
 
     // Determinar modalidad mayorista vs minorista según mínimo de categoría o estado explícito del checkout
@@ -2845,15 +2879,23 @@ export const fetchCategories = async (options?: { force?: boolean }): Promise<Ca
         let categoriesFromTable: Category[] = [];
         let categoriesFromSystemRow: Category[] = [];
 
-        // Strategy A: Dedicated categories table
-        try {
-          const { data, error } = await supabaseInstance
+        // Strategies A and B executed in parallel to cut latency in half:
+        const [tableSettled, systemRowSettled] = await Promise.allSettled([
+          supabaseInstance
             .from('categories')
             .select('*')
             .order('sort_order', { ascending: true })
-            .order('created_at', { ascending: true });
+            .order('created_at', { ascending: true }),
+          supabaseInstance
+            .from('products')
+            .select('description')
+            .eq('id', SYSTEM_CATEGORIES_ROW_ID)
+            .maybeSingle(),
+        ]);
 
-          if (!error && data && Array.isArray(data) && data.length > 0) {
+        if (tableSettled.status === 'fulfilled' && !tableSettled.value.error && tableSettled.value.data) {
+          const data = tableSettled.value.data;
+          if (Array.isArray(data) && data.length > 0) {
             categoriesFromTable = data.map((item: any) => ({
               id: item.id,
               name: item.name,
@@ -2865,20 +2907,11 @@ export const fetchCategories = async (options?: { force?: boolean }): Promise<Ca
               createdAt: item.created_at || item.createdAt,
             }));
           }
-        } catch (e) {
-          // Table may not exist yet
         }
 
-        // Strategy B: Dedicated cloud config row in products table
-        try {
-          const { data, error } = await supabaseInstance
-            .from('products')
-            .select('description')
-            .eq('id', SYSTEM_CATEGORIES_ROW_ID)
-            .maybeSingle();
-
-          if (!error && data && data.description) {
-            const parsed = JSON.parse(data.description);
+        if (systemRowSettled.status === 'fulfilled' && !systemRowSettled.value.error && systemRowSettled.value.data?.description) {
+          try {
+            const parsed = JSON.parse(systemRowSettled.value.data.description);
             if (Array.isArray(parsed) && parsed.length > 0) {
               categoriesFromSystemRow = parsed.map((item: any, idx: number) => ({
                 id: item.id || `cat-${item.slug || idx}`,
@@ -2891,9 +2924,9 @@ export const fetchCategories = async (options?: { force?: boolean }): Promise<Ca
                 createdAt: item.createdAt,
               }));
             }
+          } catch (e) {
+            console.warn('[fetchCategories] Error parseando system row:', e);
           }
-        } catch (e) {
-          console.warn('[fetchCategories] Error reading from system row:', e);
         }
 
         if (categoriesFromSystemRow.length > 0 || categoriesFromTable.length > 0) {

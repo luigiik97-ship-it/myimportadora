@@ -136,50 +136,78 @@ export const saveStandaloneVariantsConfig = async (
   return updated;
 };
 
+let activeFetchVariantsPromise: Promise<StandaloneVariantsConfig> | null = null;
+let cachedVariantsConfig: StandaloneVariantsConfig | null = null;
+let lastVariantsFetchTime = 0;
+const VARIANTS_CACHE_TTL = 30000; // 30 segundos
+
 /**
  * Consulta y sincroniza la configuración de variantes independientes desde Supabase
  */
-export const fetchStandaloneVariantsFromSupabase = async (): Promise<StandaloneVariantsConfig> => {
-  const supabase = getSupabase();
-  if (isSupabaseConfigured() && supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('description')
-        .eq('id', SYSTEM_STANDALONE_VARIANTS_ROW_ID)
-        .maybeSingle();
-
-      if (error) {
-        console.warn('Error consultando standaloneVariants en Supabase:', error.message);
-        return getStandaloneVariantsConfig();
-      }
-
-      if (data && data.description) {
-        const parsed = JSON.parse(data.description);
-        if (parsed && Array.isArray(parsed.items)) {
-          const config: StandaloneVariantsConfig = {
-            items: parsed.items,
-            lastUpdated: parsed.lastUpdated || new Date().toISOString(),
-          };
-          try {
-            localStorage.setItem(STORAGE_KEY_STANDALONE_VARIANTS, JSON.stringify(config));
-          } catch (e) {}
-
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(
-              new CustomEvent('my_commerce_standalone_variants_updated', {
-                detail: config,
-              })
-            );
-          }
-          return config;
-        }
-      }
-    } catch (e) {
-      console.warn('Error de red obteniendo standaloneVariants desde Supabase:', e);
-    }
+export const fetchStandaloneVariantsFromSupabase = async (force = false): Promise<StandaloneVariantsConfig> => {
+  const now = Date.now();
+  if (!force && cachedVariantsConfig && (now - lastVariantsFetchTime < VARIANTS_CACHE_TTL)) {
+    return cachedVariantsConfig;
   }
-  return getStandaloneVariantsConfig();
+
+  if (activeFetchVariantsPromise) {
+    return activeFetchVariantsPromise;
+  }
+
+  activeFetchVariantsPromise = (async () => {
+    const supabase = getSupabase();
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('description')
+          .eq('id', SYSTEM_STANDALONE_VARIANTS_ROW_ID)
+          .maybeSingle();
+
+        if (error) {
+          console.warn('Error consultando standaloneVariants en Supabase:', error.message);
+          const fallback = getStandaloneVariantsConfig();
+          cachedVariantsConfig = fallback;
+          lastVariantsFetchTime = Date.now();
+          return fallback;
+        }
+
+        if (data && data.description) {
+          const parsed = JSON.parse(data.description);
+          if (parsed && Array.isArray(parsed.items)) {
+            const config: StandaloneVariantsConfig = {
+              items: parsed.items,
+              lastUpdated: parsed.lastUpdated || new Date().toISOString(),
+            };
+            cachedVariantsConfig = config;
+            lastVariantsFetchTime = Date.now();
+            try {
+              localStorage.setItem(STORAGE_KEY_STANDALONE_VARIANTS, JSON.stringify(config));
+            } catch (e) {}
+
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(
+                new CustomEvent('my_commerce_standalone_variants_updated', {
+                  detail: config,
+                })
+              );
+            }
+            return config;
+          }
+        }
+      } catch (e) {
+        console.warn('Error de red obteniendo standaloneVariants desde Supabase:', e);
+      }
+    }
+    const fallback = getStandaloneVariantsConfig();
+    cachedVariantsConfig = fallback;
+    lastVariantsFetchTime = Date.now();
+    return fallback;
+  })().finally(() => {
+    activeFetchVariantsPromise = null;
+  });
+
+  return activeFetchVariantsPromise;
 };
 
 /**

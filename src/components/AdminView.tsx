@@ -765,9 +765,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
       minWholesaleQty: 3,
       wholesalePrice: 1000,
       retailPrice: 1500,
-      cashPrice: undefined,
-      retailCashPrice: undefined,
-      wholesaleCashPrice: undefined,
+      wholesaleCashPrice: 900,
+      retailCashPrice: 1350,
+      cashPrice: 900,
       colors: ['Opción 1', 'Opción 2'],
       sizeVariants: [],
       variantTypes: initialVariantTypes,
@@ -795,9 +795,22 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     if (cloned.reviewsCount === undefined || cloned.reviewsCount === null) {
       cloned.reviewsCount = cloned.reviews.length;
     }
+
+    const checkPos = (v: any) => (v !== undefined && v !== null && !isNaN(Number(v)) && Number(v) > 0 ? Number(v) : undefined);
+    const parsedWholesale = checkPos(cloned.wholesalePrice) ?? 1000;
+    const parsedRetail = checkPos(cloned.retailPrice) ?? Math.round(parsedWholesale * 1.5);
+    const parsedWholesaleCash = checkPos(cloned.wholesaleCashPrice) ?? checkPos(cloned.cashPrice) ?? Math.round(parsedWholesale * 0.9);
+    const parsedRetailCash = checkPos(cloned.retailCashPrice) ?? checkPos(cloned.cashPrice) ?? Math.round(parsedRetail * 0.9);
+
+    cloned.wholesalePrice = parsedWholesale;
+    cloned.retailPrice = parsedRetail;
+    cloned.wholesaleCashPrice = parsedWholesaleCash;
+    cloned.retailCashPrice = parsedRetailCash;
+    cloned.cashPrice = parsedWholesaleCash;
+
     console.log(`\n================== [CASH & VARIANT DEBUG - POST-LOAD (Admin Edit Open)] ==================`);
     console.log(`[Admin Edit Open] Abriendo edición para producto "${cloned.title}" (ID: ${cloned.id})`);
-    console.log(`[Admin Edit Open] Precios en efectivo cargados: Min: ${cloned.retailCashPrice !== undefined ? `$${cloned.retailCashPrice}` : 'N/A'} | May: ${cloned.wholesaleCashPrice !== undefined ? `$${cloned.wholesaleCashPrice}` : 'N/A'}`);
+    console.log(`[Admin Edit Open] Precios cargados: May Transf: $${cloned.wholesalePrice} | Min Transf: $${cloned.retailPrice} | May Efec: $${cloned.wholesaleCashPrice} | Min Efec: $${cloned.retailCashPrice}`);
     console.log(`[Admin Edit Open] Variantes cargadas en el modal:`, JSON.stringify(cloned.variantTypes, null, 2));
     cloned.videoUrl = cloned.videoUrl || '';
     setEditingProduct(cloned);
@@ -810,6 +823,47 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     setNewReviewAuthor('');
     setNewReviewRating(5);
     setIsProductModalOpen(true);
+  };
+
+  const handleCopyPriceToVariants = (
+    priceField: 'wholesalePrice' | 'retailPrice' | 'wholesaleCashPrice' | 'retailCashPrice'
+  ) => {
+    if (!editingProduct) return;
+    const currentTypes = editingProduct.variantTypes || [];
+    const totalOptions = currentTypes.reduce((acc, vt) => acc + (vt.options?.length || 0), 0);
+    if (totalOptions === 0) {
+      alert('Esta publicación no tiene variantes creadas. Creá variantes en el gestor inferior antes de copiar precios.');
+      return;
+    }
+
+    const rawVal = editingProduct[priceField];
+    if (rawVal === undefined || rawVal === null || isNaN(Number(rawVal)) || Number(rawVal) <= 0) {
+      alert('Por favor ingresá un precio válido mayor a 0 antes de copiarlo a las variantes.');
+      return;
+    }
+
+    const numValue = Number(rawVal);
+    const updatedVariantTypes: VariantType[] = currentTypes.map((vt) => ({
+      ...vt,
+      options: (vt.options || []).map((opt) => ({
+        ...opt,
+        [priceField]: numValue,
+      })),
+    }));
+
+    handleVariantTypesChange(updatedVariantTypes);
+
+    const labels: Record<string, string> = {
+      wholesalePrice: 'Precio Mayorista Transferencia',
+      retailPrice: 'Precio Minorista Transferencia',
+      wholesaleCashPrice: 'Precio Mayorista Efectivo',
+      retailCashPrice: 'Precio Minorista Efectivo',
+    };
+
+    setActionFeedback({
+      type: 'success',
+      text: `${labels[priceField]} ($${numValue.toLocaleString('es-AR')}) copiado exitosamente a todas las variantes (${totalOptions} opciones).`,
+    });
   };
 
   const handleVariantTypesChange = (newVariantTypes: VariantType[]) => {
@@ -858,23 +912,35 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
       return;
     }
 
+    // Validación estricta: los 4 precios son obligatorios y deben ser > 0
+    if (!editingProduct.wholesalePrice || isNaN(Number(editingProduct.wholesalePrice)) || Number(editingProduct.wholesalePrice) <= 0) {
+      alert('El Precio Mayorista por Transferencia es obligatorio y debe ser mayor a 0.');
+      return;
+    }
+    if (!editingProduct.retailPrice || isNaN(Number(editingProduct.retailPrice)) || Number(editingProduct.retailPrice) <= 0) {
+      alert('El Precio Minorista por Transferencia es obligatorio y debe ser mayor a 0.');
+      return;
+    }
+    if (!editingProduct.wholesaleCashPrice || isNaN(Number(editingProduct.wholesaleCashPrice)) || Number(editingProduct.wholesaleCashPrice) <= 0) {
+      alert('El Precio Mayorista en Efectivo es obligatorio y debe ser mayor a 0.');
+      return;
+    }
+    if (!editingProduct.retailCashPrice || isNaN(Number(editingProduct.retailCashPrice)) || Number(editingProduct.retailCashPrice) <= 0) {
+      alert('El Precio Minorista en Efectivo es obligatorio y debe ser mayor a 0.');
+      return;
+    }
+
     const currentVariantTypes = editingProduct.variantTypes || normalizeVariantTypes(editingProduct as Product);
-    const targetCashPrice = editingProduct.cashPrice !== undefined && editingProduct.cashPrice !== null && !isNaN(Number(editingProduct.cashPrice))
-      ? Number(editingProduct.cashPrice)
-      : undefined;
-
-    const targetRetailCashPrice = editingProduct.retailCashPrice !== undefined && editingProduct.retailCashPrice !== null && !isNaN(Number(editingProduct.retailCashPrice))
-      ? Number(editingProduct.retailCashPrice)
-      : targetCashPrice;
-
-    const targetWholesaleCashPrice = editingProduct.wholesaleCashPrice !== undefined && editingProduct.wholesaleCashPrice !== null && !isNaN(Number(editingProduct.wholesaleCashPrice))
-      ? Number(editingProduct.wholesaleCashPrice)
-      : targetCashPrice;
+    const targetWholesalePrice = Number(editingProduct.wholesalePrice);
+    const targetRetailPrice = Number(editingProduct.retailPrice);
+    const targetWholesaleCashPrice = Number(editingProduct.wholesaleCashPrice);
+    const targetRetailCashPrice = Number(editingProduct.retailCashPrice);
+    const targetCashPrice = targetWholesaleCashPrice;
 
     const { colors, sizeVariants } = syncLegacyFields(
       currentVariantTypes,
-      editingProduct.wholesalePrice || 0,
-      editingProduct.retailPrice || 0,
+      targetWholesalePrice,
+      targetRetailPrice,
       targetCashPrice,
       targetRetailCashPrice,
       targetWholesaleCashPrice
@@ -933,7 +999,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
       additionalImage: effectiveAdditionalImage,
       images: finalImages,
       image: finalImages[0] || coverImage || null,
-      cashPrice: targetCashPrice ?? targetRetailCashPrice,
+      wholesalePrice: targetWholesalePrice,
+      retailPrice: targetRetailPrice,
+      cashPrice: targetCashPrice,
       retailCashPrice: targetRetailCashPrice,
       wholesaleCashPrice: targetWholesaleCashPrice,
       variantTypes: currentVariantTypes,
@@ -3319,95 +3387,169 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
 
               {/* Precios Generales & Stock */}
               <div className="grid grid-cols-2 md:grid-cols-6 gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
-                <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Precio Mayorista ($) *</label>
-                  <input
-                    type="number"
-                    required
-                    min={0}
-                    value={editingProduct.wholesalePrice ?? 0}
-                    onChange={(e) =>
-                      setEditingProduct({ ...editingProduct, wholesalePrice: Number(e.target.value) })
-                    }
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs bg-white focus:ring-1 focus:ring-[#0058bb]"
-                  />
+                {/* 1. Mayorista Transferencia */}
+                <div className="flex flex-col justify-between">
+                  <div>
+                    <label className="font-semibold text-gray-700 block mb-1 text-xs">
+                      Mayorista Transf. ($) <span className="text-red-500 font-bold">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      value={editingProduct.wholesalePrice ?? ''}
+                      onChange={(e) =>
+                        setEditingProduct({
+                          ...editingProduct,
+                          wholesalePrice: e.target.value === '' ? ('' as any) : Number(e.target.value),
+                        })
+                      }
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs bg-white focus:ring-1 focus:ring-[#0058bb]"
+                      title="Precio mayorista por transferencia bancaria"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyPriceToVariants('wholesalePrice')}
+                    className="mt-1.5 w-full text-[10.5px] font-bold text-[#0058bb] bg-blue-50 hover:bg-blue-100 active:scale-95 border border-blue-200 rounded-md py-1 px-1.5 flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs"
+                    title="Copiar este precio a todas las variantes (columna Mayorista Transferencia)"
+                  >
+                    <Copy className="w-3 h-3 shrink-0" />
+                    <span>Copiar a variantes</span>
+                  </button>
                 </div>
 
-                <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Precio Minorista ($) *</label>
-                  <input
-                    type="number"
-                    required
-                    min={0}
-                    value={editingProduct.retailPrice ?? 0}
-                    onChange={(e) =>
-                      setEditingProduct({ ...editingProduct, retailPrice: Number(e.target.value) })
-                    }
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs bg-white focus:ring-1 focus:ring-[#0058bb]"
-                  />
+                {/* 2. Minorista Transferencia */}
+                <div className="flex flex-col justify-between">
+                  <div>
+                    <label className="font-semibold text-gray-700 block mb-1 text-xs">
+                      Minorista Transf. ($) <span className="text-red-500 font-bold">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      value={editingProduct.retailPrice ?? ''}
+                      onChange={(e) =>
+                        setEditingProduct({
+                          ...editingProduct,
+                          retailPrice: e.target.value === '' ? ('' as any) : Number(e.target.value),
+                        })
+                      }
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs bg-white focus:ring-1 focus:ring-[#0058bb]"
+                      title="Precio minorista por transferencia bancaria"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyPriceToVariants('retailPrice')}
+                    className="mt-1.5 w-full text-[10.5px] font-bold text-[#0058bb] bg-blue-50 hover:bg-blue-100 active:scale-95 border border-blue-200 rounded-md py-1 px-1.5 flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs"
+                    title="Copiar este precio a todas las variantes (columna Minorista Transferencia)"
+                  >
+                    <Copy className="w-3 h-3 shrink-0" />
+                    <span>Copiar a variantes</span>
+                  </button>
                 </div>
 
-                <div>
-                  <label className="font-semibold text-emerald-800 block mb-1">Precio efectivo minorista ($)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    placeholder="Opcional"
-                    value={editingProduct.retailCashPrice ?? editingProduct.cashPrice ?? ''}
-                    onChange={(e) =>
-                      setEditingProduct({
-                        ...editingProduct,
-                        retailCashPrice: e.target.value === '' ? undefined : Number(e.target.value),
-                        cashPrice: e.target.value === '' ? undefined : Number(e.target.value),
-                      })
-                    }
-                    className="w-full border border-emerald-300 rounded-lg px-3 py-2 text-xs bg-white focus:ring-1 focus:ring-emerald-600 font-semibold text-emerald-900"
-                    title="Precio en efectivo para compras minoristas"
-                  />
+                {/* 3. Mayorista Efectivo */}
+                <div className="flex flex-col justify-between">
+                  <div>
+                    <label className="font-semibold text-teal-800 block mb-1 text-xs">
+                      Mayorista Efectivo ($) <span className="text-red-500 font-bold">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      value={editingProduct.wholesaleCashPrice ?? ''}
+                      onChange={(e) =>
+                        setEditingProduct({
+                          ...editingProduct,
+                          wholesaleCashPrice: e.target.value === '' ? ('' as any) : Number(e.target.value),
+                        })
+                      }
+                      className="w-full border border-teal-300 rounded-lg px-3 py-2 text-xs bg-white focus:ring-1 focus:ring-teal-600 font-semibold text-teal-900"
+                      title="Precio en efectivo para compras mayoristas"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyPriceToVariants('wholesaleCashPrice')}
+                    className="mt-1.5 w-full text-[10.5px] font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 active:scale-95 border border-teal-200 rounded-md py-1 px-1.5 flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs"
+                    title="Copiar este precio a todas las variantes (columna Mayorista Efectivo)"
+                  >
+                    <Copy className="w-3 h-3 shrink-0" />
+                    <span>Copiar a variantes</span>
+                  </button>
                 </div>
 
-                <div>
-                  <label className="font-semibold text-teal-800 block mb-1">Precio efectivo mayorista ($)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    placeholder="Opcional"
-                    value={editingProduct.wholesaleCashPrice ?? ''}
-                    onChange={(e) =>
-                      setEditingProduct({
-                        ...editingProduct,
-                        wholesaleCashPrice: e.target.value === '' ? undefined : Number(e.target.value),
-                      })
-                    }
-                    className="w-full border border-teal-300 rounded-lg px-3 py-2 text-xs bg-white focus:ring-1 focus:ring-teal-600 font-semibold text-teal-900"
-                    title="Precio en efectivo para compras mayoristas"
-                  />
+                {/* 4. Minorista Efectivo */}
+                <div className="flex flex-col justify-between">
+                  <div>
+                    <label className="font-semibold text-emerald-800 block mb-1 text-xs">
+                      Minorista Efectivo ($) <span className="text-red-500 font-bold">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      value={editingProduct.retailCashPrice ?? ''}
+                      onChange={(e) =>
+                        setEditingProduct({
+                          ...editingProduct,
+                          retailCashPrice: e.target.value === '' ? ('' as any) : Number(e.target.value),
+                          cashPrice: e.target.value === '' ? ('' as any) : Number(e.target.value),
+                        })
+                      }
+                      className="w-full border border-emerald-300 rounded-lg px-3 py-2 text-xs bg-white focus:ring-1 focus:ring-emerald-600 font-semibold text-emerald-900"
+                      title="Precio en efectivo para compras minoristas"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyPriceToVariants('retailCashPrice')}
+                    className="mt-1.5 w-full text-[10.5px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 active:scale-95 border border-emerald-200 rounded-md py-1 px-1.5 flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs"
+                    title="Copiar este precio a todas las variantes (columna Minorista Efectivo)"
+                  >
+                    <Copy className="w-3 h-3 shrink-0" />
+                    <span>Copiar a variantes</span>
+                  </button>
                 </div>
 
-                <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Mínimo Mayorista *</label>
-                  <input
-                    type="number"
-                    required
-                    min={1}
-                    value={editingProduct.minWholesaleQty ?? 1}
-                    onChange={(e) =>
-                      setEditingProduct({ ...editingProduct, minWholesaleQty: Number(e.target.value) })
-                    }
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs bg-white focus:ring-1 focus:ring-[#0058bb]"
-                  />
+                {/* 5. Mínimo Mayorista */}
+                <div className="flex flex-col justify-between">
+                  <div>
+                    <label className="font-semibold text-gray-700 block mb-1 text-xs">
+                      Mínimo Mayorista <span className="text-red-500 font-bold">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      value={editingProduct.minWholesaleQty ?? 1}
+                      onChange={(e) =>
+                        setEditingProduct({ ...editingProduct, minWholesaleQty: Number(e.target.value) })
+                      }
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs bg-white focus:ring-1 focus:ring-[#0058bb]"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="font-semibold text-gray-700 block mb-1">Stock Disponible *</label>
-                  <input
-                    type="number"
-                    required
-                    min={0}
-                    value={editingProduct.stock ?? 0}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, stock: Number(e.target.value) })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs bg-white focus:ring-1 focus:ring-[#0058bb]"
-                  />
+                {/* 6. Stock Disponible */}
+                <div className="flex flex-col justify-between">
+                  <div>
+                    <label className="font-semibold text-gray-700 block mb-1 text-xs">
+                      Stock Disponible <span className="text-red-500 font-bold">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min={0}
+                      value={editingProduct.stock ?? 0}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, stock: Number(e.target.value) })}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs bg-white focus:ring-1 focus:ring-[#0058bb]"
+                    />
+                  </div>
                 </div>
               </div>
 

@@ -23,6 +23,7 @@ import {
 } from './services/supabase';
 import { userToProfile } from './services/auth';
 import { getActiveVariantImages, getItemEffectiveNormalPrice, getSelectedVariantStock, deductStockFromProduct, getProductCoverImage, getVariantPrimaryImage } from './utils/variantHelpers';
+import { validateCartStock, CartStockAlert, StockValidationResult } from './utils/stockValidation';
 import { slugifyCategory, reconcileCategoriesWithProducts } from './utils/categoryHelpers';
 import { reorderCartOnProductAdd } from './utils/cartOrdering';
 import { recordSiteVisit } from './services/analytics';
@@ -122,6 +123,48 @@ export default function App() {
   const handleCloseCartNotification = useCallback(() => {
     setCartNotification(null);
   }, []);
+
+  // Avisos de stock dentro del carrito: persistentes hasta que el usuario los cierre con la X (sin ventanas emergentes)
+  const [cartStockAlerts, setCartStockAlerts] = useState<CartStockAlert[]>([]);
+
+  const handleDismissStockAlert = useCallback((alertId: string) => {
+    setCartStockAlerts((prev) => prev.filter((a) => a.id !== alertId));
+  }, []);
+
+  // Momento 1: Validación de stock al abrir el carrito
+  const handleValidateCartStock = useCallback(() => {
+    if (cart.length === 0) return;
+    const result = validateCartStock(cart, products);
+    if (result.hasChanges) {
+      setCart(result.updatedCart);
+    }
+    if (result.alerts.length > 0) {
+      setCartStockAlerts((prev) => {
+        const existingMsgs = new Set(prev.map((a) => a.message));
+        const newAlerts = result.alerts.filter((a) => !existingMsgs.has(a.message));
+        return [...prev, ...newAlerts];
+      });
+    }
+  }, [cart, products]);
+
+  // Manejo de fallo de validación de stock antes de finalizar en checkout o por WhatsApp
+  const handleStockValidationFailed = useCallback(
+    (result: StockValidationResult) => {
+      if (result.hasChanges) {
+        setCart(result.updatedCart);
+      }
+      if (result.alerts.length > 0) {
+        setCartStockAlerts((prev) => {
+          const existingMsgs = new Set(prev.map((a) => a.message));
+          const newAlerts = result.alerts.filter((a) => !existingMsgs.has(a.message));
+          return [...prev, ...newAlerts];
+        });
+      }
+      navigate('/carrito');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+    [navigate]
+  );
   const [lastShoppingView, setLastShoppingView] = useState<'home' | 'category' | 'quick_buy'>('home');
   const [isLaunchesVisible, setIsLaunchesVisible] = useState<boolean>(() => isLaunchesSectionVisible());
   const [isOffline, setIsOffline] = useState<boolean>(() => {
@@ -418,7 +461,6 @@ export default function App() {
 
   useEffect(() => {
     loadData();
-    fetchStandaloneVariantsFromSupabase().catch(() => {});
 
     const handleCategoriesUpdated = (event?: any) => {
       if (event?.detail && Array.isArray(event.detail)) {
@@ -479,14 +521,23 @@ export default function App() {
     loadData(false);
   }, [location.pathname]);
 
-  // Cargar configuraciones compartidas desde Supabase (Compra Rápida, Banners, Videos, Envíos, Ajustes de Tienda y Próximos Lanzamientos)
+  // Cargar configuraciones compartidas desde Supabase:
+  // - Prioridad inmediata: Banners de portada (LCP crítico)
+  // - Diferido: Configuraciones secundarias (videos de reels, envíos, settings) para garantizar 100%
+  //   de conexiones libres en el pool HTTP de Supabase para la descarga instantánea de imágenes del banner y categorías.
   useEffect(() => {
-    fetchQuickBuyLinkConfigFromSupabase().catch(() => {});
     fetchStoreBannersFromSupabase().catch(() => {});
-    fetchStoreVideosFromSupabase().catch(() => {});
-    fetchShippingConfigFromSupabase().catch(() => {});
-    fetchStoreSettingsFromSupabase().catch(() => {});
-    fetchLaunchesVisibilityFromSupabase().then((vis) => setIsLaunchesVisible(vis)).catch(() => {});
+
+    const secondaryTimer = setTimeout(() => {
+      fetchStandaloneVariantsFromSupabase().catch(() => {});
+      fetchQuickBuyLinkConfigFromSupabase().catch(() => {});
+      fetchStoreVideosFromSupabase().catch(() => {});
+      fetchShippingConfigFromSupabase().catch(() => {});
+      fetchStoreSettingsFromSupabase().catch(() => {});
+      fetchLaunchesVisibilityFromSupabase().then((vis) => setIsLaunchesVisible(vis)).catch(() => {});
+    }, 350);
+
+    return () => clearTimeout(secondaryTimer);
   }, []);
 
   // Verificación de conectividad real ligera (evita falsos positivos o dependencias pesadas)
@@ -753,22 +804,68 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Momento 2: Validación de stock cuando el usuario cambia cantidades en el carrito
   const handleUpdateCartQuantity = (id: string, delta: number) => {
-    setCart((prev) =>
-      prev
+    setCart((prev) => {
+      let alertToAdd: CartStockAlert | null = null;
+      const updated = prev
         .map((item) => {
           if (item.id === id) {
-            const maxStock = getSelectedVariantStock(item.product, item.selectedVariants || {});
-            let newQty = item.quantity + delta;
-            if (maxStock > 0 && delta > 0 && newQty > maxStock) {
-              newQty = maxStock;
+            const liveProduct = products.find((p) => p.id === item.productId) || item.product;
+            const maxStock = getSelectedVariantStock(liveProduct, item.selectedVariants || {});
+
+            // Si el producto se agotó, retirarlo automáticamente del carrito
+            if (maxStock <= 0) {
+              const variantDesc = item.variantText ? ` (${item.variantText})` : '';
+              alertToAdd = {
+                id: `oos-${item.id}-${Date.now()}`,
+                type: 'out_of_stock',
+                message: `"${item.product.title}${variantDesc}" se encuentra agotado y fue retirado de tu carrito.`,
+                productTitle: item.product.title,
+                variantText: item.variantText,
+                productId: item.productId,
+                availableStock: 0,
+              };
+              return null;
             }
-            return newQty > 0 ? { ...item, quantity: newQty } : null;
+
+            let newQty = item.quantity + delta;
+            // Si el stock solo baja o el usuario supera el disponible, ajustar la cantidad máxima y mostrar aviso
+            if (maxStock > 0 && newQty > maxStock) {
+              newQty = maxStock;
+              const variantDesc = item.variantText ? ` (${item.variantText})` : '';
+              alertToAdd = {
+                id: `red-${item.id}-${Date.now()}`,
+                type: 'reduced_stock',
+                message: `El stock disponible de "${item.product.title}${variantDesc}" es de ${maxStock} unidad${maxStock > 1 ? 'es' : ''}. Cantidad ajustada.`,
+                productTitle: item.product.title,
+                variantText: item.variantText,
+                productId: item.productId,
+                availableStock: maxStock,
+              };
+            }
+            return newQty > 0
+              ? {
+                  ...item,
+                  product: liveProduct,
+                  quantity: newQty,
+                  totalPrice: item.unitPrice * newQty,
+                }
+              : null;
           }
           return item;
         })
-        .filter(Boolean) as CartItem[]
-    );
+        .filter(Boolean) as CartItem[];
+
+      if (alertToAdd) {
+        setCartStockAlerts((prevAlerts) => {
+          const exists = prevAlerts.some((a) => a.message === alertToAdd!.message);
+          return exists ? prevAlerts : [...prevAlerts, alertToAdd!];
+        });
+      }
+
+      return updated;
+    });
   };
 
   const handleSetCartItemDirectQuantity = (id: string, targetQty: number) => {
@@ -776,20 +873,62 @@ export default function App() {
       handleRemoveCartItem(id);
       return;
     }
-    setCart((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          const maxStock = getSelectedVariantStock(item.product, item.selectedVariants || {});
-          const finalQty = maxStock > 0 ? Math.min(targetQty, maxStock) : targetQty;
-          return {
-            ...item,
-            quantity: finalQty,
-            totalPrice: item.unitPrice * finalQty,
-          };
-        }
-        return item;
-      })
-    );
+    setCart((prev) => {
+      let alertToAdd: CartStockAlert | null = null;
+      const updated = prev
+        .map((item) => {
+          if (item.id === id) {
+            const liveProduct = products.find((p) => p.id === item.productId) || item.product;
+            const maxStock = getSelectedVariantStock(liveProduct, item.selectedVariants || {});
+
+            if (maxStock <= 0) {
+              const variantDesc = item.variantText ? ` (${item.variantText})` : '';
+              alertToAdd = {
+                id: `oos-${item.id}-${Date.now()}`,
+                type: 'out_of_stock',
+                message: `"${item.product.title}${variantDesc}" se encuentra agotado y fue retirado de tu carrito.`,
+                productTitle: item.product.title,
+                variantText: item.variantText,
+                productId: item.productId,
+                availableStock: 0,
+              };
+              return null;
+            }
+
+            let finalQty = targetQty;
+            if (maxStock > 0 && targetQty > maxStock) {
+              finalQty = maxStock;
+              const variantDesc = item.variantText ? ` (${item.variantText})` : '';
+              alertToAdd = {
+                id: `red-${item.id}-${Date.now()}`,
+                type: 'reduced_stock',
+                message: `El stock disponible de "${item.product.title}${variantDesc}" es de ${maxStock} unidad${maxStock > 1 ? 'es' : ''}. Cantidad ajustada.`,
+                productTitle: item.product.title,
+                variantText: item.variantText,
+                productId: item.productId,
+                availableStock: maxStock,
+              };
+            }
+            return {
+              ...item,
+              product: liveProduct,
+              quantity: finalQty,
+              totalPrice: item.unitPrice * finalQty,
+            };
+          }
+          return item;
+        })
+        .filter(Boolean) as CartItem[];
+
+      if (alertToAdd) {
+        setCartStockAlerts((prevAlerts) => {
+          const exists = prevAlerts.some((a) => a.message === alertToAdd!.message);
+          return exists ? prevAlerts : [...prevAlerts, alertToAdd!];
+        });
+      }
+
+      return updated;
+    });
   };
 
   const handleRemoveCartItem = (id: string) => {
@@ -810,14 +949,53 @@ export default function App() {
             .join('|')
         : 'none-none';
     const itemId = `${product.id}-${variantIdPart}`;
-    const maxAvailableStock = getSelectedVariantStock(product, selectedVariants || {});
+    const liveProduct = products.find((p) => p.id === product.id) || product;
+    const maxAvailableStock = getSelectedVariantStock(liveProduct, selectedVariants || {});
 
     if (targetQty <= 0) {
       handleRemoveCartItem(itemId);
       return;
     }
 
-    const finalQty = maxAvailableStock > 0 ? Math.min(targetQty, maxAvailableStock) : targetQty;
+    if (maxAvailableStock <= 0) {
+      handleRemoveCartItem(itemId);
+      const msg = `"${product.title}" se encuentra agotado y fue retirado de tu carrito.`;
+      setCartStockAlerts((prevAlerts) => {
+        if (prevAlerts.some((a) => a.message === msg)) return prevAlerts;
+        return [
+          ...prevAlerts,
+          {
+            id: `oos-${itemId}-${Date.now()}`,
+            type: 'out_of_stock',
+            message: msg,
+            productTitle: product.title,
+            productId: product.id,
+            availableStock: 0,
+          },
+        ];
+      });
+      return;
+    }
+
+    let finalQty = targetQty;
+    if (maxAvailableStock > 0 && targetQty > maxAvailableStock) {
+      finalQty = maxAvailableStock;
+      const msg = `El stock disponible de "${product.title}" es de ${maxAvailableStock} unidad${maxAvailableStock > 1 ? 'es' : ''}. Cantidad ajustada.`;
+      setCartStockAlerts((prevAlerts) => {
+        if (prevAlerts.some((a) => a.message === msg)) return prevAlerts;
+        return [
+          ...prevAlerts,
+          {
+            id: `red-${itemId}-${Date.now()}`,
+            type: 'reduced_stock',
+            message: msg,
+            productTitle: product.title,
+            productId: product.id,
+            availableStock: maxAvailableStock,
+          },
+        ];
+      });
+    }
 
     setCart((prev) => {
       const existingIndex = prev.findIndex((item) => item.id === itemId);
@@ -841,7 +1019,7 @@ export default function App() {
         const newItem: CartItem = {
           id: itemId,
           productId: product.id,
-          product,
+          product: liveProduct,
           selectedVariants,
           selectedImage: resolvedImage,
           quantity: finalQty,
@@ -1242,6 +1420,9 @@ export default function App() {
                   }
                 }}
                 showCashEquivalent={isFromQuickBuyCashPickup}
+                stockAlerts={cartStockAlerts}
+                onDismissStockAlert={handleDismissStockAlert}
+                onValidateStock={handleValidateCartStock}
               />
             }
           />
@@ -1252,6 +1433,8 @@ export default function App() {
               <CheckoutView
                 cartItems={cart}
                 currentUser={currentUser}
+                products={products}
+                onStockValidationFailed={handleStockValidationFailed}
                 onAuthSuccess={(profile) => setCurrentUser(profile)}
                 initialDeliveryOption={deliveryOption}
                 initialPaymentMethod={paymentMethod}
@@ -1315,6 +1498,7 @@ export default function App() {
                 onSaveOrder={handleSaveOrderToSupabaseAndEmail}
                 onClearCart={() => setCart([])}
                 onOrderCompleted={handleOrderCompleted}
+                onStockValidationFailed={handleStockValidationFailed}
               />
             }
           />

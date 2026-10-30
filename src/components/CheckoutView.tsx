@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { CartItem, Order, UserProfile } from '../types';
+import { CartItem, Order, UserProfile, Product } from '../types';
 import { ShieldCheck, ArrowLeft, Loader2, Truck, Store, CreditCard, Banknote, AlertCircle, MapPin, Zap, User } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getShippingZoneInfo, ShippingOption } from '../utils/shipping';
@@ -11,6 +11,7 @@ import {
   triggerWhatsAppOpen,
 } from '../services/quickBuyLink';
 import { getOptimizedImageUrl } from '../utils/imageOptimizer';
+import { validateCartStock, StockValidationResult } from '../utils/stockValidation';
 
 interface CheckoutViewProps {
   cartItems: CartItem[];
@@ -23,6 +24,8 @@ interface CheckoutViewProps {
   initialPaymentMethod?: 'transfer' | 'cash';
   onDeliveryOptionChange?: (option: 'pickup' | 'delivery') => void;
   onPaymentMethodChange?: (method: 'transfer' | 'cash') => void;
+  products?: Product[];
+  onStockValidationFailed?: (result: StockValidationResult) => void;
 }
 
 export const CheckoutView: React.FC<CheckoutViewProps> = ({
@@ -36,6 +39,8 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   initialPaymentMethod,
   onDeliveryOptionChange,
   onPaymentMethodChange,
+  products = [],
+  onStockValidationFailed,
 }) => {
   // Redirigir a inicio si el carrito está vacío (ej. después de comprar) impidiendo volver al checkout
   useEffect(() => {
@@ -321,6 +326,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     return {
       ...item,
       isWholesale,
+      retailUnitPrice,
       normalUnitPrice,
       cashUnitPrice,
       unitPrice,
@@ -427,6 +433,18 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
       return;
     }
 
+    // Momento 3: Validación de stock justo antes de finalizar en checkout
+    if (products && products.length > 0) {
+      const stockResult = validateCartStock(cartItems, products);
+      if (stockResult.hasChanges) {
+        setIsSubmitting(false);
+        if (onStockValidationFailed) {
+          onStockValidationFailed(stockResult);
+        }
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -474,7 +492,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           selectedColor: item.selectedColor,
         })),
         subtotal: paymentMethod === 'cash' ? cashProductsSubtotal : transferProductsSubtotal,
-        wholesaleDiscount: 0,
+        wholesaleDiscount: processedItems.reduce((acc, i) => acc + (Math.max(0, i.retailUnitPrice - i.normalUnitPrice) * i.quantity), 0),
         cashDiscount: paymentMethod === 'cash' ? Math.max(0, transferProductsSubtotal - cashProductsSubtotal) : 0,
         shippingCost,
         total: totalFinal,

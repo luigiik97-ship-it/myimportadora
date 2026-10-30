@@ -41,9 +41,10 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
   const resolvedFetchPriority: 'high' | 'low' | 'auto' | undefined = priority
     ? 'high'
     : (fetchPriority as 'high' | 'low' | 'auto' | undefined);
+  const resolvedDecoding: 'sync' | 'async' | 'auto' = decoding || (priority ? 'sync' : 'async');
   const optimizedSrc = getOptimizedImageUrl(src, { width: targetWidth || 600, quality: quality || 75 });
   const isPreloaded = loadedImageUrls.has(optimizedSrc) || loadedImageUrls.has(src);
-  const [isLoaded, setIsLoaded] = useState<boolean>(isPreloaded);
+  const [isLoaded, setIsLoaded] = useState<boolean>(isPreloaded || priority);
   const [hasError, setHasError] = useState<boolean>(false);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
@@ -58,10 +59,10 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
     if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
       loadedImageUrls.add(optimizedSrc);
       setIsLoaded(true);
-    } else {
+    } else if (!priority) {
       setIsLoaded(false);
     }
-  }, [optimizedSrc, src]);
+  }, [optimizedSrc, src, priority]);
 
   const handleLoad = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     loadedImageUrls.add(optimizedSrc);
@@ -115,13 +116,15 @@ export const ImageWithSkeleton: React.FC<ImageWithSkeletonProps> = ({
         src={displaySrc}
         srcSet={responsiveSrcSet || undefined}
         alt={alt}
-        loading={loading}
-        decoding={decoding}
-        fetchPriority={fetchPriority}
+        loading={resolvedLoading}
+        decoding={resolvedDecoding}
+        fetchPriority={resolvedFetchPriority}
         onLoad={handleLoad}
         onError={handleError}
-        className={`w-full h-full max-w-full max-h-full ${resolvedObjectFit} transition-opacity duration-300 ${
-          isLoaded ? 'opacity-100' : 'opacity-0'
+        className={`w-full h-full max-w-full max-h-full ${resolvedObjectFit} ${
+          priority
+            ? 'relative z-10 opacity-100'
+            : `transition-opacity duration-200 ${isLoaded ? 'opacity-100' : 'opacity-0'}`
         } ${imgClassName}`}
         {...restProps}
       />

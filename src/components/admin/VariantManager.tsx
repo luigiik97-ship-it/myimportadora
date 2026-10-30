@@ -238,8 +238,24 @@ export const VariantManager: React.FC<VariantManagerProps> = ({
           id: `vt-size-${Date.now()}`,
           name: 'Tamaño / Medida',
           options: [
-            { id: `opt-s1-${Date.now()}`, name: 'Mediano', wholesalePrice: baseWholesalePrice, retailPrice: baseRetailPrice, images: [] },
-            { id: `opt-s2-${Date.now()}`, name: 'Grande', wholesalePrice: Math.round(baseWholesalePrice * 1.3), retailPrice: Math.round(baseRetailPrice * 1.3), images: [] },
+            {
+              id: `opt-s1-${Date.now()}`,
+              name: 'Mediano',
+              wholesalePrice: baseWholesalePrice,
+              retailPrice: baseRetailPrice,
+              wholesaleCashPrice: baseWholesaleCashPrice,
+              retailCashPrice: baseRetailCashPrice,
+              images: [],
+            },
+            {
+              id: `opt-s2-${Date.now()}`,
+              name: 'Grande',
+              wholesalePrice: Math.round(baseWholesalePrice * 1.3),
+              retailPrice: Math.round(baseRetailPrice * 1.3),
+              wholesaleCashPrice: baseWholesaleCashPrice ? Math.round(baseWholesaleCashPrice * 1.3) : undefined,
+              retailCashPrice: baseRetailCashPrice ? Math.round(baseRetailCashPrice * 1.3) : undefined,
+              images: [],
+            },
           ],
         },
       ]);
@@ -559,7 +575,7 @@ export const VariantManager: React.FC<VariantManagerProps> = ({
                         {/* Optional Prices Override */}
                         <div className="flex flex-wrap items-center gap-2 text-xs">
                           <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-gray-500 font-semibold">May $:</span>
+                            <span className="text-[10px] text-gray-500 font-semibold">May Transf $:</span>
                             <input
                               type="number"
                               min={0}
@@ -574,12 +590,12 @@ export const VariantManager: React.FC<VariantManagerProps> = ({
                                 )
                               }
                               className="w-18 border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:ring-1 focus:ring-[#0058bb]"
-                              title="Precio mayorista normal"
+                              title="Precio mayorista por transferencia para esta variante"
                             />
                           </div>
 
                           <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-gray-500 font-semibold">Min $:</span>
+                            <span className="text-[10px] text-gray-500 font-semibold">Min Transf $:</span>
                             <input
                               type="number"
                               min={0}
@@ -594,36 +610,12 @@ export const VariantManager: React.FC<VariantManagerProps> = ({
                                 )
                               }
                               className="w-18 border border-gray-300 rounded px-1.5 py-1 text-xs bg-white focus:ring-1 focus:ring-[#0058bb]"
-                              title="Precio minorista normal"
+                              title="Precio minorista por transferencia para esta variante"
                             />
                           </div>
 
                           <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-emerald-700 font-semibold">Efec. Min $:</span>
-                            <input
-                              type="number"
-                              min={0}
-                              placeholder={
-                                baseRetailCashPrice !== undefined && baseRetailCashPrice > 0
-                                  ? String(baseRetailCashPrice)
-                                  : (baseCashPrice !== undefined && baseCashPrice > 0 ? String(baseCashPrice) : '')
-                              }
-                              value={option.retailCashPrice ?? ''}
-                              onChange={(e) =>
-                                handleUpdateOption(
-                                  vtIdx,
-                                  optIdx,
-                                  'retailCashPrice',
-                                  e.target.value === '' ? undefined : Number(e.target.value)
-                                )
-                              }
-                              className="w-18 border border-emerald-300 rounded px-1.5 py-1 text-xs bg-white focus:ring-1 focus:ring-emerald-600"
-                              title="Precio en efectivo minorista para esta variante"
-                            />
-                          </div>
-
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-teal-700 font-semibold">Efec. May $:</span>
+                            <span className="text-[10px] text-teal-700 font-semibold">May Efec $:</span>
                             <input
                               type="number"
                               min={0}
@@ -643,6 +635,30 @@ export const VariantManager: React.FC<VariantManagerProps> = ({
                               }
                               className="w-18 border border-teal-300 rounded px-1.5 py-1 text-xs bg-white focus:ring-1 focus:ring-teal-600"
                               title="Precio en efectivo mayorista para esta variante"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-emerald-700 font-semibold">Min Efec $:</span>
+                            <input
+                              type="number"
+                              min={0}
+                              placeholder={
+                                baseRetailCashPrice !== undefined && baseRetailCashPrice > 0
+                                  ? String(baseRetailCashPrice)
+                                  : (baseCashPrice !== undefined && baseCashPrice > 0 ? String(baseCashPrice) : '')
+                              }
+                              value={option.retailCashPrice ?? ''}
+                              onChange={(e) =>
+                                handleUpdateOption(
+                                  vtIdx,
+                                  optIdx,
+                                  'retailCashPrice',
+                                  e.target.value === '' ? undefined : Number(e.target.value)
+                                )
+                              }
+                              className="w-18 border border-emerald-300 rounded px-1.5 py-1 text-xs bg-white focus:ring-1 focus:ring-emerald-600"
+                              title="Precio en efectivo minorista para esta variante"
                             />
                           </div>
                         </div>
