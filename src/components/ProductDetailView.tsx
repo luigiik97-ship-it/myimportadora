@@ -2082,7 +2082,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             </div>
 
             {/* Official Store Badge & Guarantees */}
-            <div className="order-8 lg:order-9 pt-0.5 sm:pt-1 space-y-3">
+            <div className="order-8 lg:order-9 mt-1.5 pt-0.5 sm:pt-1 space-y-3">
               <MichyOfficialBadge />
 
               {/* Beneficios de compra / Garantías */}
@@ -2099,7 +2099,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   <ShieldCheck className="w-5 h-5 text-gray-500 shrink-0 mt-0.5" strokeWidth={1.6} />
                   <p className="min-w-0">
                     <span className="text-[#3483fa]">Compra Protegida.</span>{' '}
-                    <span>Pagas únicamente por transferencia o efectivo de manera transparente y segura.</span>
+                    <span>Pagas únicamente por efectivo o transferencia de manera transparente y segura.</span>
                   </p>
                 </div>
 
