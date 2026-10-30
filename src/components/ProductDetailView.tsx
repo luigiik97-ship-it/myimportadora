@@ -39,6 +39,8 @@ import { registerStockNotification, sanitizePhoneNumber } from '../services/stoc
 import {
   Truck,
   ShieldCheck,
+  Undo2,
+  Award,
   Check,
   ArrowLeft,
   Minus,
@@ -2079,9 +2081,36 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               </div>
             </div>
 
-            {/* Official Store Badge */}
-            <div className="order-8 lg:order-9 pt-0.5 sm:pt-1">
+            {/* Official Store Badge & Guarantees */}
+            <div className="order-8 lg:order-9 pt-0.5 sm:pt-1 space-y-3">
               <MichyOfficialBadge />
+
+              {/* Beneficios de compra / Garantías */}
+              <div className="pt-1.5 space-y-2.5 sm:space-y-3 text-xs sm:text-[13px] md:text-sm text-gray-600 leading-snug">
+                <div className="flex items-start gap-2.5 sm:gap-3">
+                  <Undo2 className="w-5 h-5 text-gray-500 shrink-0 mt-0.5" strokeWidth={1.6} />
+                  <p className="min-w-0">
+                    <span className="text-[#3483fa]">Cambio y devolución.</span>{' '}
+                    <span>Tenes 15 días para solicitarlo de forma rápida y sencilla.</span>
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-2.5 sm:gap-3">
+                  <ShieldCheck className="w-5 h-5 text-gray-500 shrink-0 mt-0.5" strokeWidth={1.6} />
+                  <p className="min-w-0">
+                    <span className="text-[#3483fa]">Compra Protegida.</span>{' '}
+                    <span>Pagas únicamente por transferencia o efectivo de manera transparente y segura.</span>
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-2.5 sm:gap-3">
+                  <Award className="w-5 h-5 text-gray-500 shrink-0 mt-0.5" strokeWidth={1.6} />
+                  <p className="min-w-0">
+                    <span className="text-[#3483fa]">Garantía.</span>{' '}
+                    <span>1 mes de garantía de fábrica.</span>
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Mobile Only: Description directly below purchase info, preserving mobile order */}
