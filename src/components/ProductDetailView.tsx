@@ -1741,11 +1741,11 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             {/* Discount Promo Banner */}
             <div id="cash-discount-banner" className="order-7 lg:order-8 bg-white border border-[#16a34a] rounded-xl p-2 sm:p-2.5 flex items-center justify-between gap-2 sm:gap-3">
               <div className="flex items-center min-w-0">
-                <div className="text-xs sm:text-sm min-w-0">
+                <div className="text-sm sm:text-base min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-bold text-[14.5px] text-[#16a34a]">Descuento pagando en efectivo</span>
+                    <span className="font-bold text-sm sm:text-base text-[#16a34a]">Descuento pagando en efectivo</span>
                   </div>
-                  <p className="text-gray-600 text-xs sm:text-sm mt-0.5 leading-tight">
+                  <p className="text-gray-600 text-sm sm:text-base mt-0.5 leading-tight">
                     seleccionado &quot;retiro en el local&quot;
                   </p>
                 </div>
@@ -2082,11 +2082,11 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             </div>
 
             {/* Official Store Badge & Guarantees */}
-            <div className="order-8 lg:order-9 mt-1.5 pt-0.5 sm:pt-1 space-y-3">
+            <div className="order-8 lg:order-9 mt-0.5 sm:mt-1 pt-2.5 sm:pt-3.5 border-t border-gray-100 md:border-gray-200/80 space-y-3">
               <MichyOfficialBadge />
 
               {/* Beneficios de compra / Garantías */}
-              <div className="pt-1.5 space-y-2.5 sm:space-y-3 text-xs sm:text-[13px] md:text-sm text-gray-600 leading-snug">
+              <div className="pt-1.5 space-y-2.5 sm:space-y-3 text-[13.5px] sm:text-[13px] md:text-sm text-gray-600 leading-snug">
                 <div className="flex items-start gap-2.5 sm:gap-3">
                   <Undo2 className="w-5 h-5 text-gray-500 shrink-0 mt-0.5" strokeWidth={1.6} />
                   <p className="min-w-0">
@@ -2099,7 +2099,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   <ShieldCheck className="w-5 h-5 text-gray-500 shrink-0 mt-0.5" strokeWidth={1.6} />
                   <p className="min-w-0">
                     <span className="text-[#3483fa]">Compra Protegida.</span>{' '}
-                    <span>Pagas únicamente por efectivo o transferencia de manera transparente y segura.</span>
+                    <span>Pagas por transferencia o efectivo de manera transparente y segura.</span>
                   </p>
                 </div>
 
@@ -2118,7 +2118,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               <h3 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 font-['Montserrat']">
                 Descripción del Producto
               </h3>
-              <div className="text-[13px] sm:text-sm text-gray-600 space-y-2 whitespace-pre-line leading-relaxed font-normal">
+              <div className="text-[14px] sm:text-sm text-gray-600 space-y-2 whitespace-pre-line leading-relaxed font-normal">
                 {product.description}
               </div>
             </div>

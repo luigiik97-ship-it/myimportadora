@@ -708,7 +708,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 fetchPriority={idx < 6 ? 'high' : 'auto'}
                 targetWidth={240}
               />
-              <div className="absolute bottom-1.5 sm:bottom-2 inset-x-0 flex items-center justify-center px-1.5 pointer-events-none">
+              <div className="absolute bottom-1.5 sm:bottom-2 inset-x-0 z-20 flex items-center justify-center px-1.5 pointer-events-none">
                 <div className="bg-black/90 text-white px-2 sm:px-2.5 py-0.5 rounded-md shadow-sm max-w-[94%] flex items-center justify-center">
                   <span className="text-[11px] min-[360px]:text-[12px] sm:text-[13px] font-semibold text-white truncate capitalize text-center leading-tight">
                     {cat.name}

@@ -24,7 +24,7 @@ export const MichyOfficialBadge: React.FC<MichyOfficialBadgeProps> = ({ classNam
       <div className="grid grid-cols-[auto_1px_auto] items-center gap-x-2 sm:gap-x-2.5 gap-y-1 sm:gap-y-1.5 min-w-0">
         {/* ROW 1 - LEFT: Tienda oficial Michy + Verified Badge */}
         <div className="flex items-center gap-1 sm:gap-1.5 whitespace-nowrap flex-nowrap shrink-0">
-          <span className="text-gray-900 font-normal text-[11.5px] min-[360px]:text-[12.5px] min-[400px]:text-[13.5px] sm:text-[15px] tracking-tight leading-tight">
+          <span className="text-gray-900 font-normal text-xs sm:text-[15px] tracking-tight leading-tight">
             Tienda oficial <span className="text-[#2f83ff] font-bold">Michy</span>
           </span>
           {/* Blue Scalloped Rosette with White Checkmark */}
@@ -45,7 +45,7 @@ export const MichyOfficialBadge: React.FC<MichyOfficialBadgeProps> = ({ classNam
 
         {/* ROW 1 - RIGHT: +10 años establecido */}
         <div className="flex items-center gap-1 sm:gap-1.5 whitespace-nowrap flex-nowrap shrink-0">
-          <span className="text-gray-900 font-normal text-[11.5px] min-[360px]:text-[12.5px] min-[400px]:text-[13.5px] sm:text-[15px] tracking-tight leading-tight">
+          <span className="text-gray-900 font-normal text-xs sm:text-[15px] tracking-tight leading-tight">
             <span className="text-[#2f83ff] font-bold">+10 años</span> establecido
           </span>
         </div>
