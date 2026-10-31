@@ -1742,10 +1742,12 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             <div id="cash-discount-banner" className="order-7 lg:order-8 bg-white border border-[#16a34a] rounded-xl p-2 sm:p-2.5 flex items-center justify-between gap-1.5 sm:gap-2">
               <div className="flex-1 min-w-0 flex items-center">
                 <div className="text-sm sm:text-base min-w-0 w-full">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="font-bold text-sm sm:text-base text-[#16a34a]">Descuento pagando en efectivo</span>
+                  <div className="flex items-center gap-1.5 whitespace-nowrap overflow-hidden">
+                    <span className="font-bold text-sm sm:text-base text-[#16a34a] whitespace-nowrap truncate">
+                      Descuento pagando en efectivo
+                    </span>
                   </div>
-                  <p className="text-gray-600 text-sm sm:text-base mt-0.5 leading-tight">
+                  <p className="text-gray-600 text-sm sm:text-base mt-0.5 leading-tight whitespace-nowrap truncate">
                     seleccionado &quot;retiro en el local&quot;
                   </p>
                 </div>
