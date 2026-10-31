@@ -1739,9 +1739,9 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             ) : null}
 
             {/* Discount Promo Banner */}
-            <div id="cash-discount-banner" className="order-7 lg:order-8 bg-white border border-[#16a34a] rounded-xl p-2 sm:p-2.5 flex items-center justify-between gap-2 sm:gap-3">
-              <div className="flex items-center min-w-0">
-                <div className="text-sm sm:text-base min-w-0">
+            <div id="cash-discount-banner" className="order-7 lg:order-8 bg-white border border-[#16a34a] rounded-xl p-2 sm:p-2.5 flex items-center justify-between gap-1.5 sm:gap-2">
+              <div className="flex-1 min-w-0 flex items-center">
+                <div className="text-sm sm:text-base min-w-0 w-full">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="font-bold text-sm sm:text-base text-[#16a34a]">Descuento pagando en efectivo</span>
                   </div>
