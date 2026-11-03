@@ -52,7 +52,7 @@ export const ProductCardPrice: React.FC<ProductCardPriceProps> = ({
             Sin stock
           </span>
         ) : (
-          <span className="inline-flex items-center text-[11px] sm:text-[13.2px] font-semibold bg-[#16a34a] text-white px-1.5 py-0.5 rounded leading-tight shrink min-w-0 shadow-xs">
+          <span className="inline-flex items-center text-[12.5px] sm:text-[14px] font-medium bg-[#16a34a] text-white px-[2px] py-[2px] rounded leading-none shrink min-w-0 shadow-xs">
             <span className="overflow-hidden whitespace-nowrap text-clip block min-w-0">
               desde {product.minWholesaleQty || 1} unids
             </span>

@@ -518,13 +518,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {/* Franja Informativa Superior (Imagen de alta definición sin pixelado) */}
       <section
         id="franja-informativa-inicio"
-        className="w-full bg-[#F3D72D] border-b border-black/10 flex items-center justify-center overflow-hidden py-0.5"
+        className="w-full bg-[#F3D72D] border-b border-black/10 flex items-center justify-center overflow-hidden py-1 sm:py-1.5"
       >
-        <div className="w-full max-w-[1240px] mx-auto flex items-center justify-center px-2">
+        <div className="w-full max-w-[1240px] mx-auto flex items-center justify-center px-1 sm:px-2">
           <img
             src="https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/yjgjghkyuytiti.jpg?v=3"
             alt="Información mayorista y minorista | Tienda oficial"
-            className="w-auto h-auto max-w-full max-h-[46px] min-[400px]:max-h-[52px] object-contain mx-auto select-none pointer-events-none"
+            className="w-auto h-auto max-w-full max-h-[58px] min-[400px]:max-h-[66px] sm:max-h-[88px] md:max-h-[105px] lg:max-h-[120px] object-contain mx-auto select-none pointer-events-none"
             draggable={false}
           />
         </div>
@@ -773,7 +773,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
                     {/* Info */}
                     <div className="px-2 py-2 sm:px-2.5 sm:py-3 flex-1 flex flex-col justify-between space-y-1 sm:space-y-1.5">
-                      <h3 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
+                      <h3 className="text-sm sm:text-base font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
                         {product.title}
                       </h3>
                       <ProductCardPrice product={product} />
@@ -891,7 +891,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
                     {/* Details */}
                     <div className="px-2 py-2 sm:px-2.5 sm:py-3 flex-1 flex flex-col justify-between space-y-1 sm:space-y-1.5">
-                      <h3 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
+                      <h3 className="text-sm sm:text-base font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
                         {product.title}
                       </h3>
                       <ProductCardPrice product={product} />
@@ -947,7 +947,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
                   {/* Details */}
                   <div className="px-2 py-2 sm:px-2.5 sm:py-3 flex-1 flex flex-col justify-between space-y-1 sm:space-y-1.5">
-                    <h3 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
+                    <h3 className="text-sm sm:text-base font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
                       {card.title}
                     </h3>
                     <ProductCardPrice product={card.virtualProduct} />

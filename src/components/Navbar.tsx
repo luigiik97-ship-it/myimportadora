@@ -345,7 +345,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="button"
                 id="header-quick-buy-btn"
                 onClick={onOpenQuickBuy}
-                className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 min-[380px]:px-2 sm:px-3 md:px-3.5 py-1.5 md:py-2 rounded-full font-black text-xs md:text-sm transition-all cursor-pointer select-none shrink-0 shadow-sm border border-yellow-300/40 min-h-[36px] sm:min-h-[38px] ${
+                className={`flex items-center justify-center gap-1 sm:gap-1.5 px-1.5 min-[380px]:px-2 sm:px-3 md:px-3.5 py-1.5 md:py-2 rounded-full font-black text-sm sm:text-base transition-all cursor-pointer select-none shrink-0 shadow-sm border border-yellow-300/40 min-h-[36px] sm:min-h-[38px] ${
                   isQuickBuyActive
                     ? 'bg-yellow-400 text-gray-950 ring-2 ring-white shadow-md'
                     : 'bg-yellow-400 hover:bg-yellow-300 text-gray-950 hover:shadow-md active:scale-95'
@@ -353,7 +353,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 title="Ir a Compra Rápida por Mayor"
               >
                 <Zap className="w-3.5 h-3.5 md:w-4 md:h-4 fill-current text-gray-950 shrink-0" />
-                <span className="font-extrabold tracking-tight whitespace-nowrap text-[11px] min-[360px]:text-xs md:text-sm">
+                <span className="font-extrabold tracking-tight whitespace-nowrap text-sm sm:text-base">
                   <span className="hidden">⚡ </span>Compra Rápida
                 </span>
               </button>
@@ -491,7 +491,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 setIsCategoriesOpen(false);
                 onSelectCategory('Todo');
               }}
-              className={`hidden md:inline-block px-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer ${
+              className={`hidden md:inline-block px-3 sm:px-3.5 py-1.5 sm:py-1 text-sm sm:text-base font-medium rounded-full transition-all whitespace-nowrap cursor-pointer ${
                 currentCategory === 'Todo'
                   ? 'bg-white text-[#0058bb] shadow-sm font-semibold'
                   : 'text-white/90 hover:bg-white/15'
@@ -507,7 +507,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={handleCategoriesToggle}
               aria-expanded={isCategoriesOpen}
               aria-haspopup="true"
-              className={`pl-0 pr-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+              className={`pl-0 pr-3 sm:px-3.5 py-1.5 sm:py-1 text-sm sm:text-base font-medium rounded-full transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                 isCategoriesOpen
                   ? 'bg-white text-[#0058bb] shadow-sm font-semibold pl-2 sm:pl-3.5'
                   : 'text-white/90 hover:bg-white/15'
@@ -530,7 +530,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setIsCategoriesOpen(false);
                   onOpenLaunches();
                 }}
-                className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-bold rounded-full transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 border shadow-xs ${
+                className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-sm sm:text-base font-bold rounded-full transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 border shadow-xs ${
                   isLaunchesActive
                     ? 'bg-yellow-400 text-gray-950 border-yellow-400 ring-2 ring-white/50'
                     : 'bg-white/15 hover:bg-white/25 text-yellow-300 border-yellow-300/40'
@@ -553,7 +553,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setIsCategoriesOpen(false);
                     onSelectCategory(cat);
                   }}
-                  className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer ${
+                  className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-sm sm:text-base font-medium rounded-full transition-all whitespace-nowrap cursor-pointer ${
                     isSelected
                       ? 'bg-white text-[#0058bb] shadow-sm font-semibold'
                       : 'text-white/90 hover:bg-white/15'
@@ -572,7 +572,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 setIsCategoriesOpen(false);
                 onOpenFavorites?.();
               }}
-              className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-xs md:text-sm font-medium rounded-full transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
+              className={`px-3 sm:px-3.5 py-1.5 sm:py-1 text-sm sm:text-base font-medium rounded-full transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${
                 isFavoritesActive
                   ? 'bg-white text-[#0058bb] shadow-sm font-semibold'
                   : 'text-white/90 hover:bg-white/15'
@@ -604,7 +604,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="button"
                 id="mobile-header-cart-total"
                 onClick={onOpenCart}
-                className="flex items-center justify-center px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 text-white border border-white/25 text-xs font-semibold shadow-xs transition-all cursor-pointer select-none whitespace-nowrap"
+                className="flex items-center justify-center px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 text-white border border-white/25 text-sm sm:text-base font-semibold shadow-xs transition-all cursor-pointer select-none whitespace-nowrap"
                 title="Ver Carrito de Compras - Total actual"
                 aria-label={`Total del carrito: $${cartTotal.toLocaleString('es-AR')}`}
               >

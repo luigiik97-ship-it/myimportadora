@@ -174,7 +174,7 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
 
                     {/* Info */}
                     <div className="px-2 py-2 sm:px-2.5 sm:py-3 flex-1 flex flex-col justify-between space-y-1 sm:space-y-1.5">
-                      <h3 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
+                      <h3 className="text-sm sm:text-base font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
                         {product.title}
                       </h3>
                       <ProductCardPrice product={product} />
