@@ -27,10 +27,10 @@ export const StorePurchaseModeSelector: React.FC<StorePurchaseModeSelectorProps>
       {/* Tarjeta compacta: fondo blanco limpio, texto a la izquierda en dos renglones y botón único 'efectivo' a la derecha */}
       <div className="w-full bg-white border border-gray-300 rounded-2xl overflow-hidden shadow-2xs flex items-stretch justify-between">
         <div className="py-1.5 sm:py-3.5 pl-3.5 sm:pl-5 pr-2 flex flex-col justify-center min-w-0">
-          <span className="font-bold text-gray-950 text-xs sm:text-[14px] leading-tight tracking-tight">
+          <span className="font-bold text-gray-950 text-xs leading-tight tracking-tight">
             Activa precio en efectivo
           </span>
-          <span className="text-[11px] sm:text-xs text-gray-500 font-normal leading-tight mt-0.5">
+          <span className="text-xs text-gray-500 font-normal leading-tight mt-0.5">
             exclusivo para retiro en local
           </span>
         </div>
@@ -58,7 +58,7 @@ export const StorePurchaseModeSelector: React.FC<StorePurchaseModeSelectorProps>
 
       {/* Mensaje existente cuando el modo efectivo está activo */}
       {isCashMode && (
-        <div className="mt-2 flex items-center text-[11px] sm:text-xs text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-3 py-1.5 rounded-lg animate-fadeIn">
+        <div className="mt-2 flex items-center text-xs text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-3 py-1.5 rounded-lg animate-fadeIn">
           <div className="flex items-center gap-1.5">
             <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <span>Precio en efectivo activado en toda la tienda</span>

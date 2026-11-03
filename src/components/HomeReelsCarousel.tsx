@@ -285,14 +285,14 @@ export const HomeReelsCarousel: React.FC<HomeReelsCarouselProps> = ({
                 if (!showTitle && !showPrice) return null;
 
                 return (
-                  <div className="absolute bottom-0 inset-x-0 h-24 bg-gradient-to-t from-black/85 via-black/40 to-transparent z-10 p-2.5 flex flex-col justify-end pointer-events-none">
+                  <div className="absolute bottom-0 inset-x-0 h-28 bg-gradient-to-t from-black/90 via-black/50 to-transparent z-10 p-2.5 sm:p-3 flex flex-col justify-end pointer-events-none">
                     {showTitle && (
-                      <p className="text-white text-xs sm:text-[13px] font-bold line-clamp-2 leading-tight drop-shadow-sm font-['Montserrat']">
+                      <p className="text-white text-sm sm:text-base font-bold line-clamp-2 leading-tight drop-shadow-sm font-['Montserrat']">
                         {vid.title}
                       </p>
                     )}
                     {showPrice && (
-                      <p className="text-[#16a34a] text-[11px] sm:text-xs font-black mt-0.5">
+                      <p className="text-[#16a34a] text-base sm:text-lg font-bold font-['Montserrat'] mt-0.5 drop-shadow-sm">
                         ${effectiveWholesalePrice!.toLocaleString('es-AR')}
                       </p>
                     )}

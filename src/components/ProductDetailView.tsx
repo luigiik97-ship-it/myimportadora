@@ -21,6 +21,7 @@ import { getOptimizedImageUrl } from '../utils/imageOptimizer';
 import { ProductImageLightbox } from './common/ProductImageLightbox';
 import { VideoViewerModal } from './common/VideoViewerModal';
 import { ProductCardBadge } from './common/ProductCardBadge';
+import { ProductCardPrice } from './common/ProductCardPrice';
 import { ShareModal } from './common/ShareModal';
 import { StockNotificationModal } from './common/StockNotificationModal';
 import { StoreVideo } from '../types';
@@ -1634,19 +1635,19 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     >
                       ${currentWholesalePrice.toLocaleString('es-AR')}
                     </span>
-                    <span className="text-xs sm:text-sm font-bold text-gray-900">
+                    <span className="text-sm sm:text-base font-bold text-gray-900">
                       c/u
                     </span>
                   </div>
 
-                  <span className="inline-flex items-center text-xs sm:text-sm font-semibold bg-[#16a34a] text-white px-2.5 py-0.5 rounded-md leading-tight shrink-0 shadow-xs">
+                  <span className="inline-flex items-center text-sm sm:text-base font-semibold bg-[#16a34a] text-white px-1.5 py-0.5 rounded-md leading-tight shrink-0 shadow-xs whitespace-nowrap overflow-hidden">
                     desde {product.minWholesaleQty || 1} unids
                   </span>
 
                   {isCashMode && (
                     <span
                       id="wholesale-cash-indicator"
-                      className="inline-flex items-center text-xs sm:text-sm font-bold text-[#16a34a] bg-white border border-[#16a34a] px-2.5 py-0.5 rounded-md leading-tight shrink-0 animate-fadeIn"
+                      className="inline-flex items-center text-sm sm:text-base font-bold text-[#16a34a] bg-white border border-[#16a34a] px-1.5 py-0.5 rounded-md leading-tight shrink-0 animate-fadeIn whitespace-nowrap overflow-hidden"
                     >
                       en efectivo
                     </span>
@@ -1667,7 +1668,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   <span id="retail-price-display" className="text-sm sm:text-base font-bold text-gray-900">
                     ${currentRetailPrice.toLocaleString('es-AR')}
                   </span>
-                  <span className="text-xs sm:text-sm text-gray-600 font-medium">
+                  <span className="text-sm sm:text-base text-gray-600 font-medium">
                     precio por 1 unidad{isCashMode ? ' en efectivo' : ''}
                   </span>
                 </div>
@@ -1747,7 +1748,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                       Descuento pagando en efectivo
                     </span>
                   </div>
-                  <p className="text-gray-600 text-sm sm:text-base mt-0.5 leading-tight whitespace-nowrap overflow-hidden">
+                  <p className="text-gray-700 text-sm sm:text-base mt-0.5 leading-snug whitespace-nowrap overflow-hidden">
                     seleccionado &quot;retiro en el local&quot;
                   </p>
                 </div>
@@ -2223,45 +2224,44 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
           Productos Relacionados
         </h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
-          {relatedProducts.map((rel) => {
-            const relPrices = getResolvedProductPrices(rel);
-            const relWholesalePrice = isCashMode ? relPrices.wholesaleCashPrice : relPrices.wholesalePrice;
-            const relRetailPrice = isCashMode ? relPrices.retailCashPrice : relPrices.retailPrice;
+          {relatedProducts.map((rel, idx) => {
+            const isOutOfStock = isProductCompletelyOutOfStock(rel);
 
             return (
               <div
                 key={rel.id}
                 id={`related-product-card-${rel.id}`}
                 onClick={() => onSelectRelated(rel)}
-                className="group bg-white rounded-xl border border-gray-100 sm:border-gray-200/90 overflow-hidden shadow-2xs sm:shadow-xs hover:shadow-lg hover:border-[#0058bb]/50 transition-all cursor-pointer flex flex-col"
+                className="group bg-white rounded-xl border border-gray-100 sm:border-gray-200/90 overflow-hidden shadow-2xs sm:shadow-xs hover:shadow-lg hover:border-[#0058bb]/50 transition-all cursor-pointer flex flex-col relative"
               >
+                {/* Thumbnail */}
                 <div className="relative aspect-square w-full bg-gray-100 flex items-center justify-center overflow-hidden border-b border-gray-100">
                   <ImageWithSkeleton
                     src={(rel.images && rel.images[0]) || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'}
                     alt={rel.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    priority={idx < 4}
+                    fetchPriority={idx < 2 ? 'high' : 'auto'}
+                    targetWidth={400}
+                    quality={75}
+                    className={`w-full h-full object-cover ${
+                      isOutOfStock ? 'opacity-60 grayscale-[30%]' : 'group-hover:scale-105'
+                    } transition-transform duration-300`}
                   />
                   <ProductCardBadge product={rel} />
+
+                  {isOutOfStock && (
+                    <span className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded shadow-xs z-10">
+                      Sin stock
+                    </span>
+                  )}
                 </div>
+
+                {/* Info */}
                 <div className="px-2 py-2 sm:px-2.5 sm:py-3 flex-1 flex flex-col justify-between space-y-1 sm:space-y-1.5">
-                  <h4 className="text-xs sm:text-sm font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
+                  <h3 className="text-sm sm:text-base font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-[#0058bb] transition-colors">
                     {rel.title}
-                  </h4>
-                  <div className="pt-0 sm:pt-0.5">
-                    <div className="flex items-center gap-1 sm:gap-1.5 flex-nowrap min-w-0">
-                      <span className="text-sm sm:text-base font-bold text-gray-900 font-['Montserrat'] shrink-0">
-                        ${relWholesalePrice.toLocaleString('es-AR')}
-                      </span>
-                      <span className="inline-flex items-center text-[11px] sm:text-[13.2px] font-semibold bg-[#16a34a] text-white px-1 py-0.5 rounded leading-tight shrink min-w-0">
-                        <span className="overflow-hidden whitespace-nowrap text-clip block min-w-0">
-                          desde {rel.minWholesaleQty || 1} unids
-                        </span>
-                      </span>
-                    </div>
-                    <div className="text-xs text-gray-500 font-normal mt-0.5">
-                      1 unidad ${relRetailPrice.toLocaleString('es-AR')}
-                    </div>
-                  </div>
+                  </h3>
+                  <ProductCardPrice product={rel} />
                 </div>
               </div>
             );

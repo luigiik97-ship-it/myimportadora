@@ -518,13 +518,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {/* Franja Informativa Superior (Imagen de alta definición sin pixelado) */}
       <section
         id="franja-informativa-inicio"
-        className="w-full bg-[#F3D72D] border-b border-black/10 flex items-center justify-center overflow-hidden py-1 sm:py-1.5"
+        className="w-full bg-[#F3D72D] border-b border-black/10 flex items-center justify-center overflow-hidden py-1 sm:py-0.5"
       >
         <div className="w-full max-w-[1240px] mx-auto flex items-center justify-center px-1 sm:px-2">
           <img
             src="https://zzkzssqwpcacmegmxerb.supabase.co/storage/v1/object/public/product-images/products/yjgjghkyuytiti.jpg?v=3"
             alt="Información mayorista y minorista | Tienda oficial"
-            className="w-auto h-auto max-w-full max-h-[58px] min-[400px]:max-h-[66px] sm:max-h-[88px] md:max-h-[105px] lg:max-h-[120px] object-contain mx-auto select-none pointer-events-none"
+            className="w-auto h-auto max-w-full max-h-[58px] min-[400px]:max-h-[66px] sm:max-h-[48px] md:max-h-[52px] object-contain mx-auto select-none pointer-events-none"
             draggable={false}
           />
         </div>
