@@ -699,15 +699,19 @@ export default function App() {
 
     const resolvedImage = variantPrimaryImage || selectedImage || getProductCoverImage(product);
 
+    let actuallyAddedQty = 0;
+
     setCart((prev) => {
       const existingIdx = prev.findIndex((item) => item.id === itemKey);
       let updatedList: CartItem[];
       if (existingIdx !== -1) {
         const updated = [...prev];
-        let targetQty = updated[existingIdx].quantity + quantity;
+        const currentQty = updated[existingIdx].quantity;
+        let targetQty = currentQty + quantity;
         if (maxAvailableStock > 0 && targetQty > maxAvailableStock) {
           targetQty = maxAvailableStock;
         }
+        actuallyAddedQty = Math.max(0, targetQty - currentQty);
         updated[existingIdx].quantity = targetQty;
         // Garantizar que la imagen del carrito sea la primera imagen de la variante
         updated[existingIdx].selectedImage = resolvedImage;
@@ -721,6 +725,7 @@ export default function App() {
         );
 
         const finalQty = maxAvailableStock > 0 ? Math.min(quantity, maxAvailableStock) : quantity;
+        actuallyAddedQty = Math.max(0, finalQty);
 
         const rawVariantList: string[] =
           selectedVariants && Object.keys(selectedVariants).length > 0
@@ -755,7 +760,7 @@ export default function App() {
       );
     });
 
-    if (showNotification) {
+    if (showNotification && actuallyAddedQty > 0) {
       // Format human-readable variant summary for the top notification
       const wholesaleUnitPrice = getItemEffectiveNormalPrice(
         product,
@@ -763,7 +768,6 @@ export default function App() {
         selectedSizeVariant,
         true
       );
-      const finalQty = maxAvailableStock > 0 ? Math.min(quantity, maxAvailableStock) : quantity;
 
       let variantSummary = '';
       if (selectedVariants && Object.keys(selectedVariants).length > 0) {
@@ -782,9 +786,9 @@ export default function App() {
         id: `${Date.now()}-${Math.random()}`,
         product,
         variantSummary,
-        quantity: finalQty,
+        quantity: actuallyAddedQty,
         unitPrice: wholesaleUnitPrice,
-        totalPrice: wholesaleUnitPrice * finalQty,
+        totalPrice: wholesaleUnitPrice * actuallyAddedQty,
         image: resolvedImage,
       });
     }

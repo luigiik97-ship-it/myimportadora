@@ -1077,18 +1077,31 @@ export function getResolvedProductPrices(
 
   if (variantTypes.length > 0 && selectedOptionNames && Object.keys(selectedOptionNames).length > 0) {
     for (const vt of variantTypes) {
-      const selectedName =
+      let selectedName =
         selectedOptionNames[vt.id] ||
         selectedOptionNames[vt.name] ||
         Object.entries(selectedOptionNames).find(
           ([k]) => k.toLowerCase() === vt.id.toLowerCase() || k.toLowerCase() === vt.name.toLowerCase()
         )?.[1];
 
+      // Fallback: Si no coincide por clave exacta, buscar si algún valor entrante coincide directamente con una opción de este tipo
+      if (!selectedName) {
+        const directMatch = Object.values(selectedOptionNames).find((val) => {
+          const clean = String(val || '').toLowerCase().trim();
+          return vt.options.some(
+            (o) => o.name.toLowerCase() === clean || o.id.toLowerCase() === clean
+          );
+        });
+        if (directMatch) {
+          selectedName = String(directMatch);
+        }
+      }
+
       if (selectedName) {
         const option = vt.options.find(
           (o) =>
-            o.name.toLowerCase() === selectedName.toLowerCase() ||
-            o.id.toLowerCase() === selectedName.toLowerCase()
+            o.name.toLowerCase() === selectedName!.toLowerCase() ||
+            o.id.toLowerCase() === selectedName!.toLowerCase()
         );
 
         if (option) {

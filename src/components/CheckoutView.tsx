@@ -57,9 +57,29 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // Form fields
-  const [customerWhatsapp, setCustomerWhatsapp] = useState(currentUser?.phone || '');
+  const [customerWhatsapp, setCustomerWhatsapp] = useState<string>(() => {
+    const raw = currentUser?.phone || '';
+    return String(raw).replace(/\D/g, '');
+  });
   const [customerEmail, setCustomerEmail] = useState(currentUser?.email || '');
   const [customerName, setCustomerName] = useState(currentUser?.fullName || '');
+
+  const handleWhatsappChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digitsOnly = e.target.value.replace(/\D/g, '');
+    setCustomerWhatsapp(digitsOnly);
+  };
+
+  const handleWhatsappPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text') || '';
+    const digitsOnly = pasted.replace(/\D/g, '');
+    if (!digitsOnly) return;
+    const input = e.currentTarget;
+    const start = input.selectionStart ?? customerWhatsapp.length;
+    const end = input.selectionEnd ?? customerWhatsapp.length;
+    const nextVal = customerWhatsapp.slice(0, start) + digitsOnly + customerWhatsapp.slice(end);
+    setCustomerWhatsapp(nextVal);
+  };
 
   // Delivery options: 'pickup' | 'delivery' | null (persisted across page reloads)
   const [deliveryOption, setDeliveryOption] = useState<'pickup' | 'delivery' | null>(() => {
@@ -122,7 +142,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     if (currentUser) {
       if (currentUser.fullName) setCustomerName(currentUser.fullName);
       if (currentUser.email) setCustomerEmail(currentUser.email);
-      if (currentUser.phone) setCustomerWhatsapp(currentUser.phone);
+      if (currentUser.phone) setCustomerWhatsapp(String(currentUser.phone).replace(/\D/g, ''));
       if (currentUser.street) setStreet(currentUser.street);
       if (currentUser.streetNumber) setNumber(currentUser.streetNumber);
       if (currentUser.floor) setFloor(currentUser.floor);
@@ -140,7 +160,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     // Auto populate directly
     if (profile.fullName) setCustomerName(profile.fullName);
     if (profile.email) setCustomerEmail(profile.email);
-    if (profile.phone) setCustomerWhatsapp(profile.phone);
+    if (profile.phone) setCustomerWhatsapp(String(profile.phone).replace(/\D/g, ''));
     if (profile.street) setStreet(profile.street);
     if (profile.streetNumber) setNumber(profile.streetNumber);
     if (profile.floor) setFloor(profile.floor);
@@ -177,6 +197,14 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
       setPaymentMethod(initialPaymentMethod);
     }
   }, [initialPaymentMethod]);
+
+  // Si la opción de entrega es envío a domicilio, garantizar que el medio de pago sea transferencia
+  useEffect(() => {
+    if (deliveryOption === 'delivery' && paymentMethod === 'cash') {
+      setPaymentMethod('transfer');
+      onPaymentMethodChange?.('transfer');
+    }
+  }, [deliveryOption, paymentMethod, onPaymentMethodChange]);
 
   // Persist deliveryOption and paymentMethod whenever changed
   useEffect(() => {
@@ -310,8 +338,9 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
       isWholesale
     );
 
-    // If paymentMethod is cash, replace unit price and total price in real time with cash price
-    const unitPrice = paymentMethod === 'cash' ? cashUnitPrice : normalUnitPrice;
+    // El precio en efectivo aplica exclusivamente si se selecciona retiro en local y pago en efectivo
+    const isCashActive = deliveryOption === 'pickup' && paymentMethod === 'cash';
+    const unitPrice = isCashActive ? cashUnitPrice : normalUnitPrice;
     const totalPrice = unitPrice * item.quantity;
 
     const normalTotalPrice = normalUnitPrice * item.quantity;
@@ -349,19 +378,25 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
 
   const totalFinal = Math.max(0, productsSubtotal + shippingCost);
   const transferTotal = transferProductsSubtotal + shippingCost;
-  const cashTotal = cashProductsSubtotal + shippingCost;
+  const cashTotal = cashProductsSubtotal; // Pago en efectivo es exclusivo de retiro en local (sin costo de envío)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
     // Form validation
-    const effectiveWhatsapp = customerWhatsapp.trim() || currentUser?.phone || '';
+    const cleanWhatsapp = (customerWhatsapp || currentUser?.phone || '').replace(/\D/g, '');
     const effectiveEmail = customerEmail.trim() || currentUser?.email || '';
     const effectiveName = customerName.trim() || currentUser?.fullName || '';
 
-    if (!effectiveWhatsapp) {
+    if (!cleanWhatsapp) {
       setErrorMessage('Por favor ingresa tu número de WhatsApp para coordinar la entrega.');
+      whatsappInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      whatsappInputRef.current?.focus();
+      return;
+    }
+    if (cleanWhatsapp.length < 8 || cleanWhatsapp.length > 15) {
+      setErrorMessage('Por favor ingresa un número de WhatsApp válido (entre 8 y 15 dígitos numéricos sin espacios ni guiones).');
       whatsappInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       whatsappInputRef.current?.focus();
       return;
@@ -452,7 +487,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
         userId: currentUser?.id,
         customerName: customerName.trim(),
         customerEmail: customerEmail.trim(),
-        customerWhatsapp: customerWhatsapp.trim(),
+        customerWhatsapp: cleanWhatsapp,
         deliveryOption,
         shippingMethodName: deliveryOption === 'delivery' && selectedShippingOption ? selectedShippingOption.name : undefined,
         correoBranch: isBranchPickupSelected ? correoBranch.trim() : undefined,
@@ -469,7 +504,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                 correoBranch: isBranchPickupSelected ? correoBranch.trim() : undefined,
               }
             : undefined,
-        paymentMethod,
+        paymentMethod: deliveryOption === 'delivery' ? 'transfer' : paymentMethod,
         items: processedItems.map((item) => ({
           id: item.id,
           productId: item.productId,
@@ -628,10 +663,14 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   ref={whatsappInputRef}
                   id="checkout-whatsapp"
                   type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="tel"
                   required
                   value={customerWhatsapp}
-                  onChange={(e) => setCustomerWhatsapp(e.target.value)}
-                  placeholder="Ej: 1123456789"
+                  onChange={handleWhatsappChange}
+                  onPaste={handleWhatsappPaste}
+                  placeholder="Ej: 01123456789"
                   className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all min-h-[42px] bg-white"
                 />
               </div>

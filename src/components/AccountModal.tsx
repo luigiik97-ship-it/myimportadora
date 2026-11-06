@@ -479,9 +479,16 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                   </label>
                   <input
                     type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="Ej: 1123456789"
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                    onPaste={(e) => {
+                      e.preventDefault();
+                      const paste = (e.clipboardData.getData('text') || '').replace(/\D/g, '');
+                      setPhone((prev) => (prev + paste).replace(/\D/g, ''));
+                    }}
+                    placeholder="Ej: 01123456789"
                     className="w-full border border-gray-300 rounded-lg px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all"
                   />
                 </div>

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
 import { Product } from '../types';
+import { getResolvedProductPrices } from '../utils/variantHelpers';
 
 export type PurchaseMode = 'transfer' | 'cash';
 
@@ -30,22 +31,9 @@ export function getStoredPurchaseMode(): PurchaseMode {
 
 export function calculateEffectivePrices(product: Product, mode: PurchaseMode) {
   const isCash = mode === 'cash';
-  const wholesale = isCash
-    ? (product.wholesaleCashPrice !== undefined && product.wholesaleCashPrice > 0
-        ? product.wholesaleCashPrice
-        : product.cashPrice !== undefined && product.cashPrice > 0
-        ? product.cashPrice
-        : product.wholesalePrice)
-    : product.wholesalePrice;
-
-  const retail = isCash
-    ? (product.retailCashPrice !== undefined && product.retailCashPrice > 0
-        ? product.retailCashPrice
-        : product.cashPrice !== undefined && product.cashPrice > 0
-        ? product.cashPrice
-        : product.retailPrice)
-    : product.retailPrice;
-
+  const resolved = getResolvedProductPrices(product);
+  const wholesale = isCash ? resolved.wholesaleCashPrice : resolved.wholesalePrice;
+  const retail = isCash ? resolved.retailCashPrice : resolved.retailPrice;
   return { wholesale, retail };
 }
 

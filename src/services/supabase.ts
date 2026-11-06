@@ -970,7 +970,17 @@ export const fetchProducts = async (options?: { force?: boolean }): Promise<Prod
  * Útil para revalidación inmediata al navegar a /producto/:id sin arrastrar datos obsoletos
  */
 export const fetchSingleProduct = async (id: string): Promise<Product | null> => {
-  if (!id || !isSupabaseConfigured() || !supabaseInstance) return null;
+  if (!id) return null;
+
+  // Reutilizar caché en memoria si ya está disponible para evitar consultas duplicadas innecesarias
+  if (cachedProducts && cachedProducts.length > 0) {
+    const fromCache = cachedProducts.find((p) => String(p.id) === String(id));
+    if (fromCache) {
+      return fromCache;
+    }
+  }
+
+  if (!isSupabaseConfigured() || !supabaseInstance) return null;
   try {
     const { data, error } = await supabaseInstance
       .from('products')
