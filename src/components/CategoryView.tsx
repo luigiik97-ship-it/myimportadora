@@ -310,11 +310,11 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
       {/* Quick Category Navigation Pills (Horizontal Row) */}
       <div className="space-y-1">
         <div className="flex items-center justify-between text-xs font-semibold text-gray-600">
-          <span>Otras categorías</span>
+          <span className="text-xs">Otras categorías</span>
         </div>
         <div
           ref={navPillsContainerRef}
-          className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-0.5 no-scrollbar"
+          className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-0.5 no-scrollbar text-xs"
         >
           <button
             onClick={() => onSelectCategory('Todo')}

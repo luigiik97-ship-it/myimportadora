@@ -466,7 +466,7 @@ export const CartView: React.FC<CartViewProps> = ({
                       <ChevronRight className="w-3.5 h-3.5 text-blue-500 group-hover/cat-link:translate-x-0.5 transition-transform" />
                     </button>
                   </span>
-                  <span className="text-[11px] sm:text-xs font-semibold text-gray-500">
+                  <span className="text-xs font-semibold text-gray-500">
                     {group.totalUnits} {group.totalUnits === 1 ? 'unidad' : 'unidades'}
                   </span>
                 </div>
@@ -604,6 +604,7 @@ export const CartView: React.FC<CartViewProps> = ({
                     minQty={group.minQty}
                     isProductDetail={false}
                     hideTitle={true}
+                    messageClassName="text-xs sm:text-sm"
                   />
                 </div>
               </div>
@@ -664,7 +665,7 @@ export const CartView: React.FC<CartViewProps> = ({
               <div>
                 <span className="text-base font-bold text-gray-900 block leading-tight">Total</span>
                 {isCashMode && (
-                  <span className="text-[11px] font-semibold block mt-0.5 text-[#16a34a]">
+                  <span className="text-xs sm:text-[11px] font-semibold block mt-0.5 text-[#16a34a]">
                     Efectivo (exclusivo retiro en local)
                   </span>
                 )}
@@ -720,7 +721,7 @@ export const CartView: React.FC<CartViewProps> = ({
             type="button"
             id="cart-continue-shopping-summary-btn"
             onClick={onContinueShopping}
-            className="w-full bg-white md:bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold py-2.5 px-4 rounded-xl text-xs md:text-sm border border-gray-200 transition-colors flex items-center justify-center gap-2 cursor-pointer min-h-[42px]"
+            className="w-full bg-white md:bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold py-2.5 px-4 rounded-xl text-sm sm:text-xs md:text-sm border border-gray-200 transition-colors flex items-center justify-center gap-2 cursor-pointer min-h-[42px]"
           >
             <ArrowLeft className="w-4 h-4 text-gray-500" />
             <span>Seguir comprando</span>

@@ -5,6 +5,7 @@ interface WholesaleCategoryProgressCardProps {
   minQty: number;
   isProductDetail?: boolean;
   className?: string;
+  messageClassName?: string;
   hideTitle?: boolean;
   frameless?: boolean;
 }
@@ -14,6 +15,7 @@ export const WholesaleCategoryProgressCard: React.FC<WholesaleCategoryProgressCa
   minQty,
   isProductDetail = false,
   className = '',
+  messageClassName = 'text-xs sm:text-sm',
   hideTitle = false,
   frameless = false,
 }) => {
@@ -69,7 +71,7 @@ export const WholesaleCategoryProgressCard: React.FC<WholesaleCategoryProgressCa
 
       {/* Mensaje descriptivo con el mismo tamaño que la tarjeta de descuento en efectivo */}
       <p
-        className={`text-xs sm:text-sm mt-0.5 leading-tight ${
+        className={`${messageClassName} mt-0.5 leading-tight ${
           isReached ? 'text-[#00a650] font-semibold' : 'text-gray-600 font-normal'
         }`}
       >

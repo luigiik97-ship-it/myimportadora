@@ -417,12 +417,24 @@ export const VariantManager: React.FC<VariantManagerProps> = ({
           {variantTypes.map((vt, vtIdx) => (
             <div
               key={vt.id || vtIdx}
-              className="bg-white rounded-xl border border-gray-200 p-3.5 shadow-2xs space-y-3"
+              className={`rounded-xl border p-3.5 shadow-2xs space-y-3 ${
+                vtIdx === 1
+                  ? 'bg-emerald-50 border-emerald-300'
+                  : 'bg-white border-gray-200'
+              }`}
             >
               {/* Type Header / Controls */}
-              <div className="flex items-center justify-between gap-2 pb-2 border-b border-gray-100 flex-wrap">
+              <div className={`flex items-center justify-between gap-2 pb-2 border-b flex-wrap ${
+                vtIdx === 1 ? 'border-emerald-200/70' : 'border-gray-100'
+              }`}>
                 <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#0058bb] bg-blue-50 px-2 py-0.5 rounded border border-blue-100 shrink-0">
+                  <span
+                    className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border shrink-0 ${
+                      vtIdx === 1
+                        ? 'text-emerald-800 bg-emerald-100 border-emerald-200'
+                        : 'text-[#0058bb] bg-blue-50 border-blue-100'
+                    }`}
+                  >
                     Tipo #{vtIdx + 1}
                   </span>
                   <input

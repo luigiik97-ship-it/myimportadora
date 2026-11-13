@@ -37,6 +37,7 @@ export const IntermediateBannerSlot: React.FC<IntermediateBannerSlotProps> = ({
   const [isHovered, setIsHovered] = useState(false);
   const touchStartX = useRef<number | null>(null);
   const touchEndX = useRef<number | null>(null);
+  const didSwipeRef = useRef<boolean>(false);
 
   const isCarousel = validBanners.length > 1;
 
@@ -95,11 +96,17 @@ export const IntermediateBannerSlot: React.FC<IntermediateBannerSlotProps> = ({
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    didSwipeRef.current = false;
     touchStartX.current = e.touches[0].clientX;
+    touchEndX.current = null;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    touchEndX.current = e.touches[0].clientX;
+    const x = e.touches[0].clientX;
+    touchEndX.current = x;
+    if (touchStartX.current !== null && Math.abs(x - touchStartX.current) > 10) {
+      didSwipeRef.current = true;
+    }
   };
 
   const handleTouchEnd = () => {
@@ -124,6 +131,10 @@ export const IntermediateBannerSlot: React.FC<IntermediateBannerSlotProps> = ({
   const targetLink = currentBanner?.linkUrl || fallbackLink;
 
   const handleClick = () => {
+    if (didSwipeRef.current) {
+      didSwipeRef.current = false;
+      return;
+    }
     if (targetLink) {
       onBannerClick({ linkUrl: targetLink });
     }

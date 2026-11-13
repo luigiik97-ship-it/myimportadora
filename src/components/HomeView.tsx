@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Product, Category } from '../types';
 import { isProductCompletelyOutOfStock, getProductCoverImage } from '../utils/variantHelpers';
 import { getStorefrontCategories } from '../utils/categoryHelpers';
@@ -63,6 +64,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onOpenLaunches,
   isLaunchesVisible = true,
 }) => {
+  const navigate = useNavigate();
   const [currentIndex, setCurrentIndex] = useState(1);
   const [isTransitioning, setIsTransitioning] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
@@ -292,30 +294,136 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   // Redirección o navegación al hacer clic en un banner
   const handleBannerClick = (banner: { linkUrl?: string }) => {
-    if (Math.abs(dragCurrentX.current - dragStartX.current) > 10) return;
-    if (!banner.linkUrl) {
+    const rawLink = banner.linkUrl?.trim();
+    if (!rawLink) {
       onSelectCategory('Todo');
       return;
     }
-    const link = banner.linkUrl.trim();
-    if (!link) {
-      onSelectCategory('Todo');
-      return;
-    }
-    if (
-      link.startsWith('http://') ||
-      link.startsWith('https://') ||
-      link.startsWith('//') ||
-      link.startsWith('wa.me')
-    ) {
-      const targetUrl = link.startsWith('wa.me') ? `https://${link}` : link;
-      window.open(targetUrl, '_blank', 'noopener,noreferrer');
-    } else if (link.startsWith('#')) {
-      const el = document.querySelector(link);
+
+    // 1. Ancla en la página actual
+    if (rawLink.startsWith('#')) {
+      const el = document.querySelector(rawLink);
       if (el) el.scrollIntoView({ behavior: 'smooth' });
-    } else {
-      onSelectCategory(link);
+      return;
     }
+
+    // 2. Ruta interna relativa (/compra-rapida, /categoria/..., /producto/..., etc.)
+    if (rawLink.startsWith('/') && !rawLink.startsWith('//')) {
+      if (rawLink.startsWith('/#')) {
+        const el = document.querySelector(rawLink.slice(1));
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth' });
+          return;
+        }
+      }
+      navigate(rawLink);
+      return;
+    }
+
+    // 3. Protocolos directos del dispositivo
+    if (rawLink.startsWith('mailto:') || rawLink.startsWith('tel:')) {
+      window.location.href = rawLink;
+      return;
+    }
+
+    // 4. URLs completas o abreviadas (internas de la misma tienda vs externas)
+    if (
+      rawLink.startsWith('http://') ||
+      rawLink.startsWith('https://') ||
+      rawLink.startsWith('//') ||
+      rawLink.startsWith('wa.me') ||
+      rawLink.startsWith('www.')
+    ) {
+      const targetUrl = rawLink.startsWith('//')
+        ? `${window.location.protocol}${rawLink}`
+        : rawLink.startsWith('wa.me') || rawLink.startsWith('www.')
+        ? `https://${rawLink}`
+        : rawLink;
+
+      try {
+        const parsedUrl = new URL(targetUrl, window.location.origin);
+        const normalizeHost = (host: string) =>
+          host
+            .toLowerCase()
+            .replace(/^www\./, '')
+            .replace(/^ais-(dev|pre)-/, 'ais-app-');
+
+        const isSameStore =
+          parsedUrl.origin === window.location.origin ||
+          (normalizeHost(parsedUrl.hostname) === normalizeHost(window.location.hostname) &&
+            (parsedUrl.port === window.location.port || (!parsedUrl.port && !window.location.port)));
+
+        if (isSameStore) {
+          if (parsedUrl.pathname === '/' && parsedUrl.hash) {
+            const el = document.querySelector(parsedUrl.hash);
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth' });
+              return;
+            }
+          }
+          const internalPath = `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}` || '/';
+          navigate(internalPath);
+          return;
+        }
+      } catch {
+        // Si no se puede parsear como URL, continuar con apertura externa directa
+      }
+
+      const openedWindow = window.open(targetUrl, '_blank', 'noopener,noreferrer');
+      if (!openedWindow || openedWindow.closed || typeof openedWindow.closed === 'undefined') {
+        window.location.assign(targetUrl);
+      }
+      return;
+    }
+
+    // 5. Nombre de categoría o ruta interna escrita sin barra inicial
+    const lowerLink = rawLink.toLowerCase();
+    const matchesExistingCategory =
+      lowerLink === 'todo' ||
+      categories.some(
+        (c) =>
+          c.name.trim().toLowerCase() === lowerLink ||
+          (c.slug && c.slug.trim().toLowerCase() === lowerLink)
+      );
+
+    if (!matchesExistingCategory) {
+      const internalRoutesMap: Record<string, string> = {
+        'compra-rapida': '/compra-rapida',
+        'compra rapida': '/compra-rapida',
+        'compra rápida': '/compra-rapida',
+        'quick-buy': '/compra-rapida',
+        'quick_buy': '/compra-rapida',
+        'lanzamientos': '/lanzamientos',
+        'proximos-lanzamientos': '/lanzamientos',
+        'próximos lanzamientos': '/lanzamientos',
+        'favoritos': '/favoritos',
+        'mis-favoritos': '/favoritos',
+        'carrito': '/carrito',
+        'checkout': '/checkout',
+        'informacion': '/informacion',
+        'terminos': '/informacion/terminos-y-condiciones',
+        'faq': '/informacion/preguntas-frecuentes',
+        'contacto': '/informacion/contacto',
+        'nosotros': '/informacion/sobre-nosotros',
+      };
+
+      if (internalRoutesMap[lowerLink]) {
+        navigate(internalRoutesMap[lowerLink]);
+        return;
+      }
+
+      if (
+        lowerLink.startsWith('categoria/') ||
+        lowerLink.startsWith('producto/') ||
+        lowerLink.startsWith('informacion/') ||
+        lowerLink.startsWith('compra-rapida?')
+      ) {
+        navigate(`/${rawLink}`);
+        return;
+      }
+    }
+
+    onSelectCategory(rawLink);
   };
 
   // Auto-advance banner every 3.5s si es carrusel
@@ -337,9 +445,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const dragStartX = useRef<number>(0);
   const dragCurrentX = useRef<number>(0);
   const isPointerDown = useRef<boolean>(false);
+  const heroDidDragRef = useRef<boolean>(false);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     isPointerDown.current = true;
+    heroDidDragRef.current = false;
     const clientX = e.targetTouches[0].clientX;
     dragStartX.current = clientX;
     dragCurrentX.current = clientX;
@@ -352,6 +462,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
     const clientX = e.targetTouches[0].clientX;
     dragCurrentX.current = clientX;
     const delta = clientX - dragStartX.current;
+    if (Math.abs(delta) > 10) {
+      heroDidDragRef.current = true;
+    }
     setDragOffset(delta);
   };
 
@@ -380,6 +493,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0) return;
     isPointerDown.current = true;
+    heroDidDragRef.current = false;
     dragStartX.current = e.clientX;
     dragCurrentX.current = e.clientX;
     setIsDragging(true);
@@ -391,6 +505,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
     const clientX = e.clientX;
     dragCurrentX.current = clientX;
     const delta = clientX - dragStartX.current;
+    if (Math.abs(delta) > 10) {
+      heroDidDragRef.current = true;
+    }
     setDragOffset(delta);
   };
 
@@ -588,7 +705,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   return (
                     <div
                       key={`${banner.id}-slide-${index}`}
-                      onClick={() => handleBannerClick(banner)}
+                      onClick={() => {
+                        if (heroDidDragRef.current) {
+                          heroDidDragRef.current = false;
+                          return;
+                        }
+                        handleBannerClick(banner);
+                      }}
                       className={`w-full min-w-full h-full aspect-[1920/910] sm:aspect-auto min-h-0 sm:min-h-[290px] md:min-h-[330px] relative bg-gradient-to-r ${
                         banner.bgGradient
                       } flex items-center shrink-0 overflow-hidden select-none ${
@@ -612,7 +735,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
             {/* Previous Button (oculto en móvil) */}
             <button
               id="btn-banner-prev"
-              onClick={handlePrevBanner}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePrevBanner();
+              }}
               className="hidden sm:flex absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/80 hover:bg-white text-gray-800 shadow-sm items-center justify-center border border-gray-200/80 hover:scale-105 active:scale-95 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
               aria-label="Banner anterior"
             >
@@ -622,7 +749,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
             {/* Next Button (oculto en móvil) */}
             <button
               id="btn-banner-next"
-              onClick={handleNextBanner}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleNextBanner();
+              }}
               className="hidden sm:flex absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/80 hover:bg-white text-gray-800 shadow-sm items-center justify-center border border-gray-200/80 hover:scale-105 active:scale-95 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
               aria-label="Siguiente banner"
             >
