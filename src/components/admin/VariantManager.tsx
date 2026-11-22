@@ -29,6 +29,8 @@ interface VariantManagerProps {
   baseRetailCashPrice?: number;
   baseWholesaleCashPrice?: number;
   baseStock?: number;
+  isSetSaleMode?: boolean;
+  defaultSetUnits?: number;
 }
 
 export const VariantManager: React.FC<VariantManagerProps> = ({
@@ -40,6 +42,8 @@ export const VariantManager: React.FC<VariantManagerProps> = ({
   baseRetailCashPrice,
   baseWholesaleCashPrice,
   baseStock = 10,
+  isSetSaleMode = false,
+  defaultSetUnits = 1,
 }) => {
   // Active expanded option ID for image management
   const [expandedOptionId, setExpandedOptionId] = useState<string | null>(null);
@@ -310,7 +314,9 @@ export const VariantManager: React.FC<VariantManagerProps> = ({
               </span>
             </h3>
             <p className="text-[11px] text-gray-500">
-              Configura hasta 3 variantes (ej: Color, Medida y Grosor de cadena). Las variantes selectoras opcionales no requieren precio ni fotos.
+              {isSetSaleMode
+                ? 'Modo Venta por Set activo: cada variante representa un combo fijo. Configurá «Unidades por set» y los 4 precios corresponden al valor total del set completo.'
+                : 'Configura hasta 3 variantes (ej: Color, Medida y Grosor de cadena). Las variantes selectoras opcionales no requieren precio ni fotos.'}
             </p>
           </div>
         </div>
@@ -554,7 +560,9 @@ export const VariantManager: React.FC<VariantManagerProps> = ({
 
                         {/* Individual Stock Control */}
                         <div className="flex items-center gap-1.5 text-xs bg-slate-100/70 border border-slate-200 px-2 py-1 rounded">
-                          <span className="text-[10px] text-gray-700 font-bold">Stock (u.):</span>
+                          <span className="text-[10px] text-gray-700 font-bold">
+                            {isSetSaleMode ? 'Stock (sets):' : 'Stock (u.):'}
+                          </span>
                           <input
                             type="number"
                             min={0}
@@ -569,7 +577,11 @@ export const VariantManager: React.FC<VariantManagerProps> = ({
                               )
                             }
                             className="w-16 border border-gray-300 rounded px-1.5 py-0.5 text-xs bg-white font-semibold text-gray-900 focus:ring-1 focus:ring-[#0058bb]"
-                            title="Stock disponible exclusivo para esta variante"
+                            title={
+                              isSetSaleMode
+                                ? 'Cantidad de sets completos disponibles para esta variante'
+                                : 'Stock disponible exclusivo para esta variante'
+                            }
                           />
                           {option.stock !== undefined && (
                             <span
@@ -579,10 +591,55 @@ export const VariantManager: React.FC<VariantManagerProps> = ({
                                   : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                               }`}
                             >
-                              {option.stock <= 0 ? 'Sin stock' : `${option.stock} u.`}
+                              {option.stock <= 0
+                                ? 'Sin stock'
+                                : isSetSaleMode
+                                ? `${option.stock} sets`
+                                : `${option.stock} u.`}
                             </span>
                           )}
                         </div>
+
+                        {/* Unidades por set (solo en modalidad Venta por Set) */}
+                        {isSetSaleMode && (() => {
+                          const effUnits = Math.max(1, Math.floor(Number(option.unitsPerSet || defaultSetUnits || 1)));
+                          const effSetPrice = Number(option.wholesalePrice ?? baseWholesalePrice ?? 0);
+                          const unitPreview = effSetPrice > 0 ? Math.round(effSetPrice / effUnits) : 0;
+                          return (
+                            <div className="flex items-center gap-1.5 text-xs bg-indigo-50/80 border border-indigo-200 px-2 py-1 rounded">
+                              <span className="text-[10px] text-indigo-800 font-bold whitespace-nowrap">
+                                Unid. por set:
+                              </span>
+                              <input
+                                type="number"
+                                min={1}
+                                step={1}
+                                placeholder={String(Math.max(1, defaultSetUnits || 1))}
+                                value={option.unitsPerSet !== undefined ? option.unitsPerSet : ''}
+                                onChange={(e) =>
+                                  handleUpdateOption(
+                                    vtIdx,
+                                    optIdx,
+                                    'unitsPerSet',
+                                    e.target.value === ''
+                                      ? undefined
+                                      : Math.max(1, Math.floor(Number(e.target.value)))
+                                  )
+                                }
+                                className="w-16 border border-indigo-300 rounded px-1.5 py-0.5 text-xs bg-white font-bold text-indigo-950 focus:ring-1 focus:ring-indigo-600"
+                                title="Cantidad fija de unidades incluidas en este set o combo"
+                              />
+                              {unitPreview > 0 && (
+                                <span
+                                  className="text-[10px] font-semibold text-indigo-700 bg-white border border-indigo-200 px-1.5 py-0.5 rounded whitespace-nowrap"
+                                  title="Precio unitario informativo calculado automáticamente (Precio del set / Unidades por set)"
+                                >
+                                  ~${unitPreview.toLocaleString('es-AR')} c/u
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         {/* Optional Prices Override */}
                         <div className="flex flex-wrap items-center gap-2 text-xs">

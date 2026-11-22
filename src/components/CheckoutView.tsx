@@ -3,7 +3,11 @@ import { CartItem, Order, UserProfile, Product } from '../types';
 import { ShieldCheck, ArrowLeft, Loader2, Truck, Store, CreditCard, Banknote, AlertCircle, MapPin, Zap, User } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getShippingZoneInfo, ShippingOption } from '../utils/shipping';
-import { getItemEffectiveCashPrice, getItemEffectiveNormalPrice, getProductCoverImage } from '../utils/variantHelpers';
+import {
+  getProductCoverImage,
+  buildCartQuantitiesIndex,
+  calculateCartItemPricing,
+} from '../utils/variantHelpers';
 import { AuthModal } from './AuthModal';
 import {
   buildShortOrderWhatsAppMessage,
@@ -299,52 +303,12 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Compute wholesale logic and subtotals
-  const categoryQuantities: Record<string, number> = {};
-  cartItems.forEach((item) => {
-    const cat = item.product.category || 'General';
-    categoryQuantities[cat] = (categoryQuantities[cat] || 0) + item.quantity;
-  });
+  // Motor canónico único de precios (normal, precios escalonados y venta por set desde 1 set)
+  const quantitiesIndex = buildCartQuantitiesIndex(cartItems);
+  const isCashActive = deliveryOption === 'pickup' && paymentMethod === 'cash';
 
   const processedItems = cartItems.map((item) => {
-    const cat = item.product.category || 'General';
-    const totalInCat = categoryQuantities[cat] || 0;
-    const minQty = item.product.minWholesaleQty || 1;
-    const isWholesale = totalInCat >= minQty;
-
-    // Normal unit prices (wholesale or retail) resolved from variant options or sizeVariants
-    const wholesaleUnitPrice = getItemEffectiveNormalPrice(
-      item.product,
-      item.selectedVariants,
-      item.selectedSizeVariant,
-      true
-    );
-
-    const retailUnitPrice = getItemEffectiveNormalPrice(
-      item.product,
-      item.selectedVariants,
-      item.selectedSizeVariant,
-      false
-    );
-
-    const normalUnitPrice = isWholesale ? wholesaleUnitPrice : retailUnitPrice;
-
-    // Cash unit price from configured fields (wholesaleCashPrice if isWholesale, else retailCashPrice, with legacy fallbacks)
-    const cashUnitPrice = getItemEffectiveCashPrice(
-      item.product,
-      item.selectedVariants,
-      item.selectedSizeVariant,
-      normalUnitPrice,
-      isWholesale
-    );
-
-    // El precio en efectivo aplica exclusivamente si se selecciona retiro en local y pago en efectivo
-    const isCashActive = deliveryOption === 'pickup' && paymentMethod === 'cash';
-    const unitPrice = isCashActive ? cashUnitPrice : normalUnitPrice;
-    const totalPrice = unitPrice * item.quantity;
-
-    const normalTotalPrice = normalUnitPrice * item.quantity;
-    const cashTotalPrice = cashUnitPrice * item.quantity;
+    const calc = calculateCartItemPricing(item, quantitiesIndex, { isCashMode: isCashActive });
 
     const rawVariantList: string[] =
       item.selectedVariants && Object.keys(item.selectedVariants).length > 0
@@ -354,14 +318,21 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
 
     return {
       ...item,
-      isWholesale,
-      retailUnitPrice,
-      normalUnitPrice,
-      cashUnitPrice,
-      unitPrice,
-      totalPrice,
-      normalTotalPrice,
-      cashTotalPrice,
+      isWholesale: calc.isWholesale,
+      retailUnitPrice: calc.retailUnitPrice,
+      normalUnitPrice: calc.normalUnitPrice,
+      cashUnitPrice: calc.cashUnitPrice,
+      unitPrice: calc.effectiveUnitPrice,
+      totalPrice: calc.effectiveTotalPrice,
+      normalTotalPrice: calc.totalPrice,
+      cashTotalPrice: calc.cashTotalPrice,
+      savings: calc.savings,
+      pricingMode: calc.pricingMode,
+      isSet: calc.isSet,
+      isTiered: calc.isTiered,
+      unitsPerSet: calc.unitsPerSet,
+      informativeEffectiveUnitPrice: calc.informativeEffectiveUnitPrice,
+      activeTier: calc.activeTier,
       variantText,
     };
   });
@@ -521,13 +492,16 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           totalPrice: item.totalPrice,
           totalCashPrice: item.cashTotalPrice,
           isWholesale: item.isWholesale,
+          pricingMode: item.pricingMode,
+          unitsPerSet: item.isSet ? item.unitsPerSet : undefined,
+          appliedTierMinQty: item.activeTier ? item.activeTier.minQty : undefined,
           category: item.product.category || '',
           selectedVariants: item.selectedVariants,
           selectedSizeVariant: item.selectedSizeVariant,
           selectedColor: item.selectedColor,
         })),
         subtotal: paymentMethod === 'cash' ? cashProductsSubtotal : transferProductsSubtotal,
-        wholesaleDiscount: processedItems.reduce((acc, i) => acc + (Math.max(0, i.retailUnitPrice - i.normalUnitPrice) * i.quantity), 0),
+        wholesaleDiscount: processedItems.reduce((acc, i) => acc + i.savings, 0),
         cashDiscount: paymentMethod === 'cash' ? Math.max(0, transferProductsSubtotal - cashProductsSubtotal) : 0,
         shippingCost,
         total: totalFinal,
@@ -1093,9 +1067,16 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           {/* Mini item list */}
           <div className="space-y-3 max-h-56 overflow-y-auto no-scrollbar border-b border-gray-100 pb-3">
             {processedItems.map((item) => {
+              const modeSuffix = item.isSet
+                ? `Set x ${item.unitsPerSet} u.`
+                : item.isTiered && item.activeTier
+                ? `escalón ${item.activeTier.minQty}+`
+                : item.isWholesale
+                ? 'mayorista'
+                : 'minorista';
               const itemLabel = `${item.quantity}x ${item.product.title}${
                 item.variantText ? `, ${item.variantText}` : ''
-              } (${item.isWholesale ? 'mayorista' : 'minorista'})`;
+              } (${modeSuffix})`;
 
               return (
                 <div key={item.id} className="flex items-start gap-2.5 sm:gap-3">
@@ -1116,7 +1097,9 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     <p className={`text-xs mt-0.5 font-medium ${
                       paymentMethod === 'cash' ? 'text-[#00a650]' : 'text-gray-500'
                     }`}>
-                      (${item.unitPrice.toLocaleString('es-AR')} c/u)
+                      {item.isSet
+                        ? `($${item.unitPrice.toLocaleString('es-AR')}/set · ~$${item.informativeEffectiveUnitPrice.toLocaleString('es-AR')} c/u)`
+                        : `($${item.unitPrice.toLocaleString('es-AR')} c/u)`}
                     </p>
                   </div>
                   <span className="text-sm sm:text-base font-bold text-gray-900 shrink-0 pt-0.5">

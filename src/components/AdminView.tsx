@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Product, Order, SizeVariant, VariantType, ProductReview, Category, ProductTag } from '../types';
+import { Product, Order, SizeVariant, VariantType, ProductReview, Category, ProductTag, PriceTier, ProductPricingMode } from '../types';
 import {
   TAG_COLOR_PALETTE,
   getLocalProductTags,
@@ -16,6 +16,7 @@ import {
   getOptionStock,
   getResolvedProductPrices,
   getProductCoverImage,
+  getNormalizedPriceTiers,
 } from '../utils/variantHelpers';
 import { VariantManager } from './admin/VariantManager';
 import { StandaloneVariantsManager } from './admin/StandaloneVariantsManager';
@@ -768,6 +769,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
       wholesaleCashPrice: 900,
       retailCashPrice: 1350,
       cashPrice: 900,
+      pricingMode: 'normal',
+      priceTiers: [],
+      defaultSetUnits: 1,
       colors: ['Opción 1', 'Opción 2'],
       sizeVariants: [],
       variantTypes: initialVariantTypes,
@@ -807,6 +811,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     cloned.wholesaleCashPrice = parsedWholesaleCash;
     cloned.retailCashPrice = parsedRetailCash;
     cloned.cashPrice = parsedWholesaleCash;
+    cloned.pricingMode = cloned.pricingMode === 'tiered' || cloned.pricingMode === 'set' ? cloned.pricingMode : 'normal';
+    cloned.priceTiers = Array.isArray(cloned.priceTiers) ? cloned.priceTiers : [];
+    cloned.defaultSetUnits =
+      cloned.defaultSetUnits !== undefined && !isNaN(Number(cloned.defaultSetUnits)) && Number(cloned.defaultSetUnits) >= 1
+        ? Math.floor(Number(cloned.defaultSetUnits))
+        : undefined;
 
     console.log(`\n================== [CASH & VARIANT DEBUG - POST-LOAD (Admin Edit Open)] ==================`);
     console.log(`[Admin Edit Open] Abriendo edición para producto "${cloned.title}" (ID: ${cloned.id})`);
@@ -930,12 +940,59 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
       return;
     }
 
+    const activePricingMode: ProductPricingMode =
+      editingProduct.pricingMode === 'tiered' || editingProduct.pricingMode === 'set'
+        ? editingProduct.pricingMode
+        : 'normal';
+
+    // Validación de precios escalonados cuando está activo
+    let sanitizedTiers: PriceTier[] = Array.isArray(editingProduct.priceTiers)
+      ? getNormalizedPriceTiers({ priceTiers: editingProduct.priceTiers })
+      : [];
+    if (activePricingMode === 'tiered') {
+      const rawTiers = Array.isArray(editingProduct.priceTiers) ? editingProduct.priceTiers : [];
+      if (rawTiers.length === 0) {
+        alert('Activaste "Precios escalonados", pero no agregaste ningún escalón. Agregá al menos un escalón o desactivá la modalidad.');
+        return;
+      }
+      const seenQtys = new Set<number>();
+      for (let i = 0; i < rawTiers.length; i++) {
+        const t = rawTiers[i];
+        const qtyNum = Math.floor(Number(t.minQty));
+        if (!qtyNum || qtyNum < 1) {
+          alert(`El escalón #${i + 1} debe tener una cantidad mínima válida mayor o igual a 1.`);
+          return;
+        }
+        if (seenQtys.has(qtyNum)) {
+          alert(`Hay escalones repetidos con la misma cantidad mínima (${qtyNum} unidades). Usá cantidades distintas por escalón.`);
+          return;
+        }
+        seenQtys.add(qtyNum);
+        if (
+          !Number(t.wholesalePrice) || Number(t.wholesalePrice) <= 0 ||
+          !Number(t.retailPrice) || Number(t.retailPrice) <= 0 ||
+          !Number(t.wholesaleCashPrice) || Number(t.wholesaleCashPrice) <= 0 ||
+          !Number(t.retailCashPrice) || Number(t.retailCashPrice) <= 0
+        ) {
+          alert(`Completá los 4 precios (mayores a 0) del escalón desde ${qtyNum} unidades.`);
+          return;
+        }
+      }
+      sanitizedTiers = getNormalizedPriceTiers({ priceTiers: rawTiers });
+    }
+
     const currentVariantTypes = editingProduct.variantTypes || normalizeVariantTypes(editingProduct as Product);
     const targetWholesalePrice = Number(editingProduct.wholesalePrice);
     const targetRetailPrice = Number(editingProduct.retailPrice);
     const targetWholesaleCashPrice = Number(editingProduct.wholesaleCashPrice);
     const targetRetailCashPrice = Number(editingProduct.retailCashPrice);
     const targetCashPrice = targetWholesaleCashPrice;
+    const sanitizedDefaultSetUnits =
+      editingProduct.defaultSetUnits !== undefined &&
+      !isNaN(Number(editingProduct.defaultSetUnits)) &&
+      Number(editingProduct.defaultSetUnits) >= 1
+        ? Math.floor(Number(editingProduct.defaultSetUnits))
+        : undefined;
 
     const { colors, sizeVariants } = syncLegacyFields(
       currentVariantTypes,
@@ -1004,6 +1061,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
       cashPrice: targetCashPrice,
       retailCashPrice: targetRetailCashPrice,
       wholesaleCashPrice: targetWholesaleCashPrice,
+      pricingMode: activePricingMode,
+      priceTiers: sanitizedTiers,
+      defaultSetUnits: sanitizedDefaultSetUnits,
       variantTypes: currentVariantTypes,
       colors,
       sizeVariants,
@@ -3385,13 +3445,356 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                 )}
               </div>
 
+              {/* Modalidad de Venta y Precios (Normal / Precios Escalonados / Venta por Set) */}
+              <div className="border border-slate-200 rounded-xl p-3.5 bg-slate-50/70 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <h4 className="font-bold text-gray-900 text-xs uppercase tracking-wide">
+                      Modalidad de venta y precios
+                    </h4>
+                    <p className="text-[11px] text-gray-500">
+                      Opcionales y excluyentes entre sí. Las publicaciones actuales permanecen en modo normal por defecto.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  {/* Normal */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditingProduct({
+                        ...editingProduct,
+                        pricingMode: 'normal',
+                      })
+                    }
+                    className={`text-left p-2.5 rounded-lg border transition-all cursor-pointer ${
+                      (!editingProduct.pricingMode || editingProduct.pricingMode === 'normal')
+                        ? 'bg-white border-[#0058bb] ring-1 ring-[#0058bb] shadow-2xs'
+                        : 'bg-white/70 border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-xs text-gray-900">Normal (Estándar)</span>
+                      <span
+                        className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                          (!editingProduct.pricingMode || editingProduct.pricingMode === 'normal')
+                            ? 'border-[#0058bb] bg-[#0058bb]'
+                            : 'border-gray-300 bg-white'
+                        }`}
+                      >
+                        {(!editingProduct.pricingMode || editingProduct.pricingMode === 'normal') && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                        )}
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] text-gray-500 mt-0.5 leading-snug">
+                      Mínimo mayorista por categoría y precios habituales.
+                    </p>
+                  </button>
+
+                  {/* Precios escalonados */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const existingTiers = Array.isArray(editingProduct.priceTiers) ? editingProduct.priceTiers : [];
+                      const baseW = Number(editingProduct.wholesalePrice) || 1000;
+                      const baseR = Number(editingProduct.retailPrice) || 1500;
+                      const baseWC = Number(editingProduct.wholesaleCashPrice) || Math.round(baseW * 0.9);
+                      const baseRC = Number(editingProduct.retailCashPrice) || Math.round(baseR * 0.9);
+                      const seededTiers: PriceTier[] =
+                        existingTiers.length > 0
+                          ? existingTiers
+                          : [
+                              {
+                                id: `tier-${Date.now()}-1`,
+                                minQty: 5,
+                                wholesalePrice: Math.max(1, Math.round(baseW * 0.95)),
+                                retailPrice: Math.max(1, Math.round(baseR * 0.95)),
+                                wholesaleCashPrice: Math.max(1, Math.round(baseWC * 0.95)),
+                                retailCashPrice: Math.max(1, Math.round(baseRC * 0.95)),
+                              },
+                              {
+                                id: `tier-${Date.now()}-2`,
+                                minQty: 10,
+                                wholesalePrice: Math.max(1, Math.round(baseW * 0.9)),
+                                retailPrice: Math.max(1, Math.round(baseR * 0.9)),
+                                wholesaleCashPrice: Math.max(1, Math.round(baseWC * 0.9)),
+                                retailCashPrice: Math.max(1, Math.round(baseRC * 0.9)),
+                              },
+                            ];
+                      setEditingProduct({
+                        ...editingProduct,
+                        pricingMode: 'tiered',
+                        priceTiers: seededTiers,
+                      });
+                    }}
+                    className={`text-left p-2.5 rounded-lg border transition-all cursor-pointer ${
+                      editingProduct.pricingMode === 'tiered'
+                        ? 'bg-blue-50/70 border-[#0058bb] ring-1 ring-[#0058bb] shadow-2xs'
+                        : 'bg-white/70 border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-xs text-gray-900">Activar precios escalonados</span>
+                      <span
+                        className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                          editingProduct.pricingMode === 'tiered'
+                            ? 'border-[#0058bb] bg-[#0058bb]'
+                            : 'border-gray-300 bg-white'
+                        }`}
+                      >
+                        {editingProduct.pricingMode === 'tiered' && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                        )}
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] text-gray-500 mt-0.5 leading-snug">
+                      Descuentos por cantidad acumulada entre variantes de esta publicación.
+                    </p>
+                  </button>
+
+                  {/* Venta por set */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditingProduct({
+                        ...editingProduct,
+                        pricingMode: 'set',
+                        defaultSetUnits: editingProduct.defaultSetUnits && editingProduct.defaultSetUnits >= 1 ? editingProduct.defaultSetUnits : 1,
+                      })
+                    }
+                    className={`text-left p-2.5 rounded-lg border transition-all cursor-pointer ${
+                      editingProduct.pricingMode === 'set'
+                        ? 'bg-indigo-50/70 border-indigo-600 ring-1 ring-indigo-600 shadow-2xs'
+                        : 'bg-white/70 border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-xs text-gray-900">Activar venta por set</span>
+                      <span
+                        className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                          editingProduct.pricingMode === 'set'
+                            ? 'border-indigo-600 bg-indigo-600'
+                            : 'border-gray-300 bg-white'
+                        }`}
+                      >
+                        {editingProduct.pricingMode === 'set' && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                        )}
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] text-gray-500 mt-0.5 leading-snug">
+                      Combos obligatorios completos. Aplica precio mayorista desde 1 set.
+                    </p>
+                  </button>
+                </div>
+
+                {/* Aviso contextual para Venta por Set */}
+                {editingProduct.pricingMode === 'set' && (
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 text-[11px] text-indigo-900 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <span className="font-bold">Venta por set o combo obligatorio activa:</span>{' '}
+                      Los 4 precios cargados abajo (y en cada variante) representan el <strong>valor del set completo</strong>. El mínimo mayorista queda deshabilitado para esta publicación (aplica precio mayorista desde 1 set) y tu valor original ({editingProduct.minWholesaleQty ?? 1} u.) se conserva intacto si la desactivás.
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 bg-white border border-indigo-200 rounded-md px-2 py-1">
+                      <label className="text-[10.5px] font-bold text-indigo-900 whitespace-nowrap">
+                        Unid. por set (base):
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={editingProduct.defaultSetUnits ?? 1}
+                        onChange={(e) =>
+                          setEditingProduct({
+                            ...editingProduct,
+                            defaultSetUnits: Math.max(1, Math.floor(Number(e.target.value) || 1)),
+                          })
+                        }
+                        className="w-16 border border-indigo-300 rounded px-1.5 py-0.5 text-xs font-bold text-indigo-950 focus:ring-1 focus:ring-indigo-600"
+                        title="Cantidad de unidades por set por defecto (cada variante puede definir su propia cantidad)"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Configuración de Escalones (solo si Precios Escalonados está activo) */}
+                {editingProduct.pricingMode === 'tiered' && (
+                  <div className="bg-white border border-blue-200 rounded-lg p-3 space-y-2.5">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <p className="text-xs font-bold text-gray-900">
+                          Escalones de precio por cantidad ({(editingProduct.priceTiers || []).length})
+                        </p>
+                        <p className="text-[11px] text-gray-500">
+                          Las cantidades se acumulan entre variantes de esta misma publicación. Configurá la cantidad mínima y los 4 precios de cada escalón.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const current = Array.isArray(editingProduct.priceTiers) ? editingProduct.priceTiers : [];
+                          const maxQty = current.reduce((m, t) => Math.max(m, Number(t.minQty) || 0), 0);
+                          const nextQty = maxQty > 0 ? maxQty + 5 : 5;
+                          const last = current[current.length - 1];
+                          const newTier: PriceTier = {
+                            id: `tier-${Date.now()}-${current.length + 1}`,
+                            minQty: nextQty,
+                            wholesalePrice: last?.wholesalePrice || Number(editingProduct.wholesalePrice) || 1000,
+                            retailPrice: last?.retailPrice || Number(editingProduct.retailPrice) || 1500,
+                            wholesaleCashPrice: last?.wholesaleCashPrice || Number(editingProduct.wholesaleCashPrice) || 900,
+                            retailCashPrice: last?.retailCashPrice || Number(editingProduct.retailCashPrice) || 1350,
+                          };
+                          setEditingProduct({
+                            ...editingProduct,
+                            priceTiers: [...current, newTier],
+                          });
+                        }}
+                        className="bg-[#0058bb] hover:bg-[#004bb0] text-white text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Agregar escalón</span>
+                      </button>
+                    </div>
+
+                    {(editingProduct.priceTiers || []).length === 0 ? (
+                      <div className="text-center py-3 text-xs text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                        Sin escalones cargados. Hacé clic en «Agregar escalón» para crear el primero.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {(editingProduct.priceTiers || []).map((tier, idx) => (
+                          <div
+                            key={tier.id || idx}
+                            className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-end bg-blue-50/30 border border-blue-100 rounded-lg p-2.5"
+                          >
+                            <div>
+                              <label className="text-[10px] font-bold text-gray-700 block mb-0.5">
+                                Desde (unids.)
+                              </label>
+                              <input
+                                type="number"
+                                min={1}
+                                step={1}
+                                value={tier.minQty || ''}
+                                onChange={(e) => {
+                                  const next = [...(editingProduct.priceTiers || [])];
+                                  next[idx] = {
+                                    ...next[idx],
+                                    minQty: e.target.value === '' ? (0 as any) : Math.max(1, Math.floor(Number(e.target.value))),
+                                  };
+                                  setEditingProduct({ ...editingProduct, priceTiers: next });
+                                }}
+                                className="w-full border border-gray-300 rounded px-2 py-1 text-xs bg-white font-bold text-gray-900"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-semibold text-gray-700 block mb-0.5">
+                                May. Transf. ($)
+                              </label>
+                              <input
+                                type="number"
+                                min={1}
+                                value={tier.wholesalePrice || ''}
+                                onChange={(e) => {
+                                  const next = [...(editingProduct.priceTiers || [])];
+                                  next[idx] = {
+                                    ...next[idx],
+                                    wholesalePrice: e.target.value === '' ? (0 as any) : Number(e.target.value),
+                                  };
+                                  setEditingProduct({ ...editingProduct, priceTiers: next });
+                                }}
+                                className="w-full border border-gray-300 rounded px-2 py-1 text-xs bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-semibold text-gray-700 block mb-0.5">
+                                Min. Transf. ($)
+                              </label>
+                              <input
+                                type="number"
+                                min={1}
+                                value={tier.retailPrice || ''}
+                                onChange={(e) => {
+                                  const next = [...(editingProduct.priceTiers || [])];
+                                  next[idx] = {
+                                    ...next[idx],
+                                    retailPrice: e.target.value === '' ? (0 as any) : Number(e.target.value),
+                                  };
+                                  setEditingProduct({ ...editingProduct, priceTiers: next });
+                                }}
+                                className="w-full border border-gray-300 rounded px-2 py-1 text-xs bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-semibold text-teal-800 block mb-0.5">
+                                May. Efect. ($)
+                              </label>
+                              <input
+                                type="number"
+                                min={1}
+                                value={tier.wholesaleCashPrice || ''}
+                                onChange={(e) => {
+                                  const next = [...(editingProduct.priceTiers || [])];
+                                  next[idx] = {
+                                    ...next[idx],
+                                    wholesaleCashPrice: e.target.value === '' ? (0 as any) : Number(e.target.value),
+                                  };
+                                  setEditingProduct({ ...editingProduct, priceTiers: next });
+                                }}
+                                className="w-full border border-teal-300 rounded px-2 py-1 text-xs bg-white text-teal-900 font-semibold"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-semibold text-emerald-800 block mb-0.5">
+                                Min. Efect. ($)
+                              </label>
+                              <input
+                                type="number"
+                                min={1}
+                                value={tier.retailCashPrice || ''}
+                                onChange={(e) => {
+                                  const next = [...(editingProduct.priceTiers || [])];
+                                  next[idx] = {
+                                    ...next[idx],
+                                    retailCashPrice: e.target.value === '' ? (0 as any) : Number(e.target.value),
+                                  };
+                                  setEditingProduct({ ...editingProduct, priceTiers: next });
+                                }}
+                                className="w-full border border-emerald-300 rounded px-2 py-1 text-xs bg-white text-emerald-900 font-semibold"
+                              />
+                            </div>
+                            <div className="flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = (editingProduct.priceTiers || []).filter((_, i) => i !== idx);
+                                  setEditingProduct({ ...editingProduct, priceTiers: next });
+                                }}
+                                className="text-red-500 hover:bg-red-50 border border-red-200 rounded px-2 py-1 text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                                title="Eliminar escalón"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span className="sm:hidden">Quitar</span>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Precios Generales & Stock */}
               <div className="grid grid-cols-2 md:grid-cols-6 gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
                 {/* 1. Mayorista Transferencia */}
                 <div className="flex flex-col justify-between">
                   <div>
                     <label className="font-semibold text-gray-700 block mb-1 text-xs">
-                      Mayorista Transf. ($) <span className="text-red-500 font-bold">*</span>
+                      {editingProduct.pricingMode === 'set' ? 'Set May. Transf. ($)' : 'Mayorista Transf. ($)'}{' '}
+                      <span className="text-red-500 font-bold">*</span>
                     </label>
                     <input
                       type="number"
@@ -3423,7 +3826,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                 <div className="flex flex-col justify-between">
                   <div>
                     <label className="font-semibold text-gray-700 block mb-1 text-xs">
-                      Minorista Transf. ($) <span className="text-red-500 font-bold">*</span>
+                      {editingProduct.pricingMode === 'set' ? 'Set Min. Transf. ($)' : 'Minorista Transf. ($)'}{' '}
+                      <span className="text-red-500 font-bold">*</span>
                     </label>
                     <input
                       type="number"
@@ -3455,7 +3859,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                 <div className="flex flex-col justify-between">
                   <div>
                     <label className="font-semibold text-teal-800 block mb-1 text-xs">
-                      Mayorista Efectivo ($) <span className="text-red-500 font-bold">*</span>
+                      {editingProduct.pricingMode === 'set' ? 'Set May. Efectivo ($)' : 'Mayorista Efectivo ($)'}{' '}
+                      <span className="text-red-500 font-bold">*</span>
                     </label>
                     <input
                       type="number"
@@ -3487,7 +3892,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                 <div className="flex flex-col justify-between">
                   <div>
                     <label className="font-semibold text-emerald-800 block mb-1 text-xs">
-                      Minorista Efectivo ($) <span className="text-red-500 font-bold">*</span>
+                      {editingProduct.pricingMode === 'set' ? 'Set Min. Efectivo ($)' : 'Minorista Efectivo ($)'}{' '}
+                      <span className="text-red-500 font-bold">*</span>
                     </label>
                     <input
                       type="number"
@@ -3516,30 +3922,47 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                   </button>
                 </div>
 
-                {/* 5. Mínimo Mayorista */}
-                <div className="flex flex-col justify-between">
-                  <div>
-                    <label className="font-semibold text-gray-700 block mb-1 text-xs">
-                      Mínimo Mayorista <span className="text-red-500 font-bold">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min={1}
-                      value={editingProduct.minWholesaleQty ?? 1}
-                      onChange={(e) =>
-                        setEditingProduct({ ...editingProduct, minWholesaleQty: Number(e.target.value) })
-                      }
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs bg-white focus:ring-1 focus:ring-[#0058bb]"
-                    />
+                {/* 5. Mínimo Mayorista (oculto/deshabilitado en Venta por Set conservando valor original) */}
+                {editingProduct.pricingMode === 'set' ? (
+                  <div className="flex flex-col justify-between">
+                    <div>
+                      <label className="font-semibold text-gray-400 block mb-1 text-xs">
+                        Mínimo Mayorista
+                      </label>
+                      <div className="w-full border border-dashed border-indigo-200 rounded-lg px-2.5 py-2 text-[11px] bg-indigo-50/50 text-indigo-800 font-semibold leading-tight">
+                        Deshabilitado (1 set)
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-1 leading-tight">
+                        Valor guardado: {editingProduct.minWholesaleQty ?? 1} u.
+                      </p>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex flex-col justify-between">
+                    <div>
+                      <label className="font-semibold text-gray-700 block mb-1 text-xs">
+                        Mínimo Mayorista <span className="text-red-500 font-bold">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        min={1}
+                        value={editingProduct.minWholesaleQty ?? 1}
+                        onChange={(e) =>
+                          setEditingProduct({ ...editingProduct, minWholesaleQty: Number(e.target.value) })
+                        }
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-xs bg-white focus:ring-1 focus:ring-[#0058bb]"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* 6. Stock Disponible */}
                 <div className="flex flex-col justify-between">
                   <div>
                     <label className="font-semibold text-gray-700 block mb-1 text-xs">
-                      Stock Disponible <span className="text-red-500 font-bold">*</span>
+                      {editingProduct.pricingMode === 'set' ? 'Stock (Sets)' : 'Stock Disponible'}{' '}
+                      <span className="text-red-500 font-bold">*</span>
                     </label>
                     <input
                       type="number"
@@ -3563,6 +3986,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                 baseRetailCashPrice={editingProduct.retailCashPrice}
                 baseWholesaleCashPrice={editingProduct.wholesaleCashPrice}
                 baseStock={editingProduct.stock ?? 10}
+                isSetSaleMode={editingProduct.pricingMode === 'set'}
+                defaultSetUnits={editingProduct.defaultSetUnits ?? 1}
               />
 
               {/* Descripción */}

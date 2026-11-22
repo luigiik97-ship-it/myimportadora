@@ -105,6 +105,15 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
         ? it.totalPrice
         : appliedUnitPrice * (it.quantity || 1);
 
+      const normalizedVariant = normalizeVariantText(it.variantText);
+      const setVariantNote =
+        it.pricingMode === 'set' && it.unitsPerSet
+          ? `Set completo x ${it.unitsPerSet} u.`
+          : '';
+      const receiptVariantText = [normalizedVariant, setVariantNote]
+        .filter(Boolean)
+        .join(' · ');
+
       return {
         title: it.title,
         quantity: it.quantity,
@@ -112,7 +121,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
         cashUnitPrice: it.cashUnitPrice,
         totalPrice: appliedTotalPrice,
         totalCashPrice: it.totalCashPrice,
-        variantText: normalizeVariantText(it.variantText),
+        variantText: receiptVariantText,
         image: it.image,
         isWholesale: it.isWholesale,
       };
@@ -550,9 +559,18 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
               ? effectiveUnitPrice * (item.quantity || 1)
               : item.totalPrice;
 
+            const isSetItem = item.pricingMode === 'set' && Boolean(item.unitsPerSet && item.unitsPerSet > 0);
+            const setUnits = isSetItem ? Math.max(1, Math.floor(item.unitsPerSet || 1)) : 1;
+            const informativeUnitPrice = isSetItem ? Math.round(effectiveUnitPrice / setUnits) : effectiveUnitPrice;
+
             const variantSuffix = item.variantText ? `, ${item.variantText}` : '';
+            const modeSuffix = isSetItem
+              ? ` · Set x ${setUnits} u.`
+              : item.pricingMode === 'tiered' && item.appliedTierMinQty
+              ? ` · Escalón ${item.appliedTierMinQty}+`
+              : '';
             const pricingSuffix = ` (${item.isWholesale ? 'mayorista' : 'minorista'})`;
-            const fullItemLabel = `${item.quantity}x ${item.title}${variantSuffix}${pricingSuffix}`;
+            const fullItemLabel = `${item.quantity}x ${item.title}${variantSuffix}${modeSuffix}${pricingSuffix}`;
 
             return (
               <div key={item.id} className="py-3 sm:py-3.5 flex items-center justify-between gap-3 sm:gap-4">
@@ -569,7 +587,9 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
                       {fullItemLabel}
                     </h4>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      Precio unitario: ${effectiveUnitPrice.toLocaleString('es-AR')} c/u
+                      {isSetItem
+                        ? `Precio por set: $${effectiveUnitPrice.toLocaleString('es-AR')} (~$${informativeUnitPrice.toLocaleString('es-AR')} c/u)`
+                        : `Precio unitario: $${effectiveUnitPrice.toLocaleString('es-AR')} c/u`}
                     </p>
                   </div>
                 </div>
@@ -579,7 +599,9 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
                     ${effectiveTotalPrice.toLocaleString('es-AR')}
                   </span>
                   <span className="text-xs text-gray-400 block">
-                    (${effectiveUnitPrice.toLocaleString('es-AR')} c/u)
+                    {isSetItem
+                      ? `($${effectiveUnitPrice.toLocaleString('es-AR')}/set)`
+                      : `($${effectiveUnitPrice.toLocaleString('es-AR')} c/u)`}
                   </span>
                 </div>
               </div>

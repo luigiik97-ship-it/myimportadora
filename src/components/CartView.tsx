@@ -2,10 +2,17 @@ import React, { useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { CartItem, Product } from '../types';
 import { Trash2, Plus, Minus, ArrowRight, ArrowLeft, ShieldCheck, Truck, ShoppingBag, Info, CheckCircle2, Banknote, CreditCard, ArrowLeftRight, Store, ChevronRight, AlertCircle, X } from 'lucide-react';
-import { getItemEffectiveNormalPrice, getItemEffectiveCashPrice, getSelectedVariantStock, getProductCoverImage } from '../utils/variantHelpers';
+import {
+  getSelectedVariantStock,
+  getProductCoverImage,
+  buildCartQuantitiesIndex,
+  calculateCartItemPricing,
+  getNormalizedPriceTiers,
+} from '../utils/variantHelpers';
 import { usePurchaseMode } from '../context/PurchaseModeContext';
 import { getOptimizedImageUrl } from '../utils/imageOptimizer';
 import { WholesaleCategoryProgressCard } from './common/WholesaleCategoryProgressCard';
+import { TieredPricingProgressCard } from './common/TieredPricingProgressCard';
 import { slugifyCategory } from '../utils/categoryHelpers';
 import { CartStockAlert } from '../utils/stockValidation';
 
@@ -148,72 +155,40 @@ export const CartView: React.FC<CartViewProps> = ({
     (typeof window !== 'undefined' && sessionStorage.getItem('quick_buy_cash_pickup_cart') === 'true')
   );
 
-  // 1. Calculate total quantity per category in cart
-  const categoryQuantities: Record<string, number> = {};
-  cartItems.forEach((item) => {
-    const cat = item.product.category || 'General';
-    categoryQuantities[cat] = (categoryQuantities[cat] || 0) + item.quantity;
-  });
+  // 1. Índice canónico de cantidades por categoría (normales) y por publicación (escalonados)
+  const quantitiesIndex = buildCartQuantitiesIndex(cartItems);
 
-  // 2. Compute item prices based on whether category threshold is reached
+  // 2. Resolver precios de cada línea con el motor único (normal, escalonado y venta por set)
   const processedItems = cartItems.map((item) => {
     const cat = item.product.category || 'General';
-    const totalInCat = categoryQuantities[cat] || 0;
-    const minQty = item.product.minWholesaleQty || 1;
-    const isWholesale = totalInCat >= minQty;
-
-    // Determine base prices from selected variant option, selected size variant or product base
-    const wholesaleUnitPrice = getItemEffectiveNormalPrice(
-      item.product,
-      item.selectedVariants,
-      item.selectedSizeVariant,
-      true
-    );
-
-    const retailUnitPrice = getItemEffectiveNormalPrice(
-      item.product,
-      item.selectedVariants,
-      item.selectedSizeVariant,
-      false
-    );
-
-    const unitPrice = isWholesale ? wholesaleUnitPrice : retailUnitPrice;
-    const totalPrice = unitPrice * item.quantity;
-    const retailTotal = retailUnitPrice * item.quantity;
-    const savings = isWholesale ? retailTotal - totalPrice : 0;
-    const remainingToWholesale = Math.max(0, minQty - totalInCat);
+    const calc = calculateCartItemPricing(item, quantitiesIndex, { isCashMode });
+    const remainingToWholesale = calc.isSet ? 0 : Math.max(0, calc.minQty - calc.categoryQty);
     const availableStock = getSelectedVariantStock(item.product, item.selectedVariants || {});
-
-    // Cash price calculation based on store configuration (same logic as Checkout & QuickBuy)
-    const cashUnitPrice = getItemEffectiveCashPrice(
-      item.product,
-      item.selectedVariants,
-      item.selectedSizeVariant,
-      unitPrice,
-      isWholesale
-    );
-    const cashTotalPrice = cashUnitPrice * item.quantity;
-
-    // Active price strictly adhering to the selected purchase mode
-    const effectiveUnitPrice = isCashMode ? cashUnitPrice : unitPrice;
-    const effectiveTotalPrice = isCashMode ? cashTotalPrice : totalPrice;
 
     return {
       ...item,
-      isWholesale,
-      unitPrice,
-      wholesaleUnitPrice,
-      retailUnitPrice,
-      totalPrice,
-      cashUnitPrice,
-      cashTotalPrice,
-      effectiveUnitPrice,
-      effectiveTotalPrice,
-      savings,
+      isWholesale: calc.isWholesale,
+      unitPrice: calc.normalUnitPrice,
+      wholesaleUnitPrice: calc.wholesaleUnitPrice,
+      retailUnitPrice: calc.retailUnitPrice,
+      totalPrice: calc.totalPrice,
+      cashUnitPrice: calc.cashUnitPrice,
+      cashTotalPrice: calc.cashTotalPrice,
+      effectiveUnitPrice: calc.effectiveUnitPrice,
+      effectiveTotalPrice: calc.effectiveTotalPrice,
+      savings: calc.savings,
       remainingToWholesale,
-      minQty,
+      minQty: calc.minQty,
       cat,
       availableStock,
+      pricingMode: calc.pricingMode,
+      isSet: calc.isSet,
+      isTiered: calc.isTiered,
+      unitsPerSet: calc.unitsPerSet,
+      totalUnitsIncluded: calc.totalUnitsIncluded,
+      informativeEffectiveUnitPrice: calc.informativeEffectiveUnitPrice,
+      activeTier: calc.activeTier,
+      publicationQty: calc.publicationQty,
     };
   });
 
@@ -224,10 +199,6 @@ export const CartView: React.FC<CartViewProps> = ({
   const activeSubtotal = isCashMode ? cashSubtotalProducts : subtotalProducts;
 
   // Group processed items by category for visual grouping and wholesale summary
-  // Al agregar un producto o modificar la cantidad de cualquier variante:
-  // 1. La categoría de esa publicación sube completa al primer lugar del carrito conservando todos sus productos y su barra.
-  // 2. Dentro de esa categoría, la publicación recién agregada o modificada aparece primero.
-  // 3. El orden se actualiza de inmediato y se mantiene al recargar.
   const categoryGroups = useMemo(() => {
     const map = new Map<string, typeof processedItems>();
     processedItems.forEach((item) => {
@@ -264,14 +235,31 @@ export const CartView: React.FC<CartViewProps> = ({
       });
 
       const totalUnits = orderedItems.reduce((acc, i) => acc + i.quantity, 0);
-      const minQty = orderedItems[0]?.minQty || 1;
+      const normalItems = orderedItems.filter((i) => !i.isSet && !i.isTiered);
+      const hasNormalItems = normalItems.length > 0;
+      const normalUnits = normalItems.reduce((acc, i) => acc + i.quantity, 0);
+      const normalMinQty = normalItems[0]?.minQty || 1;
       const categoryLastModified = Math.max(...orderedItems.map((i) => i.lastModified || 0));
+
+      // Publicaciones con precios escalonados dentro de este grupo (una barra por publicación)
+      const tieredPubMap = new Map<string, { product: Product; publicationQty: number }>();
+      orderedItems.forEach((it) => {
+        if (it.isTiered) {
+          const pid = String(it.productId || it.product.id);
+          if (!tieredPubMap.has(pid)) {
+            tieredPubMap.set(pid, { product: it.product, publicationQty: it.publicationQty });
+          }
+        }
+      });
 
       return {
         categoryName,
         items: orderedItems,
         totalUnits,
-        minQty,
+        hasNormalItems,
+        normalUnits,
+        normalMinQty,
+        tieredPublications: Array.from(tieredPubMap.values()),
         categoryLastModified,
       };
     });
@@ -536,6 +524,13 @@ export const CartView: React.FC<CartViewProps> = ({
                               </p>
                             )}
 
+                            {item.isSet && (
+                              <p className="text-[11px] text-indigo-700 font-semibold mt-0.5 truncate">
+                                Set completo x {item.unitsPerSet} {item.unitsPerSet === 1 ? 'unidad' : 'unidades'}
+                                {item.quantity > 1 ? ` (${item.totalUnitsIncluded} u. en total)` : ''}
+                              </p>
+                            )}
+
                             {/* Quantity Modifier, Wholesale Tag & Line Price */}
                             <div className="flex items-center justify-between gap-1.5 sm:gap-2 mt-1 min-w-0">
                               <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
@@ -544,7 +539,7 @@ export const CartView: React.FC<CartViewProps> = ({
                                     type="button"
                                     onClick={() => onUpdateQuantity(item.id, -1)}
                                     className="w-8 h-8 sm:w-8 sm:h-8 text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer flex items-center justify-center active:bg-gray-200"
-                                    title="Disminuir cantidad"
+                                    title={item.isSet ? 'Disminuir sets' : 'Disminuir cantidad'}
                                   >
                                     <Minus className="w-3.5 h-3.5" />
                                   </button>
@@ -567,6 +562,8 @@ export const CartView: React.FC<CartViewProps> = ({
                                     title={
                                       item.availableStock > 0 && item.quantity >= item.availableStock
                                         ? 'Stock máximo disponible alcanzado'
+                                        : item.isSet
+                                        ? 'Añadir set completo'
                                         : 'Añadir unidad'
                                     }
                                   >
@@ -574,20 +571,34 @@ export const CartView: React.FC<CartViewProps> = ({
                                   </button>
                                 </div>
 
-                                {item.isWholesale && (
+                                {item.isSet ? (
+                                  <span className="inline-flex items-center justify-center text-[10px] sm:text-[11px] font-bold text-[#16a34a] bg-white border border-[#16a34a] px-1.5 py-0.5 rounded-full text-center leading-none overflow-hidden whitespace-nowrap [text-overflow:clip] shrink">
+                                    Mayorista (Set)
+                                  </span>
+                                ) : item.isTiered && item.activeTier ? (
+                                  <span className="inline-flex items-center justify-center text-[10px] sm:text-[11px] font-bold text-[#16a34a] bg-white border border-[#16a34a] px-1.5 py-0.5 rounded-full text-center leading-none overflow-hidden whitespace-nowrap [text-overflow:clip] shrink">
+                                    Escalón {item.activeTier.minQty}+
+                                  </span>
+                                ) : item.isWholesale ? (
                                   <span className="inline-flex items-center justify-center text-[10px] sm:text-[11px] font-bold text-[#16a34a] bg-white border border-[#16a34a] px-1.5 py-0.5 rounded-full text-center leading-none overflow-hidden whitespace-nowrap [text-overflow:clip] shrink">
                                     Mayorista
                                   </span>
-                                )}
+                                ) : null}
                               </div>
 
                               <div className="text-right shrink-0">
                                 <span className="text-base sm:text-lg font-bold font-['Montserrat'] whitespace-nowrap block text-gray-900">
                                   ${item.effectiveTotalPrice.toLocaleString('es-AR')}
                                 </span>
-                                <span className="text-xs text-gray-500 block whitespace-nowrap">
-                                  (${item.effectiveUnitPrice.toLocaleString('es-AR')} c/u)
-                                </span>
+                                {item.isSet ? (
+                                  <span className="text-xs text-gray-500 block whitespace-nowrap">
+                                    (${item.effectiveUnitPrice.toLocaleString('es-AR')}/set · ~${item.informativeEffectiveUnitPrice.toLocaleString('es-AR')} c/u)
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-gray-500 block whitespace-nowrap">
+                                    (${item.effectiveUnitPrice.toLocaleString('es-AR')} c/u)
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -597,16 +608,35 @@ export const CartView: React.FC<CartViewProps> = ({
                   })}
                 </div>
 
-                {/* Tarjeta compacta mayorista al final del grupo de categoría */}
-                <div className="pt-1 border-t border-gray-100">
-                  <WholesaleCategoryProgressCard
-                    currentQty={group.totalUnits}
-                    minQty={group.minQty}
-                    isProductDetail={false}
-                    hideTitle={true}
-                    messageClassName="text-xs sm:text-sm"
-                  />
-                </div>
+                {/* Barras de progreso de publicaciones con precios escalonados en este grupo */}
+                {group.tieredPublications.length > 0 && (
+                  <div className="pt-1 border-t border-gray-100 space-y-2">
+                    {group.tieredPublications.map((tp) => (
+                      <TieredPricingProgressCard
+                        key={tp.product.id}
+                        tiers={getNormalizedPriceTiers(tp.product)}
+                        currentQty={tp.publicationQty}
+                        minWholesaleQty={tp.product.minWholesaleQty || 1}
+                        isCashMode={isCashMode}
+                        compact={true}
+                        messageClassName="text-xs sm:text-sm"
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Tarjeta compacta mayorista solo si el grupo contiene publicaciones normales */}
+                {group.hasNormalItems && (
+                  <div className="pt-1 border-t border-gray-100">
+                    <WholesaleCategoryProgressCard
+                      currentQty={group.normalUnits}
+                      minQty={group.normalMinQty}
+                      isProductDetail={false}
+                      hideTitle={true}
+                      messageClassName="text-xs sm:text-sm"
+                    />
+                  </div>
+                )}
               </div>
             );
           })}

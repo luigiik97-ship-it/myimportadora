@@ -22,7 +22,16 @@ import {
   isProductsCacheStale,
 } from './services/supabase';
 import { userToProfile } from './services/auth';
-import { getActiveVariantImages, getItemEffectiveNormalPrice, getSelectedVariantStock, deductStockFromProduct, getProductCoverImage, getVariantPrimaryImage } from './utils/variantHelpers';
+import {
+  getActiveVariantImages,
+  getItemEffectiveNormalPrice,
+  getSelectedVariantStock,
+  deductStockFromProduct,
+  getProductCoverImage,
+  getVariantPrimaryImage,
+  buildCartQuantitiesIndex,
+  calculateCartItemPricing,
+} from './utils/variantHelpers';
 import { validateCartStock, CartStockAlert, StockValidationResult } from './utils/stockValidation';
 import { slugifyCategory, reconcileCategoriesWithProducts } from './utils/categoryHelpers';
 import { reorderCartOnProductAdd } from './utils/cartOrdering';
@@ -81,6 +90,9 @@ const serializeCartForStorage = (items: CartItem[]) => {
       wholesaleCashPrice: item.product.wholesaleCashPrice,
       retailCashPrice: item.product.retailCashPrice,
       cashPrice: item.product.cashPrice,
+      pricingMode: item.product.pricingMode,
+      priceTiers: item.product.priceTiers,
+      defaultSetUnits: item.product.defaultSetUnits,
       stock: item.product.stock,
       colors: item.product.colors,
       sizeVariants: item.product.sizeVariants,
@@ -358,6 +370,9 @@ export default function App() {
             minWholesaleQty: item.product?.minWholesaleQty || 1,
             wholesalePrice: item.product?.wholesalePrice || item.unitPrice,
             retailPrice: item.product?.retailPrice || item.unitPrice,
+            pricingMode: item.product?.pricingMode,
+            priceTiers: item.product?.priceTiers,
+            defaultSetUnits: item.product?.defaultSetUnits,
             stock: item.product?.stock || 99,
           },
         }));
@@ -399,10 +414,9 @@ export default function App() {
     if (products.length > 0 && cart.length > 0) {
       setCart((prevCart) => {
         let hasChanges = false;
-        const hydrated = prevCart.map((cartItem) => {
+        const matchedItems = prevCart.map((cartItem) => {
           const matchingProduct = products.find((p) => p.id === cartItem.productId);
           if (matchingProduct) {
-            // Find updated sizeVariant if applicable
             let updatedSizeVariant = cartItem.selectedSizeVariant;
             if (cartItem.selectedSizeVariant && matchingProduct.sizeVariants) {
               const matchedSv = matchingProduct.sizeVariants.find(
@@ -415,7 +429,6 @@ export default function App() {
               }
             }
 
-            // Garantizar que la imagen del artículo del carrito sea siempre la primera imagen configurada para la variante seleccionada
             let resolvedImage = cartItem.selectedImage;
             if (cartItem.selectedVariants && Object.keys(cartItem.selectedVariants).length > 0) {
               const primaryVariantImg = getVariantPrimaryImage(matchingProduct, cartItem.selectedVariants);
@@ -426,35 +439,32 @@ export default function App() {
               resolvedImage = matchingProduct.images?.[0] || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
             }
 
-            // Recompute unit price from updated product data and exact variant choices
-            const wholesaleUnitPrice = getItemEffectiveNormalPrice(
-              matchingProduct,
-              cartItem.selectedVariants,
-              updatedSizeVariant,
-              true
-            );
-            const retailUnitPrice = getItemEffectiveNormalPrice(
-              matchingProduct,
-              cartItem.selectedVariants,
-              updatedSizeVariant,
-              false
-            );
-            const unitPrice = cartItem.isWholesale ? wholesaleUnitPrice : retailUnitPrice;
-            const totalPrice = unitPrice * cartItem.quantity;
-
             hasChanges = true;
             return {
               ...cartItem,
               product: matchingProduct,
               selectedSizeVariant: updatedSizeVariant,
               selectedImage: resolvedImage,
-              unitPrice,
-              totalPrice,
             };
           }
           return cartItem;
         });
-        return hasChanges ? hydrated : prevCart;
+
+        if (!hasChanges) return prevCart;
+
+        const quantitiesIndex = buildCartQuantitiesIndex(matchedItems);
+        return matchedItems.map((cartItem) => {
+          if (!cartItem.product) return cartItem;
+          const calc = calculateCartItemPricing(cartItem, quantitiesIndex);
+          return {
+            ...cartItem,
+            isWholesale: calc.isWholesale,
+            unitPrice: calc.normalUnitPrice,
+            cashUnitPrice: calc.cashUnitPrice,
+            totalPrice: calc.totalPrice,
+            totalCashPrice: calc.cashTotalPrice,
+          };
+        });
       });
     }
   }, [products]);
@@ -761,13 +771,31 @@ export default function App() {
     });
 
     if (showNotification && actuallyAddedQty > 0) {
-      // Format human-readable variant summary for the top notification
-      const wholesaleUnitPrice = getItemEffectiveNormalPrice(
-        product,
-        selectedVariants,
-        selectedSizeVariant,
-        true
+      const previewItems = [
+        ...cart,
+        {
+          productId: product.id,
+          product,
+          selectedVariants,
+          selectedSizeVariant,
+          quantity: actuallyAddedQty,
+        },
+      ];
+      const previewCalc = calculateCartItemPricing(
+        {
+          productId: product.id,
+          product,
+          selectedVariants,
+          selectedSizeVariant,
+          quantity: actuallyAddedQty,
+        },
+        previewItems
       );
+      const notifyUnitPrice = previewCalc.isSet
+        ? previewCalc.normalUnitPrice
+        : previewCalc.isTiered
+        ? previewCalc.normalUnitPrice
+        : getItemEffectiveNormalPrice(product, selectedVariants, selectedSizeVariant, true);
 
       let variantSummary = '';
       if (selectedVariants && Object.keys(selectedVariants).length > 0) {
@@ -781,14 +809,18 @@ export default function App() {
       } else if (selectedColor || selectedSizeVariant) {
         variantSummary = [selectedColor, selectedSizeVariant?.name].filter(Boolean).join(' • ');
       }
+      if (previewCalc.isSet) {
+        const setTag = `Set x ${previewCalc.unitsPerSet} u.`;
+        variantSummary = variantSummary ? `${variantSummary} • ${setTag}` : setTag;
+      }
 
       setCartNotification({
         id: `${Date.now()}-${Math.random()}`,
         product,
         variantSummary,
         quantity: actuallyAddedQty,
-        unitPrice: wholesaleUnitPrice,
-        totalPrice: wholesaleUnitPrice * actuallyAddedQty,
+        unitPrice: notifyUnitPrice,
+        totalPrice: notifyUnitPrice * actuallyAddedQty,
         image: resolvedImage,
       });
     }

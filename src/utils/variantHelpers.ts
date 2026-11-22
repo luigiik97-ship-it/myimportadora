@@ -1,4 +1,4 @@
-import { Product, ProductSpec, SizeVariant, VariantOption, VariantType, CartItem } from '../types';
+import { Product, ProductSpec, SizeVariant, VariantOption, VariantType, CartItem, PriceTier, ProductPricingMode } from '../types';
 
 export const META_VARIANT_TYPES_KEY = '__meta_variant_types__';
 export const SPECS_VARIANT_TYPES_KEY = '__variant_types';
@@ -36,6 +36,12 @@ export function normalizeVariantTypes(product: Partial<Product> | any): VariantT
           name: opt.name || `Opción ${optIdx + 1}`,
           images: Array.isArray(opt.images) ? opt.images.filter((img: any) => typeof img === 'string' && img.trim().length > 0) : [],
           stock: opt.stock !== undefined && opt.stock !== null && !isNaN(Number(opt.stock)) ? Math.max(0, Number(opt.stock)) : undefined,
+          unitsPerSet:
+            opt.unitsPerSet !== undefined && opt.unitsPerSet !== null && !isNaN(Number(opt.unitsPerSet)) && Number(opt.unitsPerSet) >= 1
+              ? Math.floor(Number(opt.unitsPerSet))
+              : opt.units_per_set !== undefined && opt.units_per_set !== null && !isNaN(Number(opt.units_per_set)) && Number(opt.units_per_set) >= 1
+              ? Math.floor(Number(opt.units_per_set))
+              : undefined,
           wholesalePrice: opt.wholesalePrice !== undefined && opt.wholesalePrice !== null && !isNaN(Number(opt.wholesalePrice))
             ? Number(opt.wholesalePrice)
             : opt.wholesale_price !== undefined && opt.wholesale_price !== null && !isNaN(Number(opt.wholesale_price))
@@ -225,6 +231,12 @@ export function normalizeVariantTypes(product: Partial<Product> | any): VariantT
           name: sv.name || `Variante ${idx + 1}`,
           images: Array.isArray(sv.images) ? sv.images.filter(Boolean) : [],
           stock: sv.stock !== undefined && sv.stock !== null && !isNaN(Number(sv.stock)) ? Math.max(0, Number(sv.stock)) : undefined,
+          unitsPerSet:
+            sv.unitsPerSet !== undefined && sv.unitsPerSet !== null && !isNaN(Number(sv.unitsPerSet)) && Number(sv.unitsPerSet) >= 1
+              ? Math.floor(Number(sv.unitsPerSet))
+              : sv.units_per_set !== undefined && sv.units_per_set !== null && !isNaN(Number(sv.units_per_set)) && Number(sv.units_per_set) >= 1
+              ? Math.floor(Number(sv.units_per_set))
+              : undefined,
           wholesalePrice,
           retailPrice,
           cashPrice,
@@ -338,6 +350,7 @@ export function syncLegacyFields(
         name: o.name,
         images: o.images || [],
         stock: o.stock !== undefined ? o.stock : undefined,
+        unitsPerSet: o.unitsPerSet !== undefined ? o.unitsPerSet : undefined,
         wholesalePrice: o.wholesalePrice !== undefined ? o.wholesalePrice : fallbackWholesalePrice,
         retailPrice: o.retailPrice !== undefined ? o.retailPrice : fallbackRetailPrice,
         cashPrice: o.cashPrice !== undefined ? o.cashPrice : fallbackCashPrice,
@@ -356,6 +369,7 @@ export function syncLegacyFields(
         name: o.name,
         images: o.images || [],
         stock: o.stock !== undefined ? o.stock : undefined,
+        unitsPerSet: o.unitsPerSet !== undefined ? o.unitsPerSet : undefined,
         wholesalePrice: o.wholesalePrice !== undefined ? o.wholesalePrice : fallbackWholesalePrice,
         retailPrice: o.retailPrice !== undefined ? o.retailPrice : fallbackRetailPrice,
         cashPrice: o.cashPrice !== undefined ? o.cashPrice : fallbackCashPrice,
@@ -379,6 +393,7 @@ export function syncLegacyFields(
         name: o.name,
         images: o.images || [],
         stock: o.stock !== undefined ? o.stock : undefined,
+        unitsPerSet: o.unitsPerSet !== undefined ? o.unitsPerSet : undefined,
         wholesalePrice: o.wholesalePrice !== undefined ? o.wholesalePrice : fallbackWholesalePrice,
         retailPrice: o.retailPrice !== undefined ? o.retailPrice : fallbackRetailPrice,
         cashPrice: o.cashPrice !== undefined ? o.cashPrice : fallbackCashPrice,
@@ -1251,9 +1266,449 @@ export function getItemEffectiveCashPrice(
   return fallbackPrice !== undefined && fallbackPrice > 0 ? fallbackPrice : (isWholesale ? resolved.wholesalePrice : resolved.retailPrice);
 }
 
+// ============================================================================
+// PRECIOS ESCALONADOS & VENTA POR SET — MOTOR CANÓNICO DE CÁLCULO
+// ============================================================================
+
+/**
+ * Normaliza y ordena ascendentemente por minQty los escalones válidos de una publicación.
+ */
+export function getNormalizedPriceTiers(product: Product | Partial<Product> | null | undefined): PriceTier[] {
+  if (!product || !Array.isArray(product.priceTiers)) return [];
+  const valid = product.priceTiers
+    .filter((t) => t && Number(t.minQty) >= 1)
+    .map((t, idx) => ({
+      id: t.id || `tier-${idx + 1}`,
+      minQty: Math.max(1, Math.floor(Number(t.minQty))),
+      wholesalePrice: Math.max(0, Number(t.wholesalePrice) || 0),
+      retailPrice: Math.max(0, Number(t.retailPrice) || 0),
+      wholesaleCashPrice: Math.max(0, Number(t.wholesaleCashPrice) || 0),
+      retailCashPrice: Math.max(0, Number(t.retailCashPrice) || 0),
+    }))
+    .filter((t) => t.wholesalePrice > 0 || t.retailPrice > 0 || t.wholesaleCashPrice > 0 || t.retailCashPrice > 0);
+
+  // Deduplicate by minQty keeping the last configured entry and sort ascending
+  const byQty = new Map<number, PriceTier>();
+  valid.forEach((t) => byQty.set(t.minQty, t));
+  return Array.from(byQty.values()).sort((a, b) => a.minQty - b.minQty);
+}
+
+/**
+ * Indica si la modalidad de precios escalonados está activa y tiene al menos 1 escalón válido.
+ */
+export function isTieredPricingActive(product: Product | Partial<Product> | null | undefined): boolean {
+  if (!product || product.pricingMode !== 'tiered') return false;
+  return getNormalizedPriceTiers(product).length > 0;
+}
+
+/**
+ * Indica si la modalidad de venta por set o combo obligatorio está activa.
+ */
+export function isSetSaleActive(product: Product | Partial<Product> | null | undefined): boolean {
+  if (!product) return false;
+  return product.pricingMode === 'set';
+}
+
+/**
+ * Devuelve la modalidad efectiva de precios de una publicación ('normal' | 'tiered' | 'set').
+ */
+export function getEffectivePricingMode(product: Product | Partial<Product> | null | undefined): ProductPricingMode {
+  if (isSetSaleActive(product)) return 'set';
+  if (isTieredPricingActive(product)) return 'tiered';
+  return 'normal';
+}
+
+/**
+ * Resuelve la cantidad de unidades incluidas por set para la variante seleccionada.
+ * Prioriza la opción seleccionada con `unitsPerSet`, luego `selectedSizeVariant`, luego `defaultSetUnits`, y por defecto 1.
+ */
+export function getSelectedVariantSetUnits(
+  product: Product | Partial<Product> | null | undefined,
+  selectedOptionNames: Record<string, string> = {},
+  selectedSizeVariant?: SizeVariant
+): number {
+  if (!product) return 1;
+
+  const parseValidUnits = (val: any): number | null => {
+    if (val !== undefined && val !== null && !isNaN(Number(val)) && Number(val) >= 1) {
+      return Math.floor(Number(val));
+    }
+    return null;
+  };
+
+  const variantTypes = normalizeVariantTypes(product);
+  if (variantTypes.length > 0 && selectedOptionNames && Object.keys(selectedOptionNames).length > 0) {
+    for (const vt of variantTypes) {
+      let selectedName =
+        selectedOptionNames[vt.id] ||
+        selectedOptionNames[vt.name] ||
+        Object.entries(selectedOptionNames).find(
+          ([k]) => k.toLowerCase() === vt.id.toLowerCase() || k.toLowerCase() === vt.name.toLowerCase()
+        )?.[1];
+
+      if (!selectedName) {
+        const directMatch = Object.values(selectedOptionNames).find((val) => {
+          const clean = String(val || '').toLowerCase().trim();
+          return vt.options.some(
+            (o) => o.name.toLowerCase() === clean || o.id.toLowerCase() === clean
+          );
+        });
+        if (directMatch) selectedName = String(directMatch);
+      }
+
+      if (selectedName) {
+        const option = vt.options.find(
+          (o) =>
+            o.name.toLowerCase() === selectedName!.toLowerCase() ||
+            o.id.toLowerCase() === selectedName!.toLowerCase()
+        );
+        const optUnits = option ? parseValidUnits((option as any).unitsPerSet ?? (option as any).units_per_set) : null;
+        if (optUnits !== null) return optUnits;
+      }
+    }
+  }
+
+  if (selectedSizeVariant) {
+    const svUnits = parseValidUnits((selectedSizeVariant as any).unitsPerSet ?? (selectedSizeVariant as any).units_per_set);
+    if (svUnits !== null) return svUnits;
+  }
+
+  const defaultUnits = parseValidUnits((product as any).defaultSetUnits ?? (product as any).default_set_units);
+  if (defaultUnits !== null) return defaultUnits;
+
+  // Fallback: si no se seleccionó variante aún, usar la primera opción con unitsPerSet definida
+  for (const vt of variantTypes) {
+    for (const opt of vt.options) {
+      const u = parseValidUnits((opt as any).unitsPerSet ?? (opt as any).units_per_set);
+      if (u !== null) return u;
+    }
+  }
+
+  return 1;
+}
+
+/**
+ * Calcula el precio unitario informativo para venta por set (precio total del set / unidades del set).
+ */
+export function getInformativeUnitPrice(setTotalPrice: number, unitsPerSet: number): number {
+  const safeUnits = Math.max(1, Math.floor(Number(unitsPerSet) || 1));
+  if (!setTotalPrice || setTotalPrice <= 0) return 0;
+  return Math.round(setTotalPrice / safeUnits);
+}
+
+export interface TierProgressInfo {
+  tiers: PriceTier[];
+  activeTier: PriceTier | null;
+  nextTier: PriceTier | null;
+  activeTierIndex: number;
+  missingForNext: number;
+  progressPercent: number;
+  isTopTierReached: boolean;
+}
+
+/**
+ * Calcula el escalón actual alcanzado, el siguiente escalón y las unidades faltantes.
+ */
+export function getTierProgress(tiers: PriceTier[], publicationQty: number): TierProgressInfo {
+  const safeQty = Math.max(0, Math.floor(Number(publicationQty) || 0));
+  if (!tiers || tiers.length === 0) {
+    return {
+      tiers: [],
+      activeTier: null,
+      nextTier: null,
+      activeTierIndex: -1,
+      missingForNext: 0,
+      progressPercent: 0,
+      isTopTierReached: false,
+    };
+  }
+
+  let activeTierIndex = -1;
+  for (let i = 0; i < tiers.length; i++) {
+    if (safeQty >= tiers[i].minQty) {
+      activeTierIndex = i;
+    } else {
+      break;
+    }
+  }
+
+  const activeTier = activeTierIndex >= 0 ? tiers[activeTierIndex] : null;
+  const nextTier = activeTierIndex + 1 < tiers.length ? tiers[activeTierIndex + 1] : null;
+  const missingForNext = nextTier ? Math.max(0, nextTier.minQty - safeQty) : 0;
+  const isTopTierReached = activeTierIndex === tiers.length - 1 && tiers.length > 0;
+
+  let progressPercent = 0;
+  if (isTopTierReached) {
+    progressPercent = 100;
+  } else if (nextTier) {
+    const prevThreshold = activeTier ? activeTier.minQty : 0;
+    const span = Math.max(1, nextTier.minQty - prevThreshold);
+    const segmentProgress = Math.min(1, Math.max(0, (safeQty - prevThreshold) / span));
+    const totalSegments = tiers.length;
+    const completedSegments = activeTierIndex + 1;
+    progressPercent = Math.min(100, Math.round(((completedSegments + segmentProgress) / totalSegments) * 100));
+  }
+
+  return {
+    tiers,
+    activeTier,
+    nextTier,
+    activeTierIndex,
+    missingForNext,
+    progressPercent,
+    isTopTierReached,
+  };
+}
+
+/**
+ * Resuelve los 4 precios efectivos de un producto considerando su variante y, si corresponde,
+ * el escalón alcanzado por la cantidad acumulada de la misma publicación.
+ */
+export function resolveProductPricesForQuantity(
+  product: Product | Partial<Product> | null | undefined,
+  selectedOptionNames: Record<string, string> = {},
+  selectedSizeVariant?: SizeVariant,
+  publicationQty: number = 1
+): ResolvedProductPrices & { activeTier: PriceTier | null } {
+  const baseResolved = getResolvedProductPrices(product, selectedOptionNames, selectedSizeVariant);
+
+  if (!isTieredPricingActive(product)) {
+    return { ...baseResolved, activeTier: null };
+  }
+
+  const tiers = getNormalizedPriceTiers(product);
+  const { activeTier } = getTierProgress(tiers, publicationQty);
+
+  if (!activeTier) {
+    return { ...baseResolved, activeTier: null };
+  }
+
+  const wholesalePrice = activeTier.wholesalePrice > 0 ? activeTier.wholesalePrice : baseResolved.wholesalePrice;
+  const retailPrice =
+    activeTier.retailPrice > 0
+      ? activeTier.retailPrice
+      : activeTier.wholesalePrice > 0
+      ? activeTier.wholesalePrice
+      : baseResolved.retailPrice;
+  const wholesaleCashPrice =
+    activeTier.wholesaleCashPrice > 0
+      ? activeTier.wholesaleCashPrice
+      : wholesalePrice;
+  const retailCashPrice =
+    activeTier.retailCashPrice > 0
+      ? activeTier.retailCashPrice
+      : retailPrice;
+
+  return {
+    ...baseResolved,
+    wholesalePrice,
+    retailPrice,
+    wholesaleCashPrice,
+    retailCashPrice,
+    cashPrice: wholesaleCashPrice,
+    activeTier,
+  };
+}
+
+export interface CartQuantitiesIndex {
+  categoryQuantities: Record<string, number>;
+  publicationQuantities: Record<string, number>;
+}
+
+/**
+ * Construye los acumuladores de cantidad del carrito:
+ * - `categoryQuantities`: acumula únicamente publicaciones normales por categoría (para mínimo mayorista).
+ * - `publicationQuantities`: acumula unidades por publicación (sumando todas sus variantes, sin mezclar publicaciones).
+ */
+export function buildCartQuantitiesIndex(
+  items: Array<{ productId?: string; product?: Product; quantity: number }>
+): CartQuantitiesIndex {
+  const categoryQuantities: Record<string, number> = {};
+  const publicationQuantities: Record<string, number> = {};
+
+  (items || []).forEach((item) => {
+    const qty = Math.max(0, Math.floor(Number(item.quantity) || 0));
+    if (qty <= 0) return;
+
+    const prod = item.product;
+    const pid = item.productId || prod?.id;
+    if (pid) {
+      publicationQuantities[pid] = (publicationQuantities[pid] || 0) + qty;
+    }
+
+    if (prod && getEffectivePricingMode(prod) === 'normal') {
+      const cat = prod.category || 'General';
+      categoryQuantities[cat] = (categoryQuantities[cat] || 0) + qty;
+    }
+  });
+
+  return { categoryQuantities, publicationQuantities };
+}
+
+export interface CalculatedCartItemPricing {
+  pricingMode: ProductPricingMode;
+  isSet: boolean;
+  isTiered: boolean;
+  isWholesale: boolean;
+  minQty: number;
+  categoryQty: number;
+  publicationQty: number;
+  unitsPerSet: number;
+  totalUnitsIncluded: number;
+  activeTier: PriceTier | null;
+  nextTier: PriceTier | null;
+  missingForNextTier: number;
+  wholesaleUnitPrice: number;
+  retailUnitPrice: number;
+  wholesaleCashUnitPrice: number;
+  retailCashUnitPrice: number;
+  normalUnitPrice: number;
+  cashUnitPrice: number;
+  effectiveUnitPrice: number;
+  informativeUnitPrice: number;
+  informativeCashUnitPrice: number;
+  informativeEffectiveUnitPrice: number;
+  totalPrice: number;
+  cashTotalPrice: number;
+  effectiveTotalPrice: number;
+  savings: number;
+  cashSavings: number;
+}
+
+/**
+ * Motor único de precios para una línea del carrito, compra rápida, checkout y validación de pedidos.
+ */
+export function calculateCartItemPricing(
+  item: {
+    productId?: string;
+    product: Product;
+    selectedVariants?: Record<string, string>;
+    selectedSizeVariant?: SizeVariant;
+    quantity: number;
+  },
+  allItemsOrIndex: Array<{ productId?: string; product?: Product; quantity: number }> | CartQuantitiesIndex,
+  options?: { isCashMode?: boolean; forceWholesalePreview?: boolean }
+): CalculatedCartItemPricing {
+  const isCashMode = options?.isCashMode === true;
+  const forceWholesalePreview = options?.forceWholesalePreview === true;
+  const product = item.product;
+  const qty = Math.max(0, Math.floor(Number(item.quantity) || 0));
+
+  const index: CartQuantitiesIndex = Array.isArray(allItemsOrIndex)
+    ? buildCartQuantitiesIndex(allItemsOrIndex)
+    : allItemsOrIndex;
+
+  const pid = item.productId || product.id;
+  const cat = product.category || 'General';
+  const pricingMode = getEffectivePricingMode(product);
+  const isSet = pricingMode === 'set';
+  const isTiered = pricingMode === 'tiered';
+
+  const publicationQty = index.publicationQuantities[pid] || qty;
+  const categoryQty = index.categoryQuantities[cat] || 0;
+  const minQty = isSet ? 1 : (product.minWholesaleQty || 1);
+
+  const unitsPerSet = isSet
+    ? getSelectedVariantSetUnits(product, item.selectedVariants, item.selectedSizeVariant)
+    : 1;
+  const totalUnitsIncluded = qty * unitsPerSet;
+
+  // Base prices (without tier) for retail comparison / savings calculation
+  const baseResolved = getResolvedProductPrices(product, item.selectedVariants, item.selectedSizeVariant);
+
+  let resolved = baseResolved;
+  let activeTier: PriceTier | null = null;
+  let nextTier: PriceTier | null = null;
+  let missingForNextTier = 0;
+
+  if (isTiered) {
+    const tiers = getNormalizedPriceTiers(product);
+    const tierProgress = getTierProgress(tiers, publicationQty);
+    activeTier = tierProgress.activeTier;
+    nextTier = tierProgress.nextTier;
+    missingForNextTier = tierProgress.missingForNext;
+    const tieredResolved = resolveProductPricesForQuantity(
+      product,
+      item.selectedVariants,
+      item.selectedSizeVariant,
+      publicationQty
+    );
+    resolved = tieredResolved;
+  }
+
+  // Wholesale eligibility rules:
+  // 1. Set sale: ALWAYS wholesale from 1 complete set (ignores minWholesaleQty).
+  // 2. Tiered pricing: evaluates publicationQty against product.minWholesaleQty (never accumulates across publications).
+  // 3. Normal product: evaluates categoryQty against product.minWholesaleQty (unchanged legacy behavior).
+  const isWholesale = forceWholesalePreview
+    ? true
+    : isSet
+    ? qty >= 1
+    : isTiered
+    ? publicationQty >= minQty
+    : categoryQty >= minQty;
+
+  const wholesaleUnitPrice = resolved.wholesalePrice;
+  const retailUnitPrice = resolved.retailPrice;
+  const wholesaleCashUnitPrice = resolved.wholesaleCashPrice > 0 ? resolved.wholesaleCashPrice : wholesaleUnitPrice;
+  const retailCashUnitPrice = resolved.retailCashPrice > 0 ? resolved.retailCashPrice : retailUnitPrice;
+
+  const normalUnitPrice = isWholesale ? wholesaleUnitPrice : retailUnitPrice;
+  const cashUnitPrice = isWholesale ? wholesaleCashUnitPrice : retailCashUnitPrice;
+  const effectiveUnitPrice = isCashMode ? cashUnitPrice : normalUnitPrice;
+
+  const totalPrice = normalUnitPrice * qty;
+  const cashTotalPrice = cashUnitPrice * qty;
+  const effectiveTotalPrice = effectiveUnitPrice * qty;
+
+  // Wholesale / tiered savings vs base retail price
+  const compareRetailNormal = Math.max(baseResolved.retailPrice, retailUnitPrice);
+  const compareRetailCash = Math.max(
+    baseResolved.retailCashPrice > 0 ? baseResolved.retailCashPrice : baseResolved.retailPrice,
+    retailCashUnitPrice
+  );
+  const savings = (isWholesale || activeTier !== null) ? Math.max(0, (compareRetailNormal - normalUnitPrice) * qty) : 0;
+  const cashSavings = (isWholesale || activeTier !== null) ? Math.max(0, (compareRetailCash - cashUnitPrice) * qty) : 0;
+
+  const informativeUnitPrice = isSet ? getInformativeUnitPrice(normalUnitPrice, unitsPerSet) : normalUnitPrice;
+  const informativeCashUnitPrice = isSet ? getInformativeUnitPrice(cashUnitPrice, unitsPerSet) : cashUnitPrice;
+  const informativeEffectiveUnitPrice = isCashMode ? informativeCashUnitPrice : informativeUnitPrice;
+
+  return {
+    pricingMode,
+    isSet,
+    isTiered,
+    isWholesale,
+    minQty,
+    categoryQty,
+    publicationQty,
+    unitsPerSet,
+    totalUnitsIncluded,
+    activeTier,
+    nextTier,
+    missingForNextTier,
+    wholesaleUnitPrice,
+    retailUnitPrice,
+    wholesaleCashUnitPrice,
+    retailCashUnitPrice,
+    normalUnitPrice,
+    cashUnitPrice,
+    effectiveUnitPrice,
+    informativeUnitPrice,
+    informativeCashUnitPrice,
+    informativeEffectiveUnitPrice,
+    totalPrice,
+    cashTotalPrice,
+    effectiveTotalPrice,
+    savings,
+    cashSavings,
+  };
+}
+
 /**
  * Calculates cart summary totals and wholesale savings consistently across the application.
- * Honors category-level wholesale thresholds and active purchase mode (cash vs transfer).
+ * Honors normal category-level wholesale thresholds, tiered per-publication pricing,
+ * mandatory set sales (wholesale from 1 set), and active purchase mode (cash vs transfer).
  */
 export function calculateCartSummary(cartItems: CartItem[] = [], isCashMode: boolean = false) {
   if (!cartItems || cartItems.length === 0) {
@@ -1266,12 +1721,7 @@ export function calculateCartSummary(cartItems: CartItem[] = [], isCashMode: boo
     };
   }
 
-  // 1. Calculate total quantity per category in cart
-  const categoryQuantities: Record<string, number> = {};
-  cartItems.forEach((item) => {
-    const cat = item.product?.category || 'General';
-    categoryQuantities[cat] = (categoryQuantities[cat] || 0) + item.quantity;
-  });
+  const quantitiesIndex = buildCartQuantitiesIndex(cartItems);
 
   let subtotalProducts = 0;
   let cashSubtotalProducts = 0;
@@ -1280,42 +1730,10 @@ export function calculateCartSummary(cartItems: CartItem[] = [], isCashMode: boo
 
   cartItems.forEach((item) => {
     if (!item.product) return;
-    const cat = item.product.category || 'General';
-    const totalInCat = categoryQuantities[cat] || 0;
-    const minQty = item.product.minWholesaleQty || 1;
-    const isWholesale = totalInCat >= minQty;
-
-    const wholesaleUnitPrice = getItemEffectiveNormalPrice(
-      item.product,
-      item.selectedVariants,
-      item.selectedSizeVariant,
-      true
-    );
-
-    const retailUnitPrice = getItemEffectiveNormalPrice(
-      item.product,
-      item.selectedVariants,
-      item.selectedSizeVariant,
-      false
-    );
-
-    const unitPrice = isWholesale ? wholesaleUnitPrice : retailUnitPrice;
-    const totalPrice = unitPrice * item.quantity;
-    const retailTotal = retailUnitPrice * item.quantity;
-    const savings = isWholesale ? retailTotal - totalPrice : 0;
-
-    const cashUnitPrice = getItemEffectiveCashPrice(
-      item.product,
-      item.selectedVariants,
-      item.selectedSizeVariant,
-      unitPrice,
-      isWholesale
-    );
-    const cashTotalPrice = cashUnitPrice * item.quantity;
-
-    subtotalProducts += totalPrice;
-    cashSubtotalProducts += cashTotalPrice;
-    totalSavings += savings;
+    const calc = calculateCartItemPricing(item, quantitiesIndex, { isCashMode });
+    subtotalProducts += calc.totalPrice;
+    cashSubtotalProducts += calc.cashTotalPrice;
+    totalSavings += calc.savings;
     totalQuantity += item.quantity;
   });
 

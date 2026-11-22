@@ -274,6 +274,7 @@ export const buildStandaloneVariantCards = (
       cashPrice: resolvedPrices.cashPrice,
       retailCashPrice: resolvedPrices.retailCashPrice,
       wholesaleCashPrice: resolvedPrices.wholesaleCashPrice,
+      defaultSetUnits: targetOption.unitsPerSet ?? prod.defaultSetUnits,
       stock: optionStock,
     };
 

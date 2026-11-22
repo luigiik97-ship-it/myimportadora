@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Product, SizeVariant, VariantOption, VariantType, CartItem } from '../types';
 import { WholesaleCategoryProgressCard } from './common/WholesaleCategoryProgressCard';
+import { TieredPricingProgressCard } from './common/TieredPricingProgressCard';
 import {
   normalizeVariantTypes,
   getActiveVariantImages,
@@ -13,6 +14,13 @@ import {
   getProductCoverImage,
   getActiveVariantOutOfStockBadge,
   getVariantPrimaryImage,
+  isTieredPricingActive,
+  isSetSaleActive,
+  getNormalizedPriceTiers,
+  getSelectedVariantSetUnits,
+  getInformativeUnitPrice,
+  resolveProductPricesForQuantity,
+  getEffectivePricingMode,
 } from '../utils/variantHelpers';
 import { ClassicStar as Star } from './common/ClassicStar';
 import { MichyOfficialBadge } from './common/MichyOfficialBadge';
@@ -727,8 +735,15 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   const { purchaseMode, setPurchaseMode, isCashMode } = usePurchaseMode();
 
   // Calculate total units currently in cart for this product's category
-  const categoryUnitsInCart = useMemo(() => {
-    const cat = product.category || 'General';
+  // Quantity state (ubicado aquí para recálculo inmediato de precios escalonados y totales de set)
+  const [quantity, setQuantity] = useState<number>(1);
+  const [quantityInput, setQuantityInput] = useState<string | null>(null);
+
+  const isSetSale = useMemo(() => isSetSaleActive(product), [product]);
+  const isTieredPricing = useMemo(() => isTieredPricingActive(product), [product]);
+  const normalizedPriceTiers = useMemo(() => getNormalizedPriceTiers(product), [product]);
+
+  const effectiveCartItemsForCounts = useMemo(() => {
     let items = cartItems;
     if (!items || items.length === 0) {
       try {
@@ -736,21 +751,54 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
         if (raw) items = JSON.parse(raw);
       } catch {}
     }
-    if (!items || !Array.isArray(items)) return 0;
-    return items
-      .filter((i) => (i.product?.category || 'General') === cat)
-      .reduce((acc, i) => acc + (i.quantity || 0), 0);
-  }, [cartItems, product.category]);
+    return Array.isArray(items) ? items : [];
+  }, [cartItems]);
 
-  // Price calculations dynamically resolved from selected variant options and base product
+  const categoryUnitsInCart = useMemo(() => {
+    const cat = product.category || 'General';
+    return effectiveCartItemsForCounts
+      .filter((i) => i.product && getEffectivePricingMode(i.product) === 'normal' && (i.product.category || 'General') === cat)
+      .reduce((acc, i) => acc + (i.quantity || 0), 0);
+  }, [effectiveCartItemsForCounts, product.category]);
+
+  // Unidades acumuladas de ESTA publicación en el carrito (suma todas sus variantes, nunca otras publicaciones)
+  const publicationUnitsInCart = useMemo(() => {
+    return effectiveCartItemsForCounts
+      .filter((i) => (i.productId || i.product?.id) === product.id)
+      .reduce((acc, i) => acc + (i.quantity || 0), 0);
+  }, [effectiveCartItemsForCounts, product.id]);
+
+  // Cantidad proyectada de esta publicación para evaluar escalones en vivo en la ficha
+  const effectivePublicationQty = Math.max(1, publicationUnitsInCart + quantity);
+
+  // Price calculations dynamically resolved from selected variant options, quantity tiers and base product
   const resolvedPrices = useMemo(() => {
-    return getResolvedProductPrices(product, selectedOptions);
-  }, [product, selectedOptions]);
+    if (isTieredPricing) {
+      return resolveProductPricesForQuantity(product, selectedOptions, undefined, effectivePublicationQty);
+    }
+    return { ...getResolvedProductPrices(product, selectedOptions), activeTier: null };
+  }, [product, selectedOptions, isTieredPricing, effectivePublicationQty]);
 
   const currentWholesalePrice = isCashMode ? resolvedPrices.wholesaleCashPrice : resolvedPrices.wholesalePrice;
   const currentRetailPrice = isCashMode ? resolvedPrices.retailCashPrice : resolvedPrices.retailPrice;
   const currentWholesaleCashPrice = resolvedPrices.wholesaleCashPrice;
   const currentRetailCashPrice = resolvedPrices.retailCashPrice;
+
+  // Para precios escalonados: precio real aplicable a la cantidad actual
+  const isTieredWholesaleApplied = effectivePublicationQty >= (product.minWholesaleQty || 1);
+  const currentTieredActivePrice = isTieredWholesaleApplied ? currentWholesalePrice : currentRetailPrice;
+
+  // Para venta por set: unidades por set de la variante activa y precio unitario informativo
+  const selectedUnitsPerSet = useMemo(() => {
+    if (!isSetSale) return 1;
+    return getSelectedVariantSetUnits(product, selectedOptions);
+  }, [isSetSale, product, selectedOptions]);
+
+  const currentSetTotalPrice = currentWholesalePrice; // En venta por set aplica precio mayorista desde 1 set completo
+  const currentSetInformativeUnitPrice = useMemo(
+    () => (isSetSale ? getInformativeUnitPrice(currentSetTotalPrice, selectedUnitsPerSet) : currentSetTotalPrice),
+    [isSetSale, currentSetTotalPrice, selectedUnitsPerSet]
+  );
 
   // Selected color for legacy CartItem compatibility
   const selectedColorName = useMemo(() => {
@@ -773,6 +821,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
         id: selectedSizeOption.id,
         name: selectedSizeOption.name,
         images: selectedSizeOption.images || [],
+        unitsPerSet: selectedSizeOption.unitsPerSet,
         wholesalePrice: resolvedPrices.wholesalePrice,
         retailPrice: resolvedPrices.retailPrice,
         wholesaleCashPrice: resolvedPrices.wholesaleCashPrice,
@@ -826,10 +875,6 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     }
     return charSum % 2 === 0 ? 1000 : 500;
   }, [product.soldCount, product.id, product.title]);
-
-  // Quantity state
-  const [quantity, setQuantity] = useState<number>(1);
-  const [quantityInput, setQuantityInput] = useState<string | null>(null);
 
   // Added to cart feedback
   const [showAddedFeedback, setShowAddedFeedback] = useState(false);
@@ -1624,56 +1669,176 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             </h1>
 
             {/* Pricing Section - Aligned flush to the left margin like "Color:" */}
-            <div className="order-3 px-0 py-1.5 sm:py-2 bg-transparent space-y-1.5 border-y border-gray-100 md:border-y-0">
-              {/* Wholesale Price Display & Integrated Mode Selector */}
-              <div className="space-y-1">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <div className="flex items-baseline gap-1">
-                    <span
-                      id="wholesale-price-display"
-                      className="text-2xl sm:text-2xl md:text-3xl font-bold font-['Montserrat'] tracking-tight text-gray-900"
-                    >
-                      ${currentWholesalePrice.toLocaleString('es-AR')}
+            {isSetSale ? (
+              <div className="order-3 px-0 py-1.5 sm:py-2 bg-transparent space-y-1.5 border-y border-gray-100 md:border-y-0">
+                {/* Precio unitario informativo destacado */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="flex items-baseline gap-1">
+                      <span
+                        id="wholesale-price-display"
+                        className="text-2xl sm:text-2xl md:text-3xl font-bold font-['Montserrat'] tracking-tight text-gray-900"
+                      >
+                        ${currentSetInformativeUnitPrice.toLocaleString('es-AR')}
+                      </span>
+                      <span className="text-sm sm:text-base font-bold text-gray-900">
+                        c/u
+                      </span>
+                    </div>
+
+                    <span className="inline-flex items-center text-sm sm:text-base font-semibold bg-[#16a34a] text-white px-1.5 py-0.5 rounded-md leading-tight shrink-0 shadow-xs whitespace-nowrap overflow-hidden">
+                      Set x {selectedUnitsPerSet} {selectedUnitsPerSet === 1 ? 'unid' : 'unids'}
                     </span>
-                    <span className="text-sm sm:text-base font-bold text-gray-900">
-                      c/u
-                    </span>
+
+                    {isCashMode && (
+                      <span
+                        id="wholesale-cash-indicator"
+                        className="inline-flex items-center text-sm sm:text-base font-bold text-[#16a34a] bg-white border border-[#16a34a] px-1.5 py-0.5 rounded-md leading-tight shrink-0 animate-fadeIn whitespace-nowrap overflow-hidden"
+                      >
+                        en efectivo
+                      </span>
+                    )}
                   </div>
 
-                  <span className="inline-flex items-center text-sm sm:text-base font-semibold bg-[#16a34a] text-white px-1.5 py-0.5 rounded-md leading-tight shrink-0 shadow-xs whitespace-nowrap overflow-hidden">
-                    desde {product.minWholesaleQty || 1} unids
-                  </span>
+                  {/* Aclaración venta por set completo y unidades incluidas */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-xs sm:text-sm text-[#16a34a] font-medium leading-tight">
+                      Venta por set completo · Incluye <span className="font-bold">{selectedUnitsPerSet} {selectedUnitsPerSet === 1 ? 'unidad' : 'unidades'}</span>
+                      {quantity > 1 && (
+                        <span> ({quantity * selectedUnitsPerSet} unidades en {quantity} sets)</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
 
-                  {isCashMode && (
-                    <span
-                      id="wholesale-cash-indicator"
-                      className="inline-flex items-center text-sm sm:text-base font-bold text-[#16a34a] bg-white border border-[#16a34a] px-1.5 py-0.5 rounded-md leading-tight shrink-0 animate-fadeIn whitespace-nowrap overflow-hidden"
-                    >
-                      en efectivo
+                {/* Precio total obligatorio del set */}
+                <div className="border-t border-gray-100 md:border-gray-200/80 pt-1.5 flex items-baseline justify-between gap-2 flex-wrap">
+                  <div className="flex items-baseline gap-1.5 flex-wrap">
+                    <span id="retail-price-display" className="text-sm sm:text-base font-bold text-gray-900">
+                      ${currentSetTotalPrice.toLocaleString('es-AR')}
+                    </span>
+                    <span className="text-sm sm:text-base text-gray-600 font-medium">
+                      precio por set completo{isCashMode ? ' en efectivo' : ''}
+                    </span>
+                  </div>
+                  {quantity > 1 && (
+                    <span className="text-xs sm:text-sm font-bold text-[#0058bb]">
+                      Total ({quantity} sets): ${(currentSetTotalPrice * quantity).toLocaleString('es-AR')}
                     </span>
                   )}
                 </div>
+              </div>
+            ) : isTieredPricing ? (
+              <div className="order-3 px-0 py-1.5 sm:py-2 bg-transparent space-y-1.5 border-y border-gray-100 md:border-y-0">
+                {/* Precio escalonado dinámico según cantidad acumulada */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="flex items-baseline gap-1">
+                      <span
+                        id="wholesale-price-display"
+                        className="text-2xl sm:text-2xl md:text-3xl font-bold font-['Montserrat'] tracking-tight text-gray-900"
+                      >
+                        ${currentTieredActivePrice.toLocaleString('es-AR')}
+                      </span>
+                      <span className="text-sm sm:text-base font-bold text-gray-900">
+                        c/u
+                      </span>
+                    </div>
 
-                {/* Sub-label: Category wholesale min */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-xs sm:text-sm text-[#16a34a] font-medium leading-tight">
-                    (Combina productos dentro de la categoría <span className="font-bold">{product.category}</span>)
-                  </p>
+                    <span className="inline-flex items-center text-sm sm:text-base font-semibold bg-[#16a34a] text-white px-1.5 py-0.5 rounded-md leading-tight shrink-0 shadow-xs whitespace-nowrap overflow-hidden">
+                      {resolvedPrices.activeTier
+                        ? `Escalón ${resolvedPrices.activeTier.minQty}+ unids`
+                        : isTieredWholesaleApplied
+                        ? `desde ${product.minWholesaleQty || 1} unids`
+                        : 'Precios escalonados'}
+                    </span>
+
+                    {isCashMode && (
+                      <span
+                        id="wholesale-cash-indicator"
+                        className="inline-flex items-center text-sm sm:text-base font-bold text-[#16a34a] bg-white border border-[#16a34a] px-1.5 py-0.5 rounded-md leading-tight shrink-0 animate-fadeIn whitespace-nowrap overflow-hidden"
+                      >
+                        en efectivo
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-xs sm:text-sm text-[#16a34a] font-medium leading-tight">
+                      (Acumula unidades combinando variantes de esta publicación)
+                    </p>
+                  </div>
+                </div>
+
+                {/* Línea informativa de referencia o subtotal */}
+                <div className="border-t border-gray-100 md:border-gray-200/80 pt-1.5 flex items-baseline justify-between gap-2 flex-wrap">
+                  <div className="flex items-baseline gap-1.5">
+                    <span id="retail-price-display" className="text-sm sm:text-base font-bold text-gray-900">
+                      ${(isCashMode ? (product.retailCashPrice || product.retailPrice) : product.retailPrice).toLocaleString('es-AR')}
+                    </span>
+                    <span className="text-sm sm:text-base text-gray-600 font-medium">
+                      precio por 1 unidad{isCashMode ? ' en efectivo' : ''}
+                    </span>
+                  </div>
+                  {quantity > 1 && (
+                    <span className="text-xs sm:text-sm font-bold text-[#0058bb]">
+                      Subtotal ({quantity} u.): ${(currentTieredActivePrice * quantity).toLocaleString('es-AR')}
+                    </span>
+                  )}
                 </div>
               </div>
+            ) : (
+              <div className="order-3 px-0 py-1.5 sm:py-2 bg-transparent space-y-1.5 border-y border-gray-100 md:border-y-0">
+                {/* Wholesale Price Display & Integrated Mode Selector */}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="flex items-baseline gap-1">
+                      <span
+                        id="wholesale-price-display"
+                        className="text-2xl sm:text-2xl md:text-3xl font-bold font-['Montserrat'] tracking-tight text-gray-900"
+                      >
+                        ${currentWholesalePrice.toLocaleString('es-AR')}
+                      </span>
+                      <span className="text-sm sm:text-base font-bold text-gray-900">
+                        c/u
+                      </span>
+                    </div>
 
-              {/* Retail Price line - displays only the retail price corresponding to chosen mode */}
-              <div className="border-t border-gray-100 md:border-gray-200/80 pt-1.5 flex items-baseline justify-between gap-2">
-                <div className="flex items-baseline gap-1.5">
-                  <span id="retail-price-display" className="text-sm sm:text-base font-bold text-gray-900">
-                    ${currentRetailPrice.toLocaleString('es-AR')}
-                  </span>
-                  <span className="text-sm sm:text-base text-gray-600 font-medium">
-                    precio por 1 unidad{isCashMode ? ' en efectivo' : ''}
-                  </span>
+                    <span className="inline-flex items-center text-sm sm:text-base font-semibold bg-[#16a34a] text-white px-1.5 py-0.5 rounded-md leading-tight shrink-0 shadow-xs whitespace-nowrap overflow-hidden">
+                      desde {product.minWholesaleQty || 1} unids
+                    </span>
+
+                    {isCashMode && (
+                      <span
+                        id="wholesale-cash-indicator"
+                        className="inline-flex items-center text-sm sm:text-base font-bold text-[#16a34a] bg-white border border-[#16a34a] px-1.5 py-0.5 rounded-md leading-tight shrink-0 animate-fadeIn whitespace-nowrap overflow-hidden"
+                      >
+                        en efectivo
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Sub-label: Category wholesale min */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-xs sm:text-sm text-[#16a34a] font-medium leading-tight">
+                      (Combina productos dentro de la categoría <span className="font-bold">{product.category}</span>)
+                    </p>
+                  </div>
+                </div>
+
+                {/* Retail Price line - displays only the retail price corresponding to chosen mode */}
+                <div className="border-t border-gray-100 md:border-gray-200/80 pt-1.5 flex items-baseline justify-between gap-2">
+                  <div className="flex items-baseline gap-1.5">
+                    <span id="retail-price-display" className="text-sm sm:text-base font-bold text-gray-900">
+                      ${currentRetailPrice.toLocaleString('es-AR')}
+                    </span>
+                    <span className="text-sm sm:text-base text-gray-600 font-medium">
+                      precio por 1 unidad{isCashMode ? ' en efectivo' : ''}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* DYNAMIC 2-TYPE VARIANT SELECTORS (Color / Modelo, Tamaño / Medida, etc.) */}
             {variantTypes.length > 0 ? (
@@ -1942,13 +2107,15 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               ) : currentSelectionStock === 1 ? (
                 <div className="p-1.5 sm:p-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-xs md:text-sm text-amber-800 font-bold">
                   <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                  <span>Última unidad disponible</span>
+                  <span>{isSetSale ? 'Último set disponible' : 'Última unidad disponible'}</span>
                 </div>
               ) : null}
 
               {/* Quantity Controller */}
               <div className="flex items-center justify-between">
-                <span className="text-sm sm:text-base font-bold text-gray-800">Cantidad:</span>
+                <span className="text-sm sm:text-base font-bold text-gray-800">
+                  {isSetSale ? 'Cantidad de sets:' : 'Cantidad:'}
+                </span>
                 <div className="flex items-center border border-gray-300 rounded-xl overflow-hidden bg-white shadow-2xs">
                   <button
                     id="qty-minus-btn"
@@ -2061,12 +2228,24 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   )}
                 </button>
 
-                {/* Tarjeta compacta mayorista estilo Mercado Libre */}
-                <WholesaleCategoryProgressCard
-                  currentQty={categoryUnitsInCart}
-                  minQty={product.minWholesaleQty || 1}
-                  isProductDetail={true}
-                />
+                {/* Barra de progreso según modalidad:
+                    - Venta por set: ocultar ambas barras (sin mínimo mayorista ni escalones)
+                    - Precios escalonados: reemplazar la barra mayorista por la barra escalonada
+                    - Normal: mantener exactamente la barra del mínimo mayorista */}
+                {isSetSale ? null : isTieredPricing ? (
+                  <TieredPricingProgressCard
+                    tiers={normalizedPriceTiers}
+                    currentQty={effectivePublicationQty}
+                    minWholesaleQty={product.minWholesaleQty || 1}
+                    isCashMode={isCashMode}
+                  />
+                ) : (
+                  <WholesaleCategoryProgressCard
+                    currentQty={categoryUnitsInCart}
+                    minQty={product.minWholesaleQty || 1}
+                    isProductDetail={true}
+                  />
+                )}
 
                 {/* Link to cart after adding */}
                 {hasAddedToCart && onGoToCart && (

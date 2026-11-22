@@ -1,8 +1,20 @@
+export type ProductPricingMode = 'normal' | 'tiered' | 'set';
+
+export interface PriceTier {
+  id: string;
+  minQty: number;
+  wholesalePrice: number; // Mayorista Transferencia
+  retailPrice: number; // Minorista Transferencia
+  wholesaleCashPrice: number; // Mayorista Efectivo
+  retailCashPrice: number; // Minorista Efectivo
+}
+
 export interface VariantOption {
   id: string;
   name: string; // e.g. "Dorado", "Plateado", "Rojo", "Talle M", "Modelo A"
   images?: string[]; // Independent images for this specific variant option!
   stock?: number; // Individual stock for this variant option
+  unitsPerSet?: number; // Cantidad de unidades incluidas en el set (solo en modalidad venta por set)
   wholesalePrice?: number; // Optional price override
   retailPrice?: number;
   cashPrice?: number; // Optional general cash price override (backward-compatibility)
@@ -24,6 +36,7 @@ export interface SizeVariant {
   name: string; // e.g. "Mediano", "Grande", "Chico", "Talle M", "Talle L"
   images?: string[]; // Optional images for size variant
   stock?: number; // Individual stock for size variant
+  unitsPerSet?: number; // Cantidad de unidades por set
   wholesalePrice: number;
   retailPrice: number;
   cashPrice?: number; // Optional cash price override (backward-compatibility)
@@ -73,6 +86,9 @@ export interface Product {
   cashPrice?: number; // Base cash price (backward-compatibility)
   retailCashPrice?: number; // Base retail cash price (Precio en efectivo minorista)
   wholesaleCashPrice?: number; // Base wholesale cash price (Precio en efectivo mayorista)
+  pricingMode?: ProductPricingMode; // 'normal' (por defecto) | 'tiered' (precios escalonados) | 'set' (venta por set)
+  priceTiers?: PriceTier[]; // Escalones configurados para precios escalonados
+  defaultSetUnits?: number; // Fallback de unidades por set si la publicación no usa variantes
   colors?: string[]; // e.g. ['Dorado', 'Plateado'] (backwards compatible)
   sizeVariants?: SizeVariant[]; // e.g. [{ id: '1', name: 'Mediano', wholesalePrice: 1250, retailPrice: 1800 }]
   variantTypes?: VariantType[]; // Rich 2-type variant system with per-option images
@@ -119,6 +135,9 @@ export interface OrderItem {
   totalPrice: number;
   totalCashPrice?: number;
   isWholesale: boolean;
+  pricingMode?: ProductPricingMode;
+  unitsPerSet?: number;
+  appliedTierMinQty?: number;
 }
 
 export interface Order {

@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Product, Order, ProductSpec, Category } from '../types';
+import { Product, Order, ProductSpec, Category, PriceTier, ProductPricingMode } from '../types';
 import { INITIAL_PRODUCTS } from '../data/initialProducts';
 import { INITIAL_CATEGORIES } from '../data/initialCategories';
 import {
@@ -12,6 +12,9 @@ import {
   getItemEffectiveNormalPrice,
   getItemEffectiveCashPrice,
   getSelectedVariantStock,
+  buildCartQuantitiesIndex,
+  calculateCartItemPricing,
+  getNormalizedPriceTiers,
 } from '../utils/variantHelpers';
 import { isAdminAuthenticated, requireAdminAuth } from './adminAuth';
 import {
@@ -181,6 +184,10 @@ export const hasProductsDataChanged = (prev: Product[], next: Product[]): boolea
     if ((a.images?.[0] || '') !== (b.images?.[0] || '')) return true;
     if ((a.images?.length || 0) !== (b.images?.length || 0)) return true;
     if (a.additionalImage !== b.additionalImage) return true;
+    if ((a.pricingMode || 'normal') !== (b.pricingMode || 'normal')) return true;
+    if ((a.defaultSetUnits || 0) !== (b.defaultSetUnits || 0)) return true;
+    if (JSON.stringify(a.priceTiers || []) !== JSON.stringify(b.priceTiers || [])) return true;
+    if (JSON.stringify(a.variantTypes || []) !== JSON.stringify(b.variantTypes || [])) return true;
   }
   return false;
 };
@@ -729,6 +736,71 @@ export function extractProductCashPrices(item: any, rawSpecs?: any): {
   };
 }
 
+/**
+ * Extrae la modalidad de precios ('normal' | 'tiered' | 'set'), los escalones y las unidades por set por defecto
+ * desde columnas directas (si existieran) o desde los metadatos internos de `specs` sin requerir migraciones SQL.
+ */
+function extractProductPricingMeta(
+  item: any,
+  rawSpecs: any
+): {
+  pricingMode: ProductPricingMode;
+  priceTiers: PriceTier[];
+  defaultSetUnits?: number;
+} {
+  let pricingMode: ProductPricingMode = 'normal';
+  const rawMode = item?.pricing_mode ?? item?.pricingMode;
+  if (rawMode === 'tiered' || rawMode === 'set' || rawMode === 'normal') {
+    pricingMode = rawMode;
+  } else if (Array.isArray(rawSpecs)) {
+    const modeSpec = rawSpecs.find(
+      (s: any) => s && (s.key === '__pricing_mode' || s.label === '__pricing_mode')
+    );
+    if (modeSpec && (modeSpec.value === 'tiered' || modeSpec.value === 'set' || modeSpec.value === 'normal')) {
+      pricingMode = modeSpec.value;
+    }
+  }
+
+  let rawTiers: any = item?.price_tiers ?? item?.priceTiers;
+  if (typeof rawTiers === 'string' && rawTiers.trim().startsWith('[')) {
+    try {
+      rawTiers = JSON.parse(rawTiers);
+    } catch {
+      rawTiers = undefined;
+    }
+  }
+  if (!Array.isArray(rawTiers) && Array.isArray(rawSpecs)) {
+    const tiersSpec = rawSpecs.find(
+      (s: any) => s && (s.key === '__tiered_pricing' || s.label === '__tiered_pricing')
+    );
+    if (tiersSpec && typeof tiersSpec.value === 'string' && tiersSpec.value.trim().startsWith('[')) {
+      try {
+        rawTiers = JSON.parse(tiersSpec.value);
+      } catch {
+        rawTiers = [];
+      }
+    }
+  }
+  const priceTiers: PriceTier[] = Array.isArray(rawTiers)
+    ? getNormalizedPriceTiers({ priceTiers: rawTiers })
+    : [];
+
+  let defaultSetUnits: number | undefined = undefined;
+  const rawSetUnits = item?.default_set_units ?? item?.defaultSetUnits;
+  if (rawSetUnits !== undefined && rawSetUnits !== null && !isNaN(Number(rawSetUnits)) && Number(rawSetUnits) >= 1) {
+    defaultSetUnits = Math.floor(Number(rawSetUnits));
+  } else if (Array.isArray(rawSpecs)) {
+    const setUnitsSpec = rawSpecs.find(
+      (s: any) => s && (s.key === '__default_set_units' || s.label === '__default_set_units')
+    );
+    if (setUnitsSpec && setUnitsSpec.value && !isNaN(Number(setUnitsSpec.value)) && Number(setUnitsSpec.value) >= 1) {
+      defaultSetUnits = Math.floor(Number(setUnitsSpec.value));
+    }
+  }
+
+  return { pricingMode, priceTiers, defaultSetUnits };
+}
+
 export const fetchProducts = async (options?: { force?: boolean }): Promise<Product[]> => {
   const now = Date.now();
   const lastSavedTime = getProductsCacheTimestamp();
@@ -793,6 +865,7 @@ export const fetchProducts = async (options?: { force?: boolean }): Promise<Prod
               const resolvedCashPrice = cashPrices.cashPrice;
               const resolvedRetailCashPrice = cashPrices.retailCashPrice;
               const resolvedWholesaleCashPrice = cashPrices.wholesaleCashPrice;
+              const pricingMeta = extractProductPricingMeta(item, rawSpecs);
 
               let resolvedAdditionalImage: string | undefined = undefined;
               if (item.additional_image || item.additionalImage || item.lifestyle_image || item.lifestyleImage) {
@@ -907,6 +980,9 @@ export const fetchProducts = async (options?: { force?: boolean }): Promise<Prod
                 cashPrice: resolvedCashPrice,
                 retailCashPrice: resolvedRetailCashPrice,
                 wholesaleCashPrice: resolvedWholesaleCashPrice,
+                pricingMode: pricingMeta.pricingMode,
+                priceTiers: pricingMeta.priceTiers,
+                defaultSetUnits: pricingMeta.defaultSetUnits,
                 colors,
                 sizeVariants,
                 variantTypes,
@@ -1009,6 +1085,7 @@ export const fetchSingleProduct = async (id: string): Promise<Product | null> =>
     const resolvedCashPrice = cashPrices.cashPrice;
     const resolvedRetailCashPrice = cashPrices.retailCashPrice;
     const resolvedWholesaleCashPrice = cashPrices.wholesaleCashPrice;
+    const pricingMeta = extractProductPricingMeta(data, rawSpecs);
 
     let resolvedReviewsCount: number = 0;
     if (data.reviews_count !== undefined && data.reviews_count !== null && !isNaN(Number(data.reviews_count))) {
@@ -1111,6 +1188,9 @@ export const fetchSingleProduct = async (id: string): Promise<Product | null> =>
       cashPrice: resolvedCashPrice,
       retailCashPrice: resolvedRetailCashPrice,
       wholesaleCashPrice: resolvedWholesaleCashPrice,
+      pricingMode: pricingMeta.pricingMode,
+      priceTiers: pricingMeta.priceTiers,
+      defaultSetUnits: pricingMeta.defaultSetUnits,
       colors,
       sizeVariants,
       variantTypes,
@@ -1184,9 +1264,26 @@ export const createProduct = async (product: Omit<Product, 'id'> & { id?: string
   );
 
   const cleanUserSpecs = cleanSpecsList(newProduct.specs);
+  const normalizedCreatePricingMode: ProductPricingMode =
+    newProduct.pricingMode === 'tiered' || newProduct.pricingMode === 'set' ? newProduct.pricingMode : 'normal';
+  const normalizedCreatePriceTiers: PriceTier[] = Array.isArray(newProduct.priceTiers)
+    ? getNormalizedPriceTiers({ priceTiers: newProduct.priceTiers })
+    : [];
+  const normalizedCreateSetUnits =
+    newProduct.defaultSetUnits !== undefined && !isNaN(Number(newProduct.defaultSetUnits)) && Number(newProduct.defaultSetUnits) >= 1
+      ? Math.floor(Number(newProduct.defaultSetUnits))
+      : undefined;
+
   const specsWithMeta: ProductSpec[] = [
     ...cleanUserSpecs,
     { label: SPECS_VARIANT_TYPES_KEY, value: serializedVariantTypesMeta },
+    { label: '__pricing_mode', value: normalizedCreatePricingMode },
+    ...(normalizedCreatePriceTiers.length > 0
+      ? [{ label: '__tiered_pricing', value: JSON.stringify(normalizedCreatePriceTiers) }]
+      : []),
+    ...(normalizedCreateSetUnits !== undefined
+      ? [{ label: '__default_set_units', value: String(normalizedCreateSetUnits) }]
+      : []),
     ...(newProduct.cashPrice !== undefined && newProduct.cashPrice !== null ? [{ label: '__cash_price', value: String(newProduct.cashPrice) }] : []),
     ...(targetRetailCashPrice !== undefined && targetRetailCashPrice !== null ? [{ label: '__retail_cash_price', value: String(targetRetailCashPrice) }] : []),
     ...(targetWholesaleCashPrice !== undefined && targetWholesaleCashPrice !== null ? [{ label: '__wholesale_cash_price', value: String(targetWholesaleCashPrice) }] : []),
@@ -1266,6 +1363,9 @@ export const createProduct = async (product: Omit<Product, 'id'> & { id?: string
   newProduct.specs = cleanUserSpecs;
   newProduct.retailCashPrice = targetRetailCashPrice;
   newProduct.wholesaleCashPrice = targetWholesaleCashPrice;
+  newProduct.pricingMode = normalizedCreatePricingMode;
+  newProduct.priceTiers = normalizedCreatePriceTiers;
+  newProduct.defaultSetUnits = normalizedCreateSetUnits;
 
   // Always update local cache
   const local = getLocalProducts();
@@ -1330,9 +1430,33 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
     ? updates.reviewsCount
     : (updates.reviews !== undefined ? updates.reviews.length : (existingProduct?.reviewsCount ?? targetReviews.length));
 
+  const targetPricingMode: ProductPricingMode =
+    updates.pricingMode !== undefined
+      ? (updates.pricingMode === 'tiered' || updates.pricingMode === 'set' ? updates.pricingMode : 'normal')
+      : (existingProduct?.pricingMode === 'tiered' || existingProduct?.pricingMode === 'set' ? existingProduct.pricingMode : 'normal');
+
+  const targetPriceTiers: PriceTier[] =
+    updates.priceTiers !== undefined
+      ? getNormalizedPriceTiers({ priceTiers: updates.priceTiers })
+      : (Array.isArray(existingProduct?.priceTiers) ? existingProduct.priceTiers : []);
+
+  const rawTargetSetUnits =
+    updates.defaultSetUnits !== undefined ? updates.defaultSetUnits : existingProduct?.defaultSetUnits;
+  const targetDefaultSetUnits =
+    rawTargetSetUnits !== undefined && rawTargetSetUnits !== null && !isNaN(Number(rawTargetSetUnits)) && Number(rawTargetSetUnits) >= 1
+      ? Math.floor(Number(rawTargetSetUnits))
+      : undefined;
+
   const specsWithMeta: ProductSpec[] = [
     ...baseSpecs,
     { label: SPECS_VARIANT_TYPES_KEY, value: serializedVariantTypesMeta },
+    { label: '__pricing_mode', value: targetPricingMode },
+    ...(targetPriceTiers.length > 0
+      ? [{ label: '__tiered_pricing', value: JSON.stringify(targetPriceTiers) }]
+      : []),
+    ...(targetDefaultSetUnits !== undefined
+      ? [{ label: '__default_set_units', value: String(targetDefaultSetUnits) }]
+      : []),
     ...(targetCashPrice !== undefined && targetCashPrice !== null ? [{ label: '__cash_price', value: String(targetCashPrice) }] : []),
     ...(targetRetailCashPrice !== undefined && targetRetailCashPrice !== null ? [{ label: '__retail_cash_price', value: String(targetRetailCashPrice) }] : []),
     ...(targetWholesaleCashPrice !== undefined && targetWholesaleCashPrice !== null ? [{ label: '__wholesale_cash_price', value: String(targetWholesaleCashPrice) }] : []),
@@ -1441,6 +1565,9 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
         cashPrice: targetCashPrice,
         retailCashPrice: targetRetailCashPrice,
         wholesaleCashPrice: targetWholesaleCashPrice,
+        pricingMode: targetPricingMode,
+        priceTiers: targetPriceTiers,
+        defaultSetUnits: targetDefaultSetUnits,
         tagId: updates.tagId !== undefined ? updates.tagId : existingProduct?.tagId,
         tag: updates.tag !== undefined ? updates.tag : existingProduct?.tag,
       }
@@ -1458,6 +1585,9 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
         cashPrice: targetCashPrice,
         retailCashPrice: targetRetailCashPrice,
         wholesaleCashPrice: targetWholesaleCashPrice,
+        pricingMode: targetPricingMode,
+        priceTiers: targetPriceTiers,
+        defaultSetUnits: targetDefaultSetUnits,
         colors,
         sizeVariants,
         variantTypes: currentVariantTypes,
@@ -1955,6 +2085,7 @@ export const verifyAndSanitizeOrderPayload = async (
             }
 
             const cashPrices = extractProductCashPrices(item, rawSpecs);
+            const pricingMeta = extractProductPricingMeta(item, rawSpecs);
 
             const mappedProd: Product = {
               id: item.id || String(item.product_id),
@@ -1969,6 +2100,9 @@ export const verifyAndSanitizeOrderPayload = async (
               cashPrice: cashPrices.cashPrice,
               retailCashPrice: cashPrices.retailCashPrice,
               wholesaleCashPrice: cashPrices.wholesaleCashPrice,
+              pricingMode: pricingMeta.pricingMode,
+              priceTiers: pricingMeta.priceTiers,
+              defaultSetUnits: pricingMeta.defaultSetUnits,
               colors: Array.isArray(item.colors) ? item.colors : [],
               sizeVariants: Array.isArray(item.size_variants) ? item.size_variants : cleanSizeVariantsList(item.sizeVariants || []),
               variantTypes: Array.isArray(item.variant_types) ? item.variant_types : normalizeVariantTypes(item),
@@ -1990,14 +2124,13 @@ export const verifyAndSanitizeOrderPayload = async (
     if (!catalogMap.has(p.id)) catalogMap.set(p.id, p);
   });
 
-  // Conteo de unidades por categoría para validar compras mayoristas
-  const catCounts: Record<string, number> = {};
-  for (const it of orderData.items) {
-    const qty = Math.max(1, Math.min(9999, Math.floor(Number(it.quantity) || 1)));
-    const prod = catalogMap.get(it.productId);
-    const cat = (it as any).category || prod?.category || 'General';
-    catCounts[cat] = (catCounts[cat] || 0) + qty;
-  }
+  // Índice canónico de cantidades por categoría (solo normales) y por publicación (para precios escalonados)
+  const itemsForPricingIndex = orderData.items.map((it) => ({
+    productId: it.productId,
+    product: catalogMap.get(it.productId),
+    quantity: Math.max(1, Math.min(9999, Math.floor(Number(it.quantity) || 1))),
+  }));
+  const quantitiesIndex = buildCartQuantitiesIndex(itemsForPricingIndex);
 
   let calculatedSubtotal = 0;
   let calculatedCashSubtotal = 0;
@@ -2058,43 +2191,26 @@ export const verifyAndSanitizeOrderPayload = async (
       throw new Error(`Stock insuficiente para "${prod.title}${variantDesc}". Disponibles: ${availableStock}, solicitadas: ${qty}.`);
     }
 
-    // Determinar modalidad mayorista vs minorista según mínimo de categoría o estado explícito del checkout
-    const cat = (it as any).category || prod.category || 'General';
-    const minQty = prod.minWholesaleQty || 1;
-    const catTotal = catCounts[cat] || qty;
-    const isWholesale = Boolean(it.isWholesale !== undefined ? it.isWholesale : (catTotal >= minQty));
-
-    // Usar exactamente las mismas funciones canónicas que el checkout
-    const wholesaleUnitPrice = getItemEffectiveNormalPrice(
-      prod,
-      resolvedVariants,
-      resolvedSizeVariant,
-      true
+    // Motor canónico único de precios (soporta normal, precios escalonados y venta por set desde 1 set)
+    const pricing = calculateCartItemPricing(
+      {
+        productId: prod.id,
+        product: prod,
+        selectedVariants: resolvedVariants,
+        selectedSizeVariant: resolvedSizeVariant,
+        quantity: qty,
+      },
+      quantitiesIndex,
+      { isCashMode: isCash }
     );
 
-    const retailUnitPrice = getItemEffectiveNormalPrice(
-      prod,
-      resolvedVariants,
-      resolvedSizeVariant,
-      false
-    );
-
-    const normalUnitPrice = isWholesale ? wholesaleUnitPrice : retailUnitPrice;
-
-    const cashUnitPrice = getItemEffectiveCashPrice(
-      prod,
-      resolvedVariants,
-      resolvedSizeVariant,
-      normalUnitPrice,
-      isWholesale
-    );
-
-    // Aplicar precio unitario según la forma de pago (efectivo vs transferencia)
-    const appliedUnitPrice = isCash ? cashUnitPrice : normalUnitPrice;
-    const appliedLineTotal = appliedUnitPrice * qty;
-
-    const lineNormalTotal = normalUnitPrice * qty;
-    const lineCashTotal = cashUnitPrice * qty;
+    const isWholesale = pricing.isWholesale;
+    const normalUnitPrice = pricing.normalUnitPrice;
+    const cashUnitPrice = pricing.cashUnitPrice;
+    const appliedUnitPrice = pricing.effectiveUnitPrice;
+    const appliedLineTotal = pricing.effectiveTotalPrice;
+    const lineNormalTotal = pricing.totalPrice;
+    const lineCashTotal = pricing.cashTotalPrice;
 
     calculatedSubtotal += lineNormalTotal;
     calculatedCashSubtotal += lineCashTotal;
@@ -2131,6 +2247,9 @@ export const verifyAndSanitizeOrderPayload = async (
       cashUnitPrice,
       totalPrice: appliedLineTotal,
       totalCashPrice: lineCashTotal,
+      pricingMode: pricing.pricingMode,
+      unitsPerSet: pricing.isSet ? pricing.unitsPerSet : undefined,
+      appliedTierMinQty: pricing.activeTier ? pricing.activeTier.minQty : undefined,
       category: prod.category || '',
       selectedColor: (it as any).selectedColor || undefined,
       selectedSizeVariant: (it as any).selectedSizeVariant
