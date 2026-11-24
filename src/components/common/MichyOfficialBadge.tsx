@@ -50,42 +50,45 @@ export const MichyOfficialBadge: React.FC<MichyOfficialBadgeProps> = ({ classNam
           </span>
         </div>
 
-        {/* ROW 2 - LEFT: +100mil ventas */}
-        <div className="flex items-center gap-1 sm:gap-1.5 whitespace-nowrap flex-nowrap shrink-0">
-          <span className="text-gray-950 font-bold text-[14.5px] min-[360px]:text-[15.5px] min-[400px]:text-[16.5px] sm:text-[17px] md:text-[18px] tracking-tight leading-none">
-            +100mil ventas
-          </span>
-        </div>
+        {/* ROW 2: Flujo flex dinámico en móvil para eliminar espacio muerto y mantener ambos textos visibles en un renglón; en sm+ vuelve a la grilla original */}
+        <div className="col-span-3 flex items-center gap-[clamp(5px,1.8vw,10px)] min-w-0 sm:contents">
+          {/* ROW 2 - LEFT: +100mil ventas */}
+          <div className="flex items-center gap-1 sm:gap-1.5 whitespace-nowrap flex-nowrap shrink-0">
+            <span className="text-gray-950 font-bold text-[13.5px] min-[360px]:text-[14.5px] min-[390px]:text-[15.5px] min-[420px]:text-[16.5px] sm:text-[17px] md:text-[18px] tracking-tight leading-none">
+              +100mil ventas
+            </span>
+          </div>
 
-        {/* ROW 2 - DIVIDER */}
-        <div className="h-4.5 sm:h-5 w-px bg-gray-300 shrink-0 self-center -translate-x-5 min-[380px]:-translate-x-3 sm:translate-x-0" />
+          {/* ROW 2 - DIVIDER */}
+          <div className="h-4 sm:h-5 w-px bg-gray-300 shrink-0 self-center" />
 
-        {/* ROW 2 - RIGHT: Speed Delivery Box Icon + Importador directo */}
-        <div className="flex items-center gap-1.5 sm:gap-2 whitespace-nowrap flex-nowrap shrink-0 -translate-x-5 min-[380px]:-translate-x-3 sm:translate-x-0">
-          {/* Blue Isometric Delivery Box with 3 Speed Motion Lines */}
-          <svg
-            className="w-5 h-5 min-[380px]:w-5.5 min-[380px]:h-5.5 sm:w-6 sm:h-6 text-[#2f83ff] shrink-0"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            {/* 3 Speed Motion Lines on the Left */}
-            <line x1="1" y1="9" x2="6" y2="9" />
-            <line x1="0" y1="13" x2="7" y2="13" />
-            <line x1="2" y1="17" x2="6" y2="17" />
-            {/* Isometric Package Box */}
-            <path d="M15.5 3.5L22 7L15.5 10.5L9 7Z" />
-            <path d="M9 7V14.5L15.5 18V10.5" />
-            <path d="M22 7V14.5L15.5 18" />
-            {/* Top Tape Line */}
-            <path d="M12.5 5.25L19 8.75" />
-          </svg>
-          <span className="text-gray-950 font-bold text-[14.5px] min-[360px]:text-[15.5px] min-[400px]:text-[16.5px] sm:text-[17px] md:text-[18px] tracking-tight leading-none">
-            Importador directo
-          </span>
+          {/* ROW 2 - RIGHT: Speed Delivery Box Icon + Importador directo */}
+          <div className="flex items-center gap-1 min-[420px]:gap-1.5 sm:gap-2 whitespace-nowrap flex-nowrap shrink-0">
+            {/* Blue Isometric Delivery Box with 3 Speed Motion Lines */}
+            <svg
+              className="w-4.5 h-4.5 min-[380px]:w-5 min-[380px]:h-5 sm:w-6 sm:h-6 text-[#2f83ff] shrink-0"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              {/* 3 Speed Motion Lines on the Left */}
+              <line x1="1" y1="9" x2="6" y2="9" />
+              <line x1="0" y1="13" x2="7" y2="13" />
+              <line x1="2" y1="17" x2="6" y2="17" />
+              {/* Isometric Package Box */}
+              <path d="M15.5 3.5L22 7L15.5 10.5L9 7Z" />
+              <path d="M9 7V14.5L15.5 18V10.5" />
+              <path d="M22 7V14.5L15.5 18" />
+              {/* Top Tape Line */}
+              <path d="M12.5 5.25L19 8.75" />
+            </svg>
+            <span className="text-gray-950 font-bold text-[13.5px] min-[360px]:text-[14.5px] min-[390px]:text-[15.5px] min-[420px]:text-[16.5px] sm:text-[17px] md:text-[18px] tracking-tight leading-none">
+              Importador directo
+            </span>
+          </div>
         </div>
       </div>
     </div>
