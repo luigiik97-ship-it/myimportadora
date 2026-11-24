@@ -771,6 +771,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
       cashPrice: 900,
       pricingMode: 'normal',
       priceTiers: [],
+      quantityStep: 1,
       defaultSetUnits: 1,
       colors: ['Opción 1', 'Opción 2'],
       sizeVariants: [],
@@ -813,6 +814,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     cloned.cashPrice = parsedWholesaleCash;
     cloned.pricingMode = cloned.pricingMode === 'tiered' || cloned.pricingMode === 'set' ? cloned.pricingMode : 'normal';
     cloned.priceTiers = Array.isArray(cloned.priceTiers) ? cloned.priceTiers : [];
+    cloned.quantityStep =
+      cloned.quantityStep !== undefined && !isNaN(Number(cloned.quantityStep)) && Number(cloned.quantityStep) >= 1
+        ? Math.floor(Number(cloned.quantityStep))
+        : 1;
     cloned.defaultSetUnits =
       cloned.defaultSetUnits !== undefined && !isNaN(Number(cloned.defaultSetUnits)) && Number(cloned.defaultSetUnits) >= 1
         ? Math.floor(Number(cloned.defaultSetUnits))
@@ -979,6 +984,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
         }
       }
       sanitizedTiers = getNormalizedPriceTiers({ priceTiers: rawTiers });
+
+      const rawStep = editingProduct.quantityStep;
+      if (
+        rawStep !== undefined &&
+        rawStep !== null &&
+        String(rawStep).trim() !== '' &&
+        (!Number.isInteger(Number(rawStep)) || Number(rawStep) < 1)
+      ) {
+        alert('El campo "Incremento de cantidad" debe ser un número entero positivo mayor o igual a 1.');
+        return;
+      }
     }
 
     const currentVariantTypes = editingProduct.variantTypes || normalizeVariantTypes(editingProduct as Product);
@@ -987,6 +1003,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
     const targetWholesaleCashPrice = Number(editingProduct.wholesaleCashPrice);
     const targetRetailCashPrice = Number(editingProduct.retailCashPrice);
     const targetCashPrice = targetWholesaleCashPrice;
+    const sanitizedQuantityStep =
+      editingProduct.quantityStep !== undefined &&
+      !isNaN(Number(editingProduct.quantityStep)) &&
+      Number(editingProduct.quantityStep) >= 1
+        ? Math.floor(Number(editingProduct.quantityStep))
+        : 1;
     const sanitizedDefaultSetUnits =
       editingProduct.defaultSetUnits !== undefined &&
       !isNaN(Number(editingProduct.defaultSetUnits)) &&
@@ -1063,6 +1085,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
       wholesaleCashPrice: targetWholesaleCashPrice,
       pricingMode: activePricingMode,
       priceTiers: sanitizedTiers,
+      quantityStep: sanitizedQuantityStep,
       defaultSetUnits: sanitizedDefaultSetUnits,
       variantTypes: currentVariantTypes,
       colors,
@@ -3621,7 +3644,83 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
 
                 {/* Configuración de Escalones (solo si Precios Escalonados está activo) */}
                 {editingProduct.pricingMode === 'tiered' && (
-                  <div className="bg-white border border-blue-200 rounded-lg p-3 space-y-2.5">
+                  <div className="bg-white border border-blue-200 rounded-lg p-3 space-y-3">
+                    {/* Incremento de cantidad (exclusivo de Precios Escalonados, compartido por todas las variantes) */}
+                    <div className="bg-blue-50/60 border border-blue-200/80 rounded-lg px-3 py-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                      <div className="min-w-0">
+                        <label
+                          htmlFor="admin-quantity-step-input"
+                          className="text-xs font-bold text-gray-900 block"
+                        >
+                          Incremento de cantidad
+                        </label>
+                        <p className="text-[11px] text-gray-600 leading-snug">
+                          Compartido por todas las variantes de esta publicación. Por defecto 1 unidad (ej.: con 10, solo permite 10, 20, 30...).
+                        </p>
+                      </div>
+                      <div className="flex items-center flex-wrap gap-1.5 shrink-0">
+                        <input
+                          id="admin-quantity-step-input"
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={editingProduct.quantityStep ?? 1}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            if (raw === '') {
+                              setEditingProduct({
+                                ...editingProduct,
+                                quantityStep: '' as any,
+                              });
+                              return;
+                            }
+                            const parsed = Math.floor(Number(raw));
+                            setEditingProduct({
+                              ...editingProduct,
+                              quantityStep: isNaN(parsed) ? 1 : Math.max(1, parsed),
+                            });
+                          }}
+                          onBlur={() => {
+                            const num = Math.floor(Number(editingProduct.quantityStep));
+                            if (!num || num < 1) {
+                              setEditingProduct({
+                                ...editingProduct,
+                                quantityStep: 1,
+                              });
+                            }
+                          }}
+                          className="w-16 border border-blue-300 rounded-md px-2 py-1 text-xs font-bold text-gray-900 bg-white focus:ring-1 focus:ring-[#0058bb] text-center"
+                          title="Número entero positivo de unidades por incremento"
+                        />
+                        <div className="flex items-center gap-1">
+                          {[1, 2, 4, 5, 10, 12, 20].map((preset) => {
+                            const activeStep = Math.max(1, Math.floor(Number(editingProduct.quantityStep) || 1));
+                            const isSelected = activeStep === preset;
+                            return (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() =>
+                                  setEditingProduct({
+                                    ...editingProduct,
+                                    quantityStep: preset,
+                                  })
+                                }
+                                className={`px-2 py-1 rounded text-[10.5px] font-bold border transition-colors cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-[#0058bb] text-white border-[#0058bb]'
+                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-[#0058bb]'
+                                }`}
+                                title={`Configurar incremento de a ${preset} ${preset === 1 ? 'unidad' : 'unidades'}`}
+                              >
+                                {preset}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div>
                         <p className="text-xs font-bold text-gray-900">
@@ -3635,8 +3734,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ onExitAdmin, onSelectProdu
                         type="button"
                         onClick={() => {
                           const current = Array.isArray(editingProduct.priceTiers) ? editingProduct.priceTiers : [];
+                          const stepNum = Math.max(1, Math.floor(Number(editingProduct.quantityStep) || 1));
                           const maxQty = current.reduce((m, t) => Math.max(m, Number(t.minQty) || 0), 0);
-                          const nextQty = maxQty > 0 ? maxQty + 5 : 5;
+                          const nextQty =
+                            stepNum > 1
+                              ? maxQty > 0
+                                ? Math.ceil((maxQty + 1) / stepNum) * stepNum
+                                : stepNum * 2
+                              : maxQty > 0
+                              ? maxQty + 5
+                              : 5;
                           const last = current[current.length - 1];
                           const newTier: PriceTier = {
                             id: `tier-${Date.now()}-${current.length + 1}`,

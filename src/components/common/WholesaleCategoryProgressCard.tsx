@@ -15,10 +15,12 @@ export const WholesaleCategoryProgressCard: React.FC<WholesaleCategoryProgressCa
   minQty,
   isProductDetail = false,
   className = '',
-  messageClassName = 'text-xs sm:text-sm',
+  messageClassName,
   hideTitle = false,
   frameless = false,
 }) => {
+  const effectiveMessageClassName =
+    messageClassName ?? (isProductDetail ? 'text-sm sm:text-sm' : 'text-xs sm:text-sm');
   const safeMin = Math.max(1, minQty);
   const isReached = currentQty >= safeMin;
   const percentage = Math.min(100, Math.max(0, Math.round((currentQty / safeMin) * 100)));
@@ -36,7 +38,11 @@ export const WholesaleCategoryProgressCard: React.FC<WholesaleCategoryProgressCa
       {/* Título de estado con el mismo tamaño que la tarjeta de descuento en efectivo */}
       {!hideTitle && (
         <div className="flex items-center justify-between gap-2">
-          <span className="font-bold text-[14.5px] text-gray-900 leading-tight">
+          <span
+            className={`font-bold text-gray-900 leading-tight ${
+              isProductDetail ? 'text-sm sm:text-[14.5px]' : 'text-[14.5px]'
+            }`}
+          >
             {isReached ? 'Precio mayorista alcanzado' : 'Alcanza el precio mayorista en tu compra'}
           </span>
         </div>
@@ -71,7 +77,7 @@ export const WholesaleCategoryProgressCard: React.FC<WholesaleCategoryProgressCa
 
       {/* Mensaje descriptivo con el mismo tamaño que la tarjeta de descuento en efectivo */}
       <p
-        className={`${messageClassName} mt-0.5 leading-tight ${
+        className={`${effectiveMessageClassName} mt-0.5 leading-tight ${
           isReached ? 'text-[#00a650] font-semibold' : 'text-gray-600 font-normal'
         }`}
       >

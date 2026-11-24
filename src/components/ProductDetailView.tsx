@@ -21,6 +21,9 @@ import {
   getInformativeUnitPrice,
   resolveProductPricesForQuantity,
   getEffectivePricingMode,
+  getProductQuantityStep,
+  getMaxValidQuantityForStock,
+  normalizeQuantityToStep,
 } from '../utils/variantHelpers';
 import { ClassicStar as Star } from './common/ClassicStar';
 import { MichyOfficialBadge } from './common/MichyOfficialBadge';
@@ -498,7 +501,8 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
       }
       setLastSelectedTypeId(targetTypeId);
       setActiveMediaIndex(0);
-      setQuantity(1);
+      setQuantity(getProductQuantityStep(product));
+      setQuantityInput(null);
     }
   }, [product.id, initialVariantsKey, initialSelectedVariants]);
 
@@ -734,24 +738,47 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
   const { purchaseMode, setPurchaseMode, isCashMode } = usePurchaseMode();
 
-  // Calculate total units currently in cart for this product's category
-  // Quantity state (ubicado aquí para recálculo inmediato de precios escalonados y totales de set)
-  const [quantity, setQuantity] = useState<number>(1);
-  const [quantityInput, setQuantityInput] = useState<string | null>(null);
-
   const isSetSale = useMemo(() => isSetSaleActive(product), [product]);
   const isTieredPricing = useMemo(() => isTieredPricingActive(product), [product]);
   const normalizedPriceTiers = useMemo(() => getNormalizedPriceTiers(product), [product]);
+  const quantityStep = useMemo(() => getProductQuantityStep(product), [product]);
+  const maxSelectableQty = useMemo(
+    () => (currentSelectionStock > 0 ? getMaxValidQuantityForStock(currentSelectionStock, quantityStep) : 0),
+    [currentSelectionStock, quantityStep]
+  );
+  const isInsufficientForStep =
+    !isCurrentSelectionOutOfStock && currentSelectionStock > 0 && maxSelectableQty < quantityStep;
+  const isPurchaseBlocked = isCurrentSelectionOutOfStock || isInsufficientForStep;
+
+  // Quantity state (ubicado aquí para recálculo inmediato de precios escalonados y totales de set)
+  const [quantity, setQuantity] = useState<number>(() => getProductQuantityStep(product));
+  const [quantityInput, setQuantityInput] = useState<string | null>(null);
+
+  // Mantener la cantidad sincronizada como múltiplo válido del incremento si cambia el producto o el stock de la variante
+  useEffect(() => {
+    setQuantity((prev) => {
+      if (isCurrentSelectionOutOfStock || isInsufficientForStep) {
+        return quantityStep;
+      }
+      const normalized = normalizeQuantityToStep(prev, quantityStep, currentSelectionStock, {
+        roundMode: prev > maxSelectableQty ? 'floor' : 'nearest',
+      });
+      return normalized >= quantityStep ? normalized : quantityStep;
+    });
+  }, [quantityStep, currentSelectionStock, maxSelectableQty, isCurrentSelectionOutOfStock, isInsufficientForStep]);
 
   const effectiveCartItemsForCounts = useMemo(() => {
-    let items = cartItems;
-    if (!items || items.length === 0) {
-      try {
-        const raw = localStorage.getItem('my_cart_items');
-        if (raw) items = JSON.parse(raw);
-      } catch {}
+    if (Array.isArray(cartItems)) {
+      return cartItems;
     }
-    return Array.isArray(items) ? items : [];
+    try {
+      const raw = localStorage.getItem('my_cart_items');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
   }, [cartItems]);
 
   const categoryUnitsInCart = useMemo(() => {
@@ -898,26 +925,34 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   };
 
   const handleAdd = () => {
+    if (isPurchaseBlocked) return;
+    const safeQty = normalizeQuantityToStep(quantity, quantityStep, currentSelectionStock);
+    if (safeQty < quantityStep) return;
+    if (safeQty !== quantity) setQuantity(safeQty);
     // La imagen del carrito SIEMPRE debe ser la primera imagen (posición 0) de la variante seleccionada,
     // NUNCA la imagen que el cliente esté mirando en la galería en ese momento (imagen visualizada).
     const variantPrimaryImage =
       getVariantPrimaryImage(product, selectedOptions, lastSelectedTypeId) ||
       activeImages[0] ||
       getProductCoverImage(product);
-    onAddToCart(product, selectedColorName, selectedSizeVariantObj, quantity, variantPrimaryImage, userFriendlySelectedVariants);
+    onAddToCart(product, selectedColorName, selectedSizeVariantObj, safeQty, variantPrimaryImage, userFriendlySelectedVariants);
     setShowAddedFeedback(true);
     setHasAddedToCart(true);
     setTimeout(() => setShowAddedFeedback(false), 2500);
   };
 
   const handleBuy = () => {
+    if (isPurchaseBlocked) return;
+    const safeQty = normalizeQuantityToStep(quantity, quantityStep, currentSelectionStock);
+    if (safeQty < quantityStep) return;
+    if (safeQty !== quantity) setQuantity(safeQty);
     // La imagen del carrito SIEMPRE debe ser la primera imagen (posición 0) de la variante seleccionada,
     // NUNCA la imagen que el cliente esté mirando en la galería en ese momento (imagen visualizada).
     const variantPrimaryImage =
       getVariantPrimaryImage(product, selectedOptions, lastSelectedTypeId) ||
       activeImages[0] ||
       getProductCoverImage(product);
-    onBuyNow(product, selectedColorName, selectedSizeVariantObj, quantity, variantPrimaryImage, userFriendlySelectedVariants);
+    onBuyNow(product, selectedColorName, selectedSizeVariantObj, safeQty, variantPrimaryImage, userFriendlySelectedVariants);
   };
 
   // Touch swipe support for mobile gallery
@@ -1196,13 +1231,17 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     return shippingResult.options.filter((o) => o.id !== activeShippingOption.id);
   }, [shippingResult, activeShippingOption]);
 
-  const getMethodBadge = (opt: ShippingOption) => {
+  const getMethodBadge = (opt: ShippingOption, isFlush = false) => {
     const text = `${opt.id} ${opt.name} ${opt.description || ''}`.toLowerCase();
+    const layoutClass = isFlush
+      ? 'inline-flex items-center text-sm sm:text-xs font-bold px-3 py-1.5 sm:py-2.5 shrink-0'
+      : 'text-sm sm:text-xs font-bold px-2 py-0.5 rounded shrink-0 shadow-2xs';
+
     if (text.includes('uber')) {
       return (
         <span
           style={{ backgroundColor: '#1d1d1b' }}
-          className="text-white text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded shrink-0 shadow-2xs"
+          className={`text-white ${layoutClass}`}
         >
           Uber moto
         </span>
@@ -1212,7 +1251,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
       return (
         <span
           style={{ backgroundColor: '#a3ca2c', color: '#001b3e' }}
-          className="text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded shrink-0 shadow-2xs"
+          className={layoutClass}
         >
           Envíos Flex
         </span>
@@ -1222,7 +1261,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
       return (
         <span
           style={{ backgroundColor: '#fccf04' }}
-          className="text-gray-950 text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded shrink-0 shadow-2xs"
+          className={`text-gray-950 ${layoutClass}`}
         >
           Sucursal Correo
         </span>
@@ -1232,14 +1271,20 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
       return (
         <span
           style={{ backgroundColor: '#fccf04' }}
-          className="text-gray-950 text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded shrink-0 shadow-2xs"
+          className={`text-gray-950 ${layoutClass}`}
         >
           Correo Argentino
         </span>
       );
     }
     return (
-      <span className="bg-gray-100 text-gray-800 border border-gray-300 text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded shrink-0">
+      <span
+        className={
+          isFlush
+            ? 'inline-flex items-center bg-gray-100 text-gray-800 border-r border-gray-200 text-sm sm:text-xs font-bold px-3 py-1.5 sm:py-2.5 shrink-0'
+            : 'bg-gray-100 text-gray-800 border border-gray-300 text-sm sm:text-xs font-bold px-2 py-0.5 rounded shrink-0'
+        }
+      >
         {opt.name}
       </span>
     );
@@ -1747,10 +1792,10 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
                     <span className="inline-flex items-center text-sm sm:text-base font-semibold bg-[#16a34a] text-white px-1.5 py-0.5 rounded-md leading-tight shrink-0 shadow-xs whitespace-nowrap overflow-hidden">
                       {resolvedPrices.activeTier
-                        ? `Escalón ${resolvedPrices.activeTier.minQty}+ unids`
-                        : isTieredWholesaleApplied
-                        ? `desde ${product.minWholesaleQty || 1} unids`
-                        : 'Precios escalonados'}
+                        ? `desde ${resolvedPrices.activeTier.minQty} unids`
+                        : normalizedPriceTiers[0]
+                        ? `desde ${normalizedPriceTiers[0].minQty} unids`
+                        : `desde ${product.minWholesaleQty || 1} unids`}
                     </span>
 
                     {isCashMode && (
@@ -1781,7 +1826,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     </span>
                   </div>
                   {quantity > 1 && (
-                    <span className="text-xs sm:text-sm font-bold text-[#0058bb]">
+                    <span className="hidden text-xs sm:text-sm font-bold text-[#0058bb]">
                       Subtotal ({quantity} u.): ${(currentTieredActivePrice * quantity).toLocaleString('es-AR')}
                     </span>
                   )}
@@ -1924,7 +1969,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 type="button"
                 id="detail-cash-mode-toggle-btn"
                 onClick={() => setPurchaseMode(isCashMode ? 'transfer' : 'cash')}
-                className={`shrink-0 px-2 sm:px-2.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer select-none flex items-center gap-1 sm:gap-1.5 ${
+                className={`shrink-0 px-[13px] py-[5px] rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer select-none flex items-center justify-center gap-1 sm:gap-1.5 ${
                   isCashMode
                     ? 'bg-[#16a34a] text-white border border-[#16a34a] shadow-xs'
                     : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300'
@@ -1932,8 +1977,8 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 aria-pressed={isCashMode}
                 title="Activar o desactivar precio en efectivo"
               >
-                <Banknote className={`w-4 h-4 shrink-0 ${isCashMode ? 'text-white' : 'text-gray-500'}`} />
-                <span>Efectivo</span>
+                <Banknote className={`hidden sm:block w-4 h-4 shrink-0 ${isCashMode ? 'text-white' : 'text-gray-500'}`} />
+                <span className="text-sm sm:text-sm">Efectivo</span>
               </button>
             </div>
 
@@ -1973,12 +2018,12 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                         }}
                         placeholder="Código postal"
                         aria-label="Código postal para envíos a domicilio"
-                        className="flex-1 min-w-0 px-2.5 py-1.5 text-xs sm:text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent"
+                        className="flex-1 min-w-0 px-2.5 py-1.5 text-sm sm:text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent"
                       />
                       <button
                         id="product-detail-calculate-shipping-btn"
                         type="submit"
-                        className="shrink-0 px-3.5 py-1.5 bg-[#0058bb] hover:bg-[#004696] text-white text-xs sm:text-sm font-bold rounded-lg transition-colors cursor-pointer"
+                        className="shrink-0 px-3.5 py-1.5 bg-[#0058bb] hover:bg-[#004696] text-white text-sm sm:text-sm font-bold rounded-lg transition-colors cursor-pointer"
                       >
                         Calcular
                       </button>
@@ -1994,7 +2039,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                           Envíos a domicilio
                         </span>
                       </div>
-                      <div className="shrink-0 inline-flex items-center gap-1.5 px-2 py-0.5 bg-gray-200/80 hover:bg-gray-200 rounded-full text-xs font-semibold text-gray-800 transition-colors">
+                      <div className="shrink-0 inline-flex items-center gap-1.5 px-2 py-0.5 bg-gray-200/80 hover:bg-gray-200 rounded-full text-sm sm:text-xs font-semibold text-gray-800 transition-colors">
                         <span>CP {shippingResult.cp}</span>
                         <button
                           id="product-detail-clear-cp-btn"
@@ -2004,7 +2049,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                           title="Borrar código postal y volver al estado inicial"
                           aria-label="Borrar código postal"
                         >
-                          <X className="w-3 h-3" />
+                          <X className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -2019,26 +2064,26 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                             setIsShippingDropdownOpen((prev) => !prev);
                           }
                         }}
-                        className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 sm:py-2 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-left transition-colors shadow-2xs ${
+                        className={`w-full flex items-stretch justify-between gap-2 pr-2.5 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg overflow-hidden text-left transition-colors shadow-2xs ${
                           otherShippingOptions.length > 0 ? 'cursor-pointer' : 'cursor-default'
                         }`}
                         aria-expanded={isShippingDropdownOpen}
                       >
-                        <div className="flex items-center gap-2 min-w-0">
-                          {getMethodBadge(activeShippingOption)}
-                          <span className="text-xs sm:text-sm text-gray-600 truncate">
+                        <div className="flex items-stretch gap-2 min-w-0">
+                          {getMethodBadge(activeShippingOption, true)}
+                          <span className="self-center py-1.5 sm:py-2 text-sm sm:text-sm text-gray-600 truncate">
                             {formatOptionDeliveryText(activeShippingOption)}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-xs sm:text-sm font-bold text-gray-900">
+                        <div className="flex items-center gap-1.5 py-1.5 sm:py-2 shrink-0">
+                          <span className="text-sm sm:text-sm font-bold text-gray-900">
                             {activeShippingOption.price === 0
                               ? 'Gratis'
                               : `$${activeShippingOption.price.toLocaleString('es-AR')}`}
                           </span>
                           {otherShippingOptions.length > 0 && (
                             <ChevronDown
-                              className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${
+                              className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${
                                 isShippingDropdownOpen ? 'rotate-180' : ''
                               }`}
                             />
@@ -2048,7 +2093,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
                       {/* Desplegable con las demás opciones disponibles */}
                       {isShippingDropdownOpen && otherShippingOptions.length > 0 && (
-                        <div className="mt-1.5 p-1 bg-white border border-gray-200 rounded-lg shadow-md space-y-1">
+                        <div className="mt-1.5 py-1 px-0.5 bg-white border border-gray-200 rounded-lg shadow-md space-y-1">
                           {otherShippingOptions.map((opt) => (
                             <button
                               key={opt.id}
@@ -2060,15 +2105,15 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                                 } catch {}
                                 setIsShippingDropdownOpen(false);
                               }}
-                              className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 hover:bg-gray-50 rounded-md text-left transition-colors cursor-pointer text-xs sm:text-sm"
+                              className="w-full flex items-center justify-between gap-1.5 px-1 py-1.5 hover:bg-gray-50 rounded-md text-left transition-colors cursor-pointer text-xs sm:text-sm"
                             >
-                              <div className="flex items-center gap-2 min-w-0">
+                              <div className="flex items-center gap-1.5 min-w-0">
                                 {getMethodBadge(opt)}
-                                <span className="text-xs sm:text-sm text-gray-600 truncate">
+                                <span className="text-sm sm:text-sm text-gray-600 truncate">
                                   {formatOptionDeliveryText(opt)}
                                 </span>
                               </div>
-                              <span className="text-xs sm:text-sm font-bold text-gray-900 shrink-0">
+                              <span className="text-sm sm:text-sm font-bold text-gray-900 shrink-0">
                                 {opt.price === 0
                                   ? 'Gratis'
                                   : `$${opt.price.toLocaleString('es-AR')}`}
@@ -2112,17 +2157,27 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               ) : null}
 
               {/* Quantity Controller */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm sm:text-base font-bold text-gray-800">
-                  {isSetSale ? 'Cantidad de sets:' : 'Cantidad:'}
-                </span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-col">
+                  <span className="text-sm sm:text-base font-bold text-gray-800">
+                    {isSetSale ? 'Cantidad de sets:' : 'Cantidad:'}
+                  </span>
+                  {isTieredPricing && quantityStep > 1 && (
+                    <span className="text-[11px] font-semibold text-[#0058bb]">
+                      En incrementos de {quantityStep} u.
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center border border-gray-300 rounded-xl overflow-hidden bg-white shadow-2xs">
                   <button
                     id="qty-minus-btn"
-                    disabled={quantity <= 1 || isCurrentSelectionOutOfStock}
-                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                    disabled={quantity <= quantityStep || isPurchaseBlocked}
+                    onClick={() => {
+                      setQuantityInput(null);
+                      setQuantity((q) => Math.max(quantityStep, q - quantityStep));
+                    }}
                     className={`px-3 py-1.5 sm:px-3.5 sm:py-2 text-gray-600 transition-colors min-h-[40px] sm:min-h-[42px] min-w-[36px] sm:min-w-[40px] flex items-center justify-center ${
-                      quantity <= 1 || isCurrentSelectionOutOfStock
+                      quantity <= quantityStep || isPurchaseBlocked
                         ? 'opacity-40 cursor-not-allowed bg-gray-50'
                         : 'hover:bg-gray-100 cursor-pointer'
                     }`}
@@ -2135,7 +2190,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     inputMode="numeric"
                     pattern="[0-9]*"
                     aria-label="Cantidad del producto"
-                    disabled={isCurrentSelectionOutOfStock}
+                    disabled={isPurchaseBlocked}
                     value={quantityInput !== null ? quantityInput : quantity}
                     onChange={(e) => {
                       const cleanVal = e.target.value.replace(/\D/g, '');
@@ -2143,8 +2198,12 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                       if (cleanVal !== '') {
                         const num = parseInt(cleanVal, 10);
                         if (!isNaN(num) && num > 0) {
-                          const maxStock = currentSelectionStock > 0 ? currentSelectionStock : 99999;
-                          setQuantity(Math.min(num, maxStock));
+                          if (quantityStep <= 1) {
+                            const maxStock = currentSelectionStock > 0 ? currentSelectionStock : 99999;
+                            setQuantity(Math.min(num, maxStock));
+                          } else if (num >= quantityStep && num % quantityStep === 0 && (maxSelectableQty <= 0 || num <= maxSelectableQty)) {
+                            setQuantity(num);
+                          }
                         }
                       }
                     }}
@@ -2154,12 +2213,15 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     }}
                     onBlur={() => {
                       if (quantityInput === '' || quantityInput === null || parseInt(quantityInput, 10) < 1) {
-                        setQuantity(1);
+                        setQuantity(quantityStep);
                       } else {
                         const num = parseInt(quantityInput, 10);
-                        const maxStock = currentSelectionStock > 0 ? currentSelectionStock : 99999;
-                        const clamped = Math.max(1, Math.min(num, maxStock));
-                        setQuantity(clamped);
+                        const clamped = normalizeQuantityToStep(
+                          num,
+                          quantityStep,
+                          currentSelectionStock > 0 ? currentSelectionStock : undefined
+                        );
+                        setQuantity(clamped >= quantityStep ? clamped : quantityStep);
                       }
                       setQuantityInput(null);
                     }}
@@ -2169,15 +2231,21 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                       }
                     }}
                     className={`w-12 sm:w-14 py-1.5 sm:py-2 text-sm sm:text-base font-bold text-gray-900 text-center bg-transparent border-none outline-none focus:bg-blue-50/60 focus:text-[#0058bb] transition-colors ${
-                      isCurrentSelectionOutOfStock ? 'cursor-not-allowed opacity-40' : 'cursor-text'
+                      isPurchaseBlocked ? 'cursor-not-allowed opacity-40' : 'cursor-text'
                     }`}
                   />
                   <button
                     id="qty-plus-btn"
-                    disabled={isCurrentSelectionOutOfStock || quantity >= currentSelectionStock}
-                    onClick={() => setQuantity((q) => q + 1)}
+                    disabled={isPurchaseBlocked || (maxSelectableQty > 0 && quantity + quantityStep > maxSelectableQty)}
+                    onClick={() => {
+                      setQuantityInput(null);
+                      setQuantity((q) => {
+                        const next = q + quantityStep;
+                        return maxSelectableQty > 0 ? Math.min(maxSelectableQty, next) : next;
+                      });
+                    }}
                     className={`px-3 py-1.5 sm:px-3.5 sm:py-2 text-gray-600 transition-colors min-h-[40px] sm:min-h-[42px] min-w-[36px] sm:min-w-[40px] flex items-center justify-center ${
-                      isCurrentSelectionOutOfStock || quantity >= currentSelectionStock
+                      isPurchaseBlocked || (maxSelectableQty > 0 && quantity + quantityStep > maxSelectableQty)
                         ? 'opacity-40 cursor-not-allowed bg-gray-50'
                         : 'hover:bg-gray-100 cursor-pointer'
                     }`}
@@ -2187,36 +2255,45 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 </div>
               </div>
 
+              {isInsufficientForStep && (
+                <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-xs text-amber-800 font-semibold">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span>
+                    Stock insuficiente para el incremento mínimo de {quantityStep} unidades.
+                  </span>
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="space-y-2 sm:space-y-2.5 pt-1">
                 {showBuyNowButton && (
                   <button
                     id="buy-now-btn"
-                    disabled={isCurrentSelectionOutOfStock}
+                    disabled={isPurchaseBlocked}
                     onClick={handleBuy}
                     className={`w-full font-bold py-3.5 sm:py-3 px-5 sm:px-6 rounded-xl text-base sm:text-base transition-colors shadow-xs min-h-[48px] sm:min-h-[48px] flex items-center justify-center ${
-                      isCurrentSelectionOutOfStock
+                      isPurchaseBlocked
                         ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
                         : 'bg-[#0058bb] hover:bg-[#004bb0] text-white cursor-pointer active:scale-[0.99]'
                     }`}
                   >
-                    {isCurrentSelectionOutOfStock ? 'Sin stock' : 'Comprar ahora'}
+                    {isPurchaseBlocked ? 'Sin stock' : 'Comprar ahora'}
                   </button>
                 )}
 
                 <button
                   id="add-to-cart-btn"
-                  disabled={isCurrentSelectionOutOfStock}
+                  disabled={isPurchaseBlocked}
                   onClick={handleAdd}
                   className={`w-full font-bold py-3.5 sm:py-3 px-5 sm:px-6 rounded-xl text-base sm:text-base transition-colors flex items-center justify-center gap-2 min-h-[48px] sm:min-h-[48px] ${
-                    isCurrentSelectionOutOfStock
+                    isPurchaseBlocked
                       ? 'bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed'
                       : !showBuyNowButton
                       ? 'bg-[#0058bb] hover:bg-[#004bb0] text-white shadow-xs cursor-pointer active:scale-[0.99]'
                       : 'bg-white hover:bg-blue-50/50 text-[#0058bb] border-2 border-[#0058bb] cursor-pointer active:scale-[0.99]'
                   }`}
                 >
-                  {isCurrentSelectionOutOfStock ? (
+                  {isPurchaseBlocked ? (
                     'Sin stock'
                   ) : showAddedFeedback ? (
                     <>
@@ -2235,9 +2312,10 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 {isSetSale ? null : isTieredPricing ? (
                   <TieredPricingProgressCard
                     tiers={normalizedPriceTiers}
-                    currentQty={effectivePublicationQty}
+                    currentQty={publicationUnitsInCart}
                     minWholesaleQty={product.minWholesaleQty || 1}
                     isCashMode={isCashMode}
+                    isProductDetail={true}
                   />
                 ) : (
                   <WholesaleCategoryProgressCard

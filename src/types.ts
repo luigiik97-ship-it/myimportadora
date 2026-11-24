@@ -88,6 +88,7 @@ export interface Product {
   wholesaleCashPrice?: number; // Base wholesale cash price (Precio en efectivo mayorista)
   pricingMode?: ProductPricingMode; // 'normal' (por defecto) | 'tiered' (precios escalonados) | 'set' (venta por set)
   priceTiers?: PriceTier[]; // Escalones configurados para precios escalonados
+  quantityStep?: number; // Incremento obligatorio de cantidad para precios escalonados (por defecto 1)
   defaultSetUnits?: number; // Fallback de unidades por set si la publicación no usa variantes
   colors?: string[]; // e.g. ['Dorado', 'Plateado'] (backwards compatible)
   sizeVariants?: SizeVariant[]; // e.g. [{ id: '1', name: 'Mediano', wholesalePrice: 1250, retailPrice: 1800 }]

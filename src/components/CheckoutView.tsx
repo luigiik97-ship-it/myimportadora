@@ -7,6 +7,8 @@ import {
   getProductCoverImage,
   buildCartQuantitiesIndex,
   calculateCartItemPricing,
+  getProductQuantityStep,
+  isQuantityCompatibleWithStep,
 } from '../utils/variantHelpers';
 import { AuthModal } from './AuthModal';
 import {
@@ -437,6 +439,18 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     if (deliveryOption === 'delivery' && paymentMethod === 'cash') {
       setErrorMessage('El envío a domicilio únicamente admite transferencia bancaria. El pago en efectivo es exclusivo para retiro en local.');
       return;
+    }
+
+    // Validación estricta de incremento de cantidad antes de crear el pedido
+    for (const ci of cartItems) {
+      const liveProd = products?.find((p) => p.id === ci.productId) || ci.product;
+      if (liveProd && !isQuantityCompatibleWithStep(liveProd, ci.quantity)) {
+        const step = getProductQuantityStep(liveProd);
+        setErrorMessage(
+          `"${liveProd.title}" se vende en incrementos de ${step} unidades (${step}, ${step * 2}, ${step * 3}...). Por favor ajustá la cantidad en tu carrito antes de continuar.`
+        );
+        return;
+      }
     }
 
     // Momento 3: Validación de stock justo antes de finalizar en checkout

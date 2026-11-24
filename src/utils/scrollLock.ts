@@ -74,13 +74,14 @@ export function lockBackgroundScroll(): void {
 
   // 5. Mantener el encabezado fijo y visible exactamente en su posición original detrás del modal
   const mainHeader = document.getElementById('main-header');
-  if (mainHeader && savedScrollY > 0) {
+  if (mainHeader && savedScrollY > mainHeader.offsetTop) {
     const isSticky = window.getComputedStyle(mainHeader).position === 'sticky';
     if (isSticky) {
       savedHeaderTransform = mainHeader.style.transform;
       savedHeaderTransition = mainHeader.style.transition;
+      const offset = savedScrollY - mainHeader.offsetTop;
       mainHeader.style.transition = 'none';
-      mainHeader.style.transform = `translateY(${savedScrollY}px)`;
+      mainHeader.style.transform = `translateY(${offset}px)`;
     }
   }
 

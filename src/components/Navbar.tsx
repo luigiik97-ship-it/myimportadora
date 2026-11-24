@@ -54,6 +54,15 @@ export const Navbar: React.FC<NavbarProps> = ({
   isOffline = false,
 }) => {
   const location = useLocation();
+  const isHomeRoute = location.pathname === '/';
+  const isCategoryRoute = location.pathname.startsWith('/categoria');
+  const isFavoritesRoute =
+    isFavoritesActive ||
+    location.pathname === '/favoritos' ||
+    location.pathname === '/mis-favoritos';
+  const isProductDetailRoute = location.pathname.startsWith('/producto');
+  const isMobileFlowTopBar = showTopBar && (isHomeRoute || isCategoryRoute || isFavoritesRoute);
+  const isHeaderTopBarDesktopOnly = isMobileFlowTopBar || isProductDetailRoute;
   const { favoritesCount } = useFavorites(currentUser, onOpenAuth);
   const totalCartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
   const { isCashMode } = usePurchaseMode();
@@ -257,31 +266,49 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, [isCategoriesOpen, isMobileSearchOpen]);
 
   return (
-    <header
-      id="main-header"
-      className={`
-        ${isQuickBuyActive
-          ? isCategoriesOpen
-            ? 'relative z-50 shadow-md'
-            : 'relative z-30 shadow-md'
-          : 'sticky top-0 z-50 shadow-md'}
-        ${isOffline ? 'pointer-events-none select-none' : ''}
-      `}
-    >
-      {/* Top micro announcement bar */}
-      {showTopBar && (
-        <div className="bg-black text-white text-xs md:text-sm py-1 sm:py-1.5 px-4 text-center font-medium tracking-wide flex items-center justify-center gap-2">
+    <>
+      {/* Top micro announcement bar: flujo natural en móvil para Inicio y Categorías */}
+      {isMobileFlowTopBar && (
+        <div
+          className={`w-full shrink-0 bg-black text-white text-xs md:text-sm py-1 sm:py-1.5 px-4 text-center font-medium tracking-wide flex md:hidden items-center justify-center gap-2 ${
+            isOffline ? 'pointer-events-none select-none' : ''
+          }`}
+        >
           <span>Envíos a todo el país</span>
           <span className="opacity-60">|</span>
           <span className="font-semibold text-white">Precio mayorista</span>
         </div>
       )}
 
+      <header
+        id="main-header"
+        className={`
+          ${isQuickBuyActive
+            ? isCategoriesOpen
+              ? 'relative z-50 shadow-md'
+              : 'relative z-30 shadow-md'
+            : 'sticky top-0 z-50 shadow-md'}
+          ${isOffline ? 'pointer-events-none select-none' : ''}
+        `}
+      >
+        {/* Top micro announcement bar */}
+        {showTopBar && (
+          <div
+            className={`bg-black text-white text-xs md:text-sm py-1 sm:py-1.5 px-4 text-center font-medium tracking-wide ${
+              isHeaderTopBarDesktopOnly ? 'hidden md:flex' : 'flex'
+            } items-center justify-center gap-2`}
+          >
+            <span>Envíos a todo el país</span>
+            <span className="opacity-60">|</span>
+            <span className="font-semibold text-white">Precio mayorista</span>
+          </div>
+        )}
+
       {/* Main Royal Blue Navigation */}
       <div className="bg-[#0058bb] text-white">
         <div
           id="main-nav-primary-row"
-          className="max-w-[1240px] mx-auto px-2 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between md:justify-start gap-1.5 sm:gap-3 md:gap-4 lg:gap-5"
+          className="max-w-[1240px] mx-auto px-2 sm:px-4 pt-2.5 pb-1.5 sm:py-3 flex items-center justify-between md:justify-start gap-1.5 sm:gap-3 md:gap-4 lg:gap-5"
         >
           {isMobileSearchOpen ? (
             /* Active Search Bar for Mobile */
@@ -481,7 +508,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Sub-bar Category Pills */}
-        <div className="max-w-[1240px] mx-auto px-2 sm:px-4 pb-2 pt-0.5 flex items-center justify-between gap-1.5 sm:gap-2">
+        <div className="max-w-[1240px] mx-auto px-2 sm:px-4 pb-2 pt-0 sm:pt-0.5 flex items-center justify-between gap-1.5 sm:gap-2">
           {/* Horizontally scrollable categories container */}
           <div className="flex-1 min-w-0 flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5">
             {/* Todo */}
@@ -693,7 +720,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
       )}
-    </header>
+      </header>
+    </>
   );
 };
 

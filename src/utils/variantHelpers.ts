@@ -1396,6 +1396,89 @@ export function getInformativeUnitPrice(setTotalPrice: number, unitsPerSet: numb
   return Math.round(setTotalPrice / safeUnits);
 }
 
+/**
+ * Devuelve el incremento de cantidad obligatorio de una publicación.
+ * Solo aplica cuando "Precios escalonados" está activo; en cualquier otro modo devuelve 1.
+ */
+export function getProductQuantityStep(
+  product: Product | Partial<Product> | null | undefined
+): number {
+  if (!isTieredPricingActive(product)) return 1;
+  const rawStep = (product as any)?.quantityStep ?? (product as any)?.quantity_step;
+  if (rawStep !== undefined && rawStep !== null && !isNaN(Number(rawStep)) && Number(rawStep) >= 1) {
+    return Math.floor(Number(rawStep));
+  }
+  return 1;
+}
+
+/**
+ * Devuelve la cantidad máxima comprable respetando tanto el stock disponible como el incremento de cantidad.
+ * Si el stock disponible es menor a un incremento completo, devuelve 0.
+ */
+export function getMaxValidQuantityForStock(maxStock: number, step: number): number {
+  const safeStep = Math.max(1, Math.floor(Number(step) || 1));
+  const safeStock = Math.max(0, Math.floor(Number(maxStock) || 0));
+  if (safeStock <= 0) return 0;
+  return Math.floor(safeStock / safeStep) * safeStep;
+}
+
+/**
+ * Normaliza una cantidad solicitada a un múltiplo válido del incremento configurado,
+ * acotada opcionalmente al stock disponible.
+ */
+export function normalizeQuantityToStep(
+  qty: number,
+  step: number,
+  maxStock?: number,
+  options?: { allowZero?: boolean; roundMode?: 'nearest' | 'ceil' | 'floor' }
+): number {
+  const safeStep = Math.max(1, Math.floor(Number(step) || 1));
+  const raw = Math.floor(Number(qty) || 0);
+  const allowZero = options?.allowZero === true;
+  const roundMode = options?.roundMode || 'nearest';
+
+  const hasStockCap = maxStock !== undefined && maxStock !== null && !isNaN(Number(maxStock)) && Number(maxStock) > 0;
+  const maxValid = hasStockCap ? getMaxValidQuantityForStock(Number(maxStock), safeStep) : 0;
+
+  if (hasStockCap && maxValid < safeStep) {
+    return 0;
+  }
+
+  if (raw <= 0) {
+    return allowZero ? 0 : safeStep;
+  }
+
+  let snapped: number;
+  if (safeStep === 1) {
+    snapped = Math.max(1, raw);
+  } else if (roundMode === 'floor') {
+    snapped = Math.max(safeStep, Math.floor(raw / safeStep) * safeStep);
+  } else if (roundMode === 'ceil') {
+    snapped = Math.max(safeStep, Math.ceil(raw / safeStep) * safeStep);
+  } else {
+    snapped = Math.max(safeStep, Math.round(raw / safeStep) * safeStep);
+  }
+
+  if (hasStockCap && snapped > maxValid) {
+    snapped = maxValid;
+  }
+
+  return snapped;
+}
+
+/**
+ * Verifica estrictamente si una cantidad es compatible con el incremento de cantidad del producto.
+ */
+export function isQuantityCompatibleWithStep(
+  product: Product | Partial<Product> | null | undefined,
+  quantity: number
+): boolean {
+  const step = getProductQuantityStep(product);
+  const num = Number(quantity);
+  if (!Number.isInteger(num) || num < step) return false;
+  return num % step === 0;
+}
+
 export interface TierProgressInfo {
   tiers: PriceTier[];
   activeTier: PriceTier | null;

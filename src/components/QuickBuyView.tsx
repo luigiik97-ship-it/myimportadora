@@ -43,6 +43,9 @@ import {
   buildCartQuantitiesIndex,
   calculateCartItemPricing,
   getEffectivePricingMode,
+  getProductQuantityStep,
+  getMaxValidQuantityForStock,
+  normalizeQuantityToStep,
 } from '../utils/variantHelpers';
 import { ImageWithSkeleton } from './common/ImageWithSkeleton';
 import { ProductImageLightbox } from './common/ProductImageLightbox';
@@ -79,6 +82,78 @@ export interface QuickBuyItem {
   category: string;
   minWholesaleQty: number;
 }
+
+const QuickBuyQuantityInput: React.FC<{
+  quantity: number;
+  maxStock: number;
+  quantityStep: number;
+  onRemove: () => void;
+  onSetQuantity: (qty: number) => void;
+}> = ({ quantity, maxStock, quantityStep, onRemove, onSetQuantity }) => {
+  const safeStep = Math.max(1, Math.floor(quantityStep || 1));
+  const maxValid = maxStock > 0 ? getMaxValidQuantityForStock(maxStock, safeStep) : 0;
+  const [localVal, setLocalVal] = useState<string>(String(quantity));
+
+  useEffect(() => {
+    setLocalVal(String(quantity));
+  }, [quantity]);
+
+  const commit = (rawStr: string) => {
+    const val = parseInt(rawStr, 10);
+    if (isNaN(val) || val <= 0) {
+      onRemove();
+      return;
+    }
+    const normalized = normalizeQuantityToStep(
+      val,
+      safeStep,
+      maxStock > 0 ? maxStock : undefined
+    );
+    if (normalized < safeStep) {
+      onRemove();
+      return;
+    }
+    setLocalVal(String(normalized));
+    if (normalized !== quantity) {
+      onSetQuantity(normalized);
+    }
+  };
+
+  return (
+    <input
+      type="number"
+      min={0}
+      step={safeStep}
+      max={maxValid > 0 ? maxValid : 999}
+      value={localVal}
+      onFocus={(e) => e.target.select()}
+      onChange={(e) => {
+        const raw = e.target.value;
+        setLocalVal(raw);
+        if (raw === '') return;
+        const val = parseInt(raw, 10);
+        if (isNaN(val) || val <= 0) {
+          if (safeStep === 1) onRemove();
+          return;
+        }
+        if (safeStep === 1) {
+          const clamped = maxStock > 0 ? Math.min(val, maxStock) : val;
+          onSetQuantity(clamped);
+        } else if (val >= safeStep && val % safeStep === 0 && (maxValid <= 0 || val <= maxValid)) {
+          onSetQuantity(val);
+        }
+      }}
+      onBlur={() => commit(localVal)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.currentTarget.blur();
+        }
+      }}
+      title={safeStep > 1 ? `Múltiplos de ${safeStep} unidades` : 'Cantidad'}
+      className="w-7 sm:w-10 md:w-11 h-[35px] sm:h-8 md:h-9 text-center text-xs sm:text-sm font-bold text-gray-900 focus:outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+    />
+  );
+};
 
 interface QuickBuyViewProps {
   products: Product[];
@@ -1079,7 +1154,9 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
     isFavoritesSection: boolean = false
   ) => {
     const currentCartQty = cartQuantityMap[item.itemId] || 0;
-    const isOutOfStock = item.stock <= 0;
+    const qtyStep = getProductQuantityStep(item.product);
+    const maxValidStock = item.stock > 0 ? getMaxValidQuantityForStock(item.stock, qtyStep) : 0;
+    const isOutOfStock = item.stock <= 0 || (qtyStep > 1 && maxValidStock < qtyStep);
 
     const isCash = deliveryOption === 'pickup' && paymentMethod === 'cash';
     const rowPricing = calculateCartItemPricing(
@@ -1158,7 +1235,7 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
             </div>
 
             {/* Variant chip & mode info */}
-            {(item.variantText || rowPricing.isSet || (rowPricing.isTiered && rowPricing.activeTier)) ? (
+            {(item.variantText || rowPricing.isSet || (rowPricing.isTiered && (rowPricing.activeTier || qtyStep > 1))) ? (
               <div className="flex items-center gap-1 pt-0.5 flex-wrap">
                 {item.variantText && (
                   <span className="inline-flex items-center font-bold text-xs text-[#0058bb] bg-blue-50 border border-blue-200/70 px-1.5 sm:px-2 py-0.5 rounded-md leading-none truncate max-w-full">
@@ -1173,6 +1250,11 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                 {rowPricing.isTiered && rowPricing.activeTier && (
                   <span className="inline-flex items-center font-semibold text-[10.5px] sm:text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md leading-none whitespace-nowrap">
                     Escalón {rowPricing.activeTier.minQty}+
+                  </span>
+                )}
+                {rowPricing.isTiered && qtyStep > 1 && (
+                  <span className="inline-flex items-center font-semibold text-[10px] sm:text-[11px] text-[#0058bb] bg-blue-50/70 border border-blue-200/80 px-1.5 py-0.5 rounded-md leading-none whitespace-nowrap">
+                    De a {qtyStep} u.
                   </span>
                 )}
               </div>
@@ -1217,11 +1299,12 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                     item.product,
                     undefined,
                     undefined,
-                    1,
+                    qtyStep,
                     item.image,
                     item.selectedVariants
                   )
                 }
+                title={qtyStep > 1 ? `Agregar ${qtyStep} unidades` : 'Agregar al carrito'}
                 className="bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold text-xs sm:text-sm rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 cursor-pointer active:scale-95 w-[88px] sm:w-[108px] md:w-[120px] h-[39px] sm:h-[36px] md:h-[40px] shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -1232,43 +1315,38 @@ export const QuickBuyView: React.FC<QuickBuyViewProps> = ({
                 <button
                   type="button"
                   id={`quick-dec-${item.itemId}`}
-                  onClick={() => onUpdateCartQuantity(item.itemId, -1)}
+                  onClick={() => onUpdateCartQuantity(item.itemId, -qtyStep)}
                   className="w-7 h-[35px] sm:w-8 sm:h-8 md:w-9 md:h-9 flex items-center justify-center text-[#0058bb] hover:bg-blue-50 transition-colors cursor-pointer active:bg-blue-100"
-                  title="Disminuir cantidad"
+                  title={qtyStep > 1 ? `Restar ${qtyStep} unidades` : 'Disminuir cantidad'}
                 >
                   <Minus className="w-3.5 h-3.5" />
                 </button>
 
-                <input
-                  type="number"
-                  min={0}
-                  max={item.stock > 0 ? item.stock : 999}
-                  value={currentCartQty}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value, 10);
-                    if (isNaN(val) || val <= 0) {
-                      onRemoveCartItem(item.itemId);
-                    } else {
-                      const clamped = item.stock > 0 ? Math.min(val, item.stock) : val;
-                      onSetCartItemQuantity(item.product, item.selectedVariants, item.image, clamped);
-                    }
-                  }}
-                  className="w-7 sm:w-10 md:w-11 h-[35px] sm:h-8 md:h-9 text-center text-xs sm:text-sm font-bold text-gray-900 focus:outline-none bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                <QuickBuyQuantityInput
+                  quantity={currentCartQty}
+                  maxStock={item.stock}
+                  quantityStep={qtyStep}
+                  onRemove={() => onRemoveCartItem(item.itemId)}
+                  onSetQuantity={(qty) =>
+                    onSetCartItemQuantity(item.product, item.selectedVariants, item.image, qty)
+                  }
                 />
 
                 <button
                   type="button"
                   id={`quick-inc-${item.itemId}`}
-                  disabled={item.stock > 0 && currentCartQty >= item.stock}
-                  onClick={() => onUpdateCartQuantity(item.itemId, 1)}
+                  disabled={item.stock > 0 && currentCartQty + qtyStep > maxValidStock}
+                  onClick={() => onUpdateCartQuantity(item.itemId, qtyStep)}
                   className={`w-7 h-[35px] sm:w-8 sm:h-8 md:w-9 md:h-9 flex items-center justify-center text-[#0058bb] hover:bg-blue-50 transition-colors cursor-pointer active:bg-blue-100 ${
-                    item.stock > 0 && currentCartQty >= item.stock
+                    item.stock > 0 && currentCartQty + qtyStep > maxValidStock
                       ? 'opacity-30 cursor-not-allowed'
                       : ''
                   }`}
                   title={
-                    item.stock > 0 && currentCartQty >= item.stock
+                    item.stock > 0 && currentCartQty + qtyStep > maxValidStock
                       ? 'Stock máximo alcanzado'
+                      : qtyStep > 1
+                      ? `Sumar ${qtyStep} unidades`
                       : 'Aumentar cantidad'
                   }
                 >

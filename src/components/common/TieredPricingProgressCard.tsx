@@ -9,6 +9,7 @@ interface TieredPricingProgressCardProps {
   minWholesaleQty?: number;
   isCashMode: boolean;
   compact?: boolean;
+  isProductDetail?: boolean;
   className?: string;
   frameless?: boolean;
   messageClassName?: string;
@@ -20,10 +21,13 @@ export const TieredPricingProgressCard: React.FC<TieredPricingProgressCardProps>
   minWholesaleQty = 1,
   isCashMode,
   compact = false,
+  isProductDetail = false,
   className = '',
   frameless = false,
-  messageClassName = 'text-xs sm:text-sm',
+  messageClassName,
 }) => {
+  const effectiveMessageClassName =
+    messageClassName ?? (isProductDetail ? 'text-sm sm:text-sm' : 'text-xs sm:text-sm');
   const [showAllTiers, setShowAllTiers] = useState(false);
 
   if (!tiers || tiers.length === 0) return null;
@@ -59,13 +63,21 @@ export const TieredPricingProgressCard: React.FC<TieredPricingProgressCardProps>
     >
       {/* Encabezado de estado */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <span className="font-bold text-[14px] sm:text-[14.5px] text-gray-900 leading-tight">
+        <span
+          className={`font-bold text-gray-900 leading-tight ${
+            isProductDetail ? 'text-sm sm:text-[14.5px]' : 'text-[14px] sm:text-[14.5px]'
+          }`}
+        >
           {activeTier
             ? `Escalón alcanzado: desde ${activeTier.minQty} ${activeTier.minQty === 1 ? 'unidad' : 'unidades'}`
             : 'Precios escalonados por cantidad'}
         </span>
         {currentQty > 0 && (
-          <span className="text-[11px] font-semibold text-gray-500">
+          <span
+            className={`font-semibold text-gray-500 ${
+              isProductDetail ? 'hidden' : 'text-[11px]'
+            }`}
+          >
             {currentQty} {currentQty === 1 ? 'unidad' : 'unidades'}
           </span>
         )}
@@ -97,7 +109,7 @@ export const TieredPricingProgressCard: React.FC<TieredPricingProgressCardProps>
 
       {/* Mensaje de avance al siguiente escalón */}
       <p
-        className={`${messageClassName} leading-tight ${
+        className={`${effectiveMessageClassName} leading-tight ${
           isTopTierReached
             ? 'text-[#00a650] font-semibold'
             : activeTier
@@ -133,7 +145,9 @@ export const TieredPricingProgressCard: React.FC<TieredPricingProgressCardProps>
             return (
               <div
                 key={tier.id || tier.minQty}
-                className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-colors ${
+                  isProductDetail ? 'text-sm sm:text-xs' : 'text-xs'
+                } ${
                   isCurrentActive
                     ? 'bg-emerald-50 border border-emerald-200 text-emerald-900 font-bold'
                     : isReached
@@ -157,7 +171,13 @@ export const TieredPricingProgressCard: React.FC<TieredPricingProgressCardProps>
                   >
                     ${tierPrice.toLocaleString('es-AR')}
                   </span>
-                  <span className="text-[10.5px] text-gray-500 font-normal">c/u</span>
+                  <span
+                    className={`text-gray-500 font-normal ${
+                      isProductDetail ? 'text-sm sm:text-[10.5px]' : 'text-[10.5px]'
+                    }`}
+                  >
+                    c/u
+                  </span>
                 </div>
               </div>
             );
@@ -167,7 +187,9 @@ export const TieredPricingProgressCard: React.FC<TieredPricingProgressCardProps>
             <button
               type="button"
               onClick={() => setShowAllTiers((prev) => !prev)}
-              className="w-full pt-1 text-xs font-semibold text-[#0058bb] hover:text-[#004494] flex items-center justify-center gap-1 transition-colors cursor-pointer"
+              className={`w-full pt-1 font-semibold text-[#0058bb] hover:text-[#004494] flex items-center justify-center gap-1 transition-colors cursor-pointer ${
+                isProductDetail ? 'text-sm sm:text-xs' : 'text-xs'
+              }`}
             >
               <span>{showAllTiers ? 'Ver menos precios' : 'Ver todos los precios'}</span>
               {showAllTiers ? (

@@ -1,5 +1,11 @@
 import { CartItem, Product } from '../types';
-import { getSelectedVariantStock } from './variantHelpers';
+import {
+  getSelectedVariantStock,
+  getProductQuantityStep,
+  getMaxValidQuantityForStock,
+  normalizeQuantityToStep,
+  isQuantityCompatibleWithStep,
+} from './variantHelpers';
 
 export interface CartStockAlert {
   id: string;
@@ -21,8 +27,9 @@ export interface StockValidationResult {
 
 /**
  * Valida de forma estricta el stock del carrito contra el catálogo actual.
- * - Si un producto o variante está agotado (stock <= 0), se retira del carrito.
- * - Si el stock disminuyó pero queda disponibilidad (0 < stock < cantidad), se ajusta a la cantidad máxima disponible.
+ * - Si un producto o variante está agotado (stock <= 0 o menor al incremento mínimo), se retira del carrito.
+ * - Si el stock disminuyó pero queda disponibilidad (0 < stock < cantidad), se ajusta a la cantidad máxima válida.
+ * - En productos con incremento de cantidad (precios escalonados), garantiza múltiplos exactos del incremento.
  * - Genera avisos descriptivos que permanecen visibles en el carrito hasta que el cliente los cierre con la X.
  * - No reserva stock en base de datos.
  */
@@ -57,6 +64,8 @@ export function validateCartStock(
     }
 
     const availableStock = getSelectedVariantStock(liveProduct, item.selectedVariants || {});
+    const qtyStep = getProductQuantityStep(liveProduct);
+    const maxValidStock = getMaxValidQuantityForStock(availableStock, qtyStep);
 
     const variantLabel =
       item.variantText ||
@@ -65,13 +74,16 @@ export function validateCartStock(
         : '');
     const variantDesc = variantLabel ? ` (${variantLabel})` : '';
 
-    if (availableStock <= 0) {
+    if (availableStock <= 0 || maxValidStock < qtyStep) {
       hasChanges = true;
       hasOutOfStock = true;
       alerts.push({
         id: `oos-${item.id}-${Date.now()}`,
         type: 'out_of_stock',
-        message: `"${liveProduct.title}${variantDesc}" se encuentra agotado y fue retirado de tu carrito.`,
+        message:
+          availableStock <= 0
+            ? `"${liveProduct.title}${variantDesc}" se encuentra agotado y fue retirado de tu carrito.`
+            : `"${liveProduct.title}${variantDesc}" no cuenta con stock suficiente para el incremento mínimo de ${qtyStep} unidades y fue retirado de tu carrito.`,
         productTitle: liveProduct.title,
         variantText: variantLabel || undefined,
         productId: item.productId,
@@ -80,24 +92,32 @@ export function validateCartStock(
       continue;
     }
 
-    if (item.quantity > availableStock) {
+    const isIncompatibleStep = !isQuantityCompatibleWithStep(liveProduct, item.quantity);
+
+    if (item.quantity > maxValidStock || isIncompatibleStep) {
+      const adjustedQty = normalizeQuantityToStep(item.quantity, qtyStep, availableStock, {
+        roundMode: item.quantity > maxValidStock ? 'floor' : 'nearest',
+      });
       hasChanges = true;
       hasReducedStock = true;
       alerts.push({
         id: `red-${item.id}-${Date.now()}`,
         type: 'reduced_stock',
-        message: `El stock disponible de "${liveProduct.title}${variantDesc}" cambió. Ajustamos la cantidad en tu carrito a ${availableStock} unidad${availableStock > 1 ? 'es' : ''}.`,
+        message:
+          item.quantity > maxValidStock
+            ? `El stock disponible de "${liveProduct.title}${variantDesc}" cambió. Ajustamos la cantidad en tu carrito a ${adjustedQty} unidad${adjustedQty > 1 ? 'es' : ''}.`
+            : `"${liveProduct.title}${variantDesc}" se vende en incrementos de ${qtyStep} unidades. Ajustamos la cantidad a ${adjustedQty} unidades.`,
         productTitle: liveProduct.title,
         variantText: variantLabel || undefined,
         productId: item.productId,
-        availableStock,
+        availableStock: maxValidStock,
       });
 
       updatedCart.push({
         ...item,
         product: liveProduct,
-        quantity: availableStock,
-        totalPrice: item.unitPrice * availableStock,
+        quantity: adjustedQty,
+        totalPrice: item.unitPrice * adjustedQty,
       });
     } else {
       updatedCart.push({

@@ -15,6 +15,8 @@ import {
   buildCartQuantitiesIndex,
   calculateCartItemPricing,
   getNormalizedPriceTiers,
+  getProductQuantityStep,
+  isQuantityCompatibleWithStep,
 } from '../utils/variantHelpers';
 import { isAdminAuthenticated, requireAdminAuth } from './adminAuth';
 import {
@@ -185,6 +187,7 @@ export const hasProductsDataChanged = (prev: Product[], next: Product[]): boolea
     if ((a.images?.length || 0) !== (b.images?.length || 0)) return true;
     if (a.additionalImage !== b.additionalImage) return true;
     if ((a.pricingMode || 'normal') !== (b.pricingMode || 'normal')) return true;
+    if ((a.quantityStep || 1) !== (b.quantityStep || 1)) return true;
     if ((a.defaultSetUnits || 0) !== (b.defaultSetUnits || 0)) return true;
     if (JSON.stringify(a.priceTiers || []) !== JSON.stringify(b.priceTiers || [])) return true;
     if (JSON.stringify(a.variantTypes || []) !== JSON.stringify(b.variantTypes || [])) return true;
@@ -746,6 +749,7 @@ function extractProductPricingMeta(
 ): {
   pricingMode: ProductPricingMode;
   priceTiers: PriceTier[];
+  quantityStep?: number;
   defaultSetUnits?: number;
 } {
   let pricingMode: ProductPricingMode = 'normal';
@@ -785,6 +789,19 @@ function extractProductPricingMeta(
     ? getNormalizedPriceTiers({ priceTiers: rawTiers })
     : [];
 
+  let quantityStep: number | undefined = undefined;
+  const rawQtyStep = item?.quantity_step ?? item?.quantityStep;
+  if (rawQtyStep !== undefined && rawQtyStep !== null && !isNaN(Number(rawQtyStep)) && Number(rawQtyStep) >= 1) {
+    quantityStep = Math.floor(Number(rawQtyStep));
+  } else if (Array.isArray(rawSpecs)) {
+    const stepSpec = rawSpecs.find(
+      (s: any) => s && (s.key === '__quantity_step' || s.label === '__quantity_step')
+    );
+    if (stepSpec && stepSpec.value && !isNaN(Number(stepSpec.value)) && Number(stepSpec.value) >= 1) {
+      quantityStep = Math.floor(Number(stepSpec.value));
+    }
+  }
+
   let defaultSetUnits: number | undefined = undefined;
   const rawSetUnits = item?.default_set_units ?? item?.defaultSetUnits;
   if (rawSetUnits !== undefined && rawSetUnits !== null && !isNaN(Number(rawSetUnits)) && Number(rawSetUnits) >= 1) {
@@ -798,7 +815,7 @@ function extractProductPricingMeta(
     }
   }
 
-  return { pricingMode, priceTiers, defaultSetUnits };
+  return { pricingMode, priceTiers, quantityStep, defaultSetUnits };
 }
 
 export const fetchProducts = async (options?: { force?: boolean }): Promise<Product[]> => {
@@ -982,6 +999,7 @@ export const fetchProducts = async (options?: { force?: boolean }): Promise<Prod
                 wholesaleCashPrice: resolvedWholesaleCashPrice,
                 pricingMode: pricingMeta.pricingMode,
                 priceTiers: pricingMeta.priceTiers,
+                quantityStep: pricingMeta.quantityStep,
                 defaultSetUnits: pricingMeta.defaultSetUnits,
                 colors,
                 sizeVariants,
@@ -1190,6 +1208,7 @@ export const fetchSingleProduct = async (id: string): Promise<Product | null> =>
       wholesaleCashPrice: resolvedWholesaleCashPrice,
       pricingMode: pricingMeta.pricingMode,
       priceTiers: pricingMeta.priceTiers,
+      quantityStep: pricingMeta.quantityStep,
       defaultSetUnits: pricingMeta.defaultSetUnits,
       colors,
       sizeVariants,
@@ -1269,6 +1288,10 @@ export const createProduct = async (product: Omit<Product, 'id'> & { id?: string
   const normalizedCreatePriceTiers: PriceTier[] = Array.isArray(newProduct.priceTiers)
     ? getNormalizedPriceTiers({ priceTiers: newProduct.priceTiers })
     : [];
+  const normalizedCreateQuantityStep =
+    newProduct.quantityStep !== undefined && !isNaN(Number(newProduct.quantityStep)) && Number(newProduct.quantityStep) >= 1
+      ? Math.floor(Number(newProduct.quantityStep))
+      : undefined;
   const normalizedCreateSetUnits =
     newProduct.defaultSetUnits !== undefined && !isNaN(Number(newProduct.defaultSetUnits)) && Number(newProduct.defaultSetUnits) >= 1
       ? Math.floor(Number(newProduct.defaultSetUnits))
@@ -1280,6 +1303,9 @@ export const createProduct = async (product: Omit<Product, 'id'> & { id?: string
     { label: '__pricing_mode', value: normalizedCreatePricingMode },
     ...(normalizedCreatePriceTiers.length > 0
       ? [{ label: '__tiered_pricing', value: JSON.stringify(normalizedCreatePriceTiers) }]
+      : []),
+    ...(normalizedCreateQuantityStep !== undefined && normalizedCreateQuantityStep > 1
+      ? [{ label: '__quantity_step', value: String(normalizedCreateQuantityStep) }]
       : []),
     ...(normalizedCreateSetUnits !== undefined
       ? [{ label: '__default_set_units', value: String(normalizedCreateSetUnits) }]
@@ -1365,6 +1391,7 @@ export const createProduct = async (product: Omit<Product, 'id'> & { id?: string
   newProduct.wholesaleCashPrice = targetWholesaleCashPrice;
   newProduct.pricingMode = normalizedCreatePricingMode;
   newProduct.priceTiers = normalizedCreatePriceTiers;
+  newProduct.quantityStep = normalizedCreateQuantityStep;
   newProduct.defaultSetUnits = normalizedCreateSetUnits;
 
   // Always update local cache
@@ -1440,6 +1467,13 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
       ? getNormalizedPriceTiers({ priceTiers: updates.priceTiers })
       : (Array.isArray(existingProduct?.priceTiers) ? existingProduct.priceTiers : []);
 
+  const rawTargetQtyStep =
+    updates.quantityStep !== undefined ? updates.quantityStep : existingProduct?.quantityStep;
+  const targetQuantityStep =
+    rawTargetQtyStep !== undefined && rawTargetQtyStep !== null && !isNaN(Number(rawTargetQtyStep)) && Number(rawTargetQtyStep) >= 1
+      ? Math.floor(Number(rawTargetQtyStep))
+      : undefined;
+
   const rawTargetSetUnits =
     updates.defaultSetUnits !== undefined ? updates.defaultSetUnits : existingProduct?.defaultSetUnits;
   const targetDefaultSetUnits =
@@ -1453,6 +1487,9 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
     { label: '__pricing_mode', value: targetPricingMode },
     ...(targetPriceTiers.length > 0
       ? [{ label: '__tiered_pricing', value: JSON.stringify(targetPriceTiers) }]
+      : []),
+    ...(targetQuantityStep !== undefined && targetQuantityStep > 1
+      ? [{ label: '__quantity_step', value: String(targetQuantityStep) }]
       : []),
     ...(targetDefaultSetUnits !== undefined
       ? [{ label: '__default_set_units', value: String(targetDefaultSetUnits) }]
@@ -1567,6 +1604,7 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
         wholesaleCashPrice: targetWholesaleCashPrice,
         pricingMode: targetPricingMode,
         priceTiers: targetPriceTiers,
+        quantityStep: targetQuantityStep,
         defaultSetUnits: targetDefaultSetUnits,
         tagId: updates.tagId !== undefined ? updates.tagId : existingProduct?.tagId,
         tag: updates.tag !== undefined ? updates.tag : existingProduct?.tag,
@@ -1587,6 +1625,7 @@ export const updateProduct = async (id: string, updates: Partial<Product>): Prom
         wholesaleCashPrice: targetWholesaleCashPrice,
         pricingMode: targetPricingMode,
         priceTiers: targetPriceTiers,
+        quantityStep: targetQuantityStep,
         defaultSetUnits: targetDefaultSetUnits,
         colors,
         sizeVariants,
@@ -2102,6 +2141,7 @@ export const verifyAndSanitizeOrderPayload = async (
               wholesaleCashPrice: cashPrices.wholesaleCashPrice,
               pricingMode: pricingMeta.pricingMode,
               priceTiers: pricingMeta.priceTiers,
+              quantityStep: pricingMeta.quantityStep,
               defaultSetUnits: pricingMeta.defaultSetUnits,
               colors: Array.isArray(item.colors) ? item.colors : [],
               sizeVariants: Array.isArray(item.size_variants) ? item.size_variants : cleanSizeVariantsList(item.sizeVariants || []),
@@ -2189,6 +2229,14 @@ export const verifyAndSanitizeOrderPayload = async (
       const variantDesc = it.variantText ? ` (${it.variantText})` : '';
       console.warn(`[SEGURIDAD STOCK] Intento de compra sobre stock disponible bloqueado: "${prod.title}${variantDesc}". Solicitado: ${qty}, Disponible: ${availableStock}`);
       throw new Error(`Stock insuficiente para "${prod.title}${variantDesc}". Disponibles: ${availableStock}, solicitadas: ${qty}.`);
+    }
+
+    // Validación estricta de incremento de cantidad en precios escalonados
+    if (!isQuantityCompatibleWithStep(prod, qty)) {
+      const step = getProductQuantityStep(prod);
+      const variantDesc = it.variantText ? ` (${it.variantText})` : '';
+      console.warn(`[SEGURIDAD INCREMENTO] Cantidad incompatible bloqueada para "${prod.title}${variantDesc}". Solicitado: ${qty}, Incremento: ${step}`);
+      throw new Error(`El producto "${prod.title}${variantDesc}" solo permite compras en incrementos de ${step} unidades (ej: ${step}, ${step * 2}, ${step * 3}...). Cantidad solicitada: ${qty}.`);
     }
 
     // Motor canónico único de precios (soporta normal, precios escalonados y venta por set desde 1 set)

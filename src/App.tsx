@@ -31,6 +31,10 @@ import {
   getVariantPrimaryImage,
   buildCartQuantitiesIndex,
   calculateCartItemPricing,
+  getProductQuantityStep,
+  getMaxValidQuantityForStock,
+  normalizeQuantityToStep,
+  isQuantityCompatibleWithStep,
 } from './utils/variantHelpers';
 import { validateCartStock, CartStockAlert, StockValidationResult } from './utils/stockValidation';
 import { slugifyCategory, reconcileCategoriesWithProducts } from './utils/categoryHelpers';
@@ -92,6 +96,7 @@ const serializeCartForStorage = (items: CartItem[]) => {
       cashPrice: item.product.cashPrice,
       pricingMode: item.product.pricingMode,
       priceTiers: item.product.priceTiers,
+      quantityStep: item.product.quantityStep,
       defaultSetUnits: item.product.defaultSetUnits,
       stock: item.product.stock,
       colors: item.product.colors,
@@ -372,6 +377,7 @@ export default function App() {
             retailPrice: item.product?.retailPrice || item.unitPrice,
             pricingMode: item.product?.pricingMode,
             priceTiers: item.product?.priceTiers,
+            quantityStep: item.product?.quantityStep,
             defaultSetUnits: item.product?.defaultSetUnits,
             stock: item.product?.stock || 99,
           },
@@ -439,10 +445,25 @@ export default function App() {
               resolvedImage = matchingProduct.images?.[0] || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
             }
 
+            const hydratedStep = getProductQuantityStep(matchingProduct);
+            const hydratedStock = getSelectedVariantStock(matchingProduct, cartItem.selectedVariants || {});
+            let hydratedQty = cartItem.quantity;
+            if (hydratedStep > 1 && !isQuantityCompatibleWithStep(matchingProduct, hydratedQty)) {
+              const adjusted = normalizeQuantityToStep(
+                hydratedQty,
+                hydratedStep,
+                hydratedStock > 0 ? hydratedStock : undefined
+              );
+              if (adjusted >= hydratedStep) {
+                hydratedQty = adjusted;
+              }
+            }
+
             hasChanges = true;
             return {
               ...cartItem,
               product: matchingProduct,
+              quantity: hydratedQty,
               selectedSizeVariant: updatedSizeVariant,
               selectedImage: resolvedImage,
             };
@@ -690,7 +711,24 @@ export default function App() {
         : `${selectedColor || 'none'}-${selectedSizeVariant?.id || 'none'}`;
 
     const itemKey = `${product.id}-${variantSuffix}`;
-    const maxAvailableStock = getSelectedVariantStock(product, selectedVariants || {});
+    const liveProduct = products.find((p) => p.id === product.id) || product;
+    const maxAvailableStock = getSelectedVariantStock(liveProduct, selectedVariants || {});
+    const qtyStep = getProductQuantityStep(liveProduct);
+    const maxValidStock =
+      maxAvailableStock > 0 ? getMaxValidQuantityForStock(maxAvailableStock, qtyStep) : 0;
+
+    if (maxAvailableStock > 0 && maxValidStock < qtyStep) {
+      return;
+    }
+
+    const normalizedAddQty = normalizeQuantityToStep(
+      quantity,
+      qtyStep,
+      maxAvailableStock > 0 ? maxAvailableStock : undefined
+    );
+    if (normalizedAddQty < qtyStep) {
+      return;
+    }
 
     // Resolver la imagen principal de la variante:
     // La imagen de referencia del artículo en el carrito SIEMPRE debe ser la primera imagen (posición 0) de la variante seleccionada,
@@ -702,12 +740,12 @@ export default function App() {
 
     const variantPrimaryImage = hasVariantSelected
       ? getVariantPrimaryImage(
-          product,
+          liveProduct,
           selectedVariants || (selectedColor ? { 'vt-color': selectedColor, 'Color / Modelo': selectedColor } : {})
         )
-      : (selectedImage || getProductCoverImage(product));
+      : (selectedImage || getProductCoverImage(liveProduct));
 
-    const resolvedImage = variantPrimaryImage || selectedImage || getProductCoverImage(product);
+    const resolvedImage = variantPrimaryImage || selectedImage || getProductCoverImage(liveProduct);
 
     let actuallyAddedQty = 0;
 
@@ -717,24 +755,30 @@ export default function App() {
       if (existingIdx !== -1) {
         const updated = [...prev];
         const currentQty = updated[existingIdx].quantity;
-        let targetQty = currentQty + quantity;
-        if (maxAvailableStock > 0 && targetQty > maxAvailableStock) {
-          targetQty = maxAvailableStock;
+        let targetQty = normalizeQuantityToStep(
+          currentQty + normalizedAddQty,
+          qtyStep,
+          maxAvailableStock > 0 ? maxAvailableStock : undefined,
+          { roundMode: 'floor' }
+        );
+        if (maxAvailableStock > 0 && targetQty > maxValidStock) {
+          targetQty = maxValidStock;
         }
         actuallyAddedQty = Math.max(0, targetQty - currentQty);
+        updated[existingIdx].product = liveProduct;
         updated[existingIdx].quantity = targetQty;
         // Garantizar que la imagen del carrito sea la primera imagen de la variante
         updated[existingIdx].selectedImage = resolvedImage;
         updatedList = updated;
       } else {
         const wholesaleUnitPrice = getItemEffectiveNormalPrice(
-          product,
+          liveProduct,
           selectedVariants,
           selectedSizeVariant,
           true
         );
 
-        const finalQty = maxAvailableStock > 0 ? Math.min(quantity, maxAvailableStock) : quantity;
+        const finalQty = maxAvailableStock > 0 ? Math.min(normalizedAddQty, maxValidStock) : normalizedAddQty;
         actuallyAddedQty = Math.max(0, finalQty);
 
         const rawVariantList: string[] =
@@ -745,8 +789,8 @@ export default function App() {
 
         const newItem: CartItem = {
           id: itemKey,
-          productId: product.id,
-          product,
+          productId: liveProduct.id,
+          product: liveProduct,
           selectedColor,
           selectedSizeVariant,
           selectedVariants,
@@ -849,14 +893,20 @@ export default function App() {
           if (item.id === id) {
             const liveProduct = products.find((p) => p.id === item.productId) || item.product;
             const maxStock = getSelectedVariantStock(liveProduct, item.selectedVariants || {});
+            const qtyStep = getProductQuantityStep(liveProduct);
+            const maxValidStock =
+              maxStock > 0 ? getMaxValidQuantityForStock(maxStock, qtyStep) : 0;
 
-            // Si el producto se agotó, retirarlo automáticamente del carrito
-            if (maxStock <= 0) {
+            // Si el producto se agotó o no alcanza para un incremento completo, retirarlo automáticamente
+            if (maxStock <= 0 || maxValidStock < qtyStep) {
               const variantDesc = item.variantText ? ` (${item.variantText})` : '';
               alertToAdd = {
                 id: `oos-${item.id}-${Date.now()}`,
                 type: 'out_of_stock',
-                message: `"${item.product.title}${variantDesc}" se encuentra agotado y fue retirado de tu carrito.`,
+                message:
+                  maxStock <= 0
+                    ? `"${item.product.title}${variantDesc}" se encuentra agotado y fue retirado de tu carrito.`
+                    : `"${item.product.title}${variantDesc}" no cuenta con stock suficiente para el incremento mínimo de ${qtyStep} unidades y fue retirado de tu carrito.`,
                 productTitle: item.product.title,
                 variantText: item.variantText,
                 productId: item.productId,
@@ -865,19 +915,30 @@ export default function App() {
               return null;
             }
 
-            let newQty = item.quantity + delta;
-            // Si el stock solo baja o el usuario supera el disponible, ajustar la cantidad máxima y mostrar aviso
-            if (maxStock > 0 && newQty > maxStock) {
-              newQty = maxStock;
+            const rawNextQty = item.quantity + delta;
+            if (rawNextQty <= 0) {
+              return null;
+            }
+
+            let newQty =
+              qtyStep > 1
+                ? normalizeQuantityToStep(rawNextQty, qtyStep, maxStock, {
+                    roundMode: delta > 0 ? 'ceil' : 'floor',
+                  })
+                : rawNextQty;
+
+            // Si el stock solo baja o el usuario supera el disponible, ajustar a la cantidad máxima válida y mostrar aviso
+            if (maxStock > 0 && (rawNextQty > maxValidStock || newQty > maxValidStock)) {
+              newQty = maxValidStock;
               const variantDesc = item.variantText ? ` (${item.variantText})` : '';
               alertToAdd = {
                 id: `red-${item.id}-${Date.now()}`,
                 type: 'reduced_stock',
-                message: `El stock disponible de "${item.product.title}${variantDesc}" es de ${maxStock} unidad${maxStock > 1 ? 'es' : ''}. Cantidad ajustada.`,
+                message: `El stock disponible de "${item.product.title}${variantDesc}" es de ${maxStock} unidad${maxStock > 1 ? 'es' : ''}. Cantidad ajustada a ${maxValidStock}.`,
                 productTitle: item.product.title,
                 variantText: item.variantText,
                 productId: item.productId,
-                availableStock: maxStock,
+                availableStock: maxValidStock,
               };
             }
             return newQty > 0
@@ -916,13 +977,19 @@ export default function App() {
           if (item.id === id) {
             const liveProduct = products.find((p) => p.id === item.productId) || item.product;
             const maxStock = getSelectedVariantStock(liveProduct, item.selectedVariants || {});
+            const qtyStep = getProductQuantityStep(liveProduct);
+            const maxValidStock =
+              maxStock > 0 ? getMaxValidQuantityForStock(maxStock, qtyStep) : 0;
 
-            if (maxStock <= 0) {
+            if (maxStock <= 0 || maxValidStock < qtyStep) {
               const variantDesc = item.variantText ? ` (${item.variantText})` : '';
               alertToAdd = {
                 id: `oos-${item.id}-${Date.now()}`,
                 type: 'out_of_stock',
-                message: `"${item.product.title}${variantDesc}" se encuentra agotado y fue retirado de tu carrito.`,
+                message:
+                  maxStock <= 0
+                    ? `"${item.product.title}${variantDesc}" se encuentra agotado y fue retirado de tu carrito.`
+                    : `"${item.product.title}${variantDesc}" no cuenta con stock suficiente para el incremento mínimo de ${qtyStep} unidades y fue retirado de tu carrito.`,
                 productTitle: item.product.title,
                 variantText: item.variantText,
                 productId: item.productId,
@@ -931,18 +998,22 @@ export default function App() {
               return null;
             }
 
-            let finalQty = targetQty;
-            if (maxStock > 0 && targetQty > maxStock) {
-              finalQty = maxStock;
+            let finalQty = normalizeQuantityToStep(
+              targetQty,
+              qtyStep,
+              maxStock > 0 ? maxStock : undefined
+            );
+            if (maxStock > 0 && targetQty > maxValidStock) {
+              finalQty = maxValidStock;
               const variantDesc = item.variantText ? ` (${item.variantText})` : '';
               alertToAdd = {
                 id: `red-${item.id}-${Date.now()}`,
                 type: 'reduced_stock',
-                message: `El stock disponible de "${item.product.title}${variantDesc}" es de ${maxStock} unidad${maxStock > 1 ? 'es' : ''}. Cantidad ajustada.`,
+                message: `El stock disponible de "${item.product.title}${variantDesc}" es de ${maxStock} unidad${maxStock > 1 ? 'es' : ''}. Cantidad ajustada a ${maxValidStock}.`,
                 productTitle: item.product.title,
                 variantText: item.variantText,
                 productId: item.productId,
-                availableStock: maxStock,
+                availableStock: maxValidStock,
               };
             }
             return {
@@ -987,15 +1058,21 @@ export default function App() {
     const itemId = `${product.id}-${variantIdPart}`;
     const liveProduct = products.find((p) => p.id === product.id) || product;
     const maxAvailableStock = getSelectedVariantStock(liveProduct, selectedVariants || {});
+    const qtyStep = getProductQuantityStep(liveProduct);
+    const maxValidStock =
+      maxAvailableStock > 0 ? getMaxValidQuantityForStock(maxAvailableStock, qtyStep) : 0;
 
     if (targetQty <= 0) {
       handleRemoveCartItem(itemId);
       return;
     }
 
-    if (maxAvailableStock <= 0) {
+    if (maxAvailableStock <= 0 || maxValidStock < qtyStep) {
       handleRemoveCartItem(itemId);
-      const msg = `"${product.title}" se encuentra agotado y fue retirado de tu carrito.`;
+      const msg =
+        maxAvailableStock <= 0
+          ? `"${product.title}" se encuentra agotado y fue retirado de tu carrito.`
+          : `"${product.title}" no cuenta con stock suficiente para el incremento mínimo de ${qtyStep} unidades y fue retirado de tu carrito.`;
       setCartStockAlerts((prevAlerts) => {
         if (prevAlerts.some((a) => a.message === msg)) return prevAlerts;
         return [
@@ -1013,10 +1090,14 @@ export default function App() {
       return;
     }
 
-    let finalQty = targetQty;
-    if (maxAvailableStock > 0 && targetQty > maxAvailableStock) {
-      finalQty = maxAvailableStock;
-      const msg = `El stock disponible de "${product.title}" es de ${maxAvailableStock} unidad${maxAvailableStock > 1 ? 'es' : ''}. Cantidad ajustada.`;
+    let finalQty = normalizeQuantityToStep(
+      targetQty,
+      qtyStep,
+      maxAvailableStock > 0 ? maxAvailableStock : undefined
+    );
+    if (maxAvailableStock > 0 && targetQty > maxValidStock) {
+      finalQty = maxValidStock;
+      const msg = `El stock disponible de "${product.title}" es de ${maxAvailableStock} unidad${maxAvailableStock > 1 ? 'es' : ''}. Cantidad ajustada a ${maxValidStock}.`;
       setCartStockAlerts((prevAlerts) => {
         if (prevAlerts.some((a) => a.message === msg)) return prevAlerts;
         return [
@@ -1027,7 +1108,7 @@ export default function App() {
             message: msg,
             productTitle: product.title,
             productId: product.id,
-            availableStock: maxAvailableStock,
+            availableStock: maxValidStock,
           },
         ];
       });

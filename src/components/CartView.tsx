@@ -8,6 +8,9 @@ import {
   buildCartQuantitiesIndex,
   calculateCartItemPricing,
   getNormalizedPriceTiers,
+  getProductQuantityStep,
+  getMaxValidQuantityForStock,
+  normalizeQuantityToStep,
 } from '../utils/variantHelpers';
 import { usePurchaseMode } from '../context/PurchaseModeContext';
 import { getOptimizedImageUrl } from '../utils/imageOptimizer';
@@ -35,6 +38,7 @@ interface CartQuantityInputProps {
   itemId: string;
   quantity: number;
   availableStock: number;
+  quantityStep?: number;
   onUpdateQuantity: (id: string, delta: number) => void;
   onSetQuantity?: (id: string, qty: number) => void;
 }
@@ -43,9 +47,13 @@ const CartQuantityInput: React.FC<CartQuantityInputProps> = ({
   itemId,
   quantity,
   availableStock,
+  quantityStep = 1,
   onUpdateQuantity,
   onSetQuantity,
 }) => {
+  const safeStep = Math.max(1, Math.floor(quantityStep || 1));
+  const maxValidStock =
+    availableStock > 0 ? getMaxValidQuantityForStock(availableStock, safeStep) : 0;
   const [localVal, setLocalVal] = React.useState<string>(quantity.toString());
 
   React.useEffect(() => {
@@ -59,9 +67,14 @@ const CartQuantityInput: React.FC<CartQuantityInputProps> = ({
       return;
     }
 
-    let finalQty = parsed;
-    if (availableStock > 0 && finalQty > availableStock) {
-      finalQty = availableStock;
+    const finalQty = normalizeQuantityToStep(
+      parsed,
+      safeStep,
+      availableStock > 0 ? availableStock : undefined
+    );
+    if (finalQty < safeStep) {
+      setLocalVal(quantity.toString());
+      return;
     }
 
     setLocalVal(finalQty.toString());
@@ -78,15 +91,23 @@ const CartQuantityInput: React.FC<CartQuantityInputProps> = ({
     const val = e.target.value;
     setLocalVal(val);
     const parsed = parseInt(val, 10);
-    if (!isNaN(parsed) && parsed >= 1) {
-      let finalQty = parsed;
-      if (availableStock > 0 && finalQty > availableStock) {
-        finalQty = availableStock;
-      }
-      if (onSetQuantity) {
-        onSetQuantity(itemId, finalQty);
-      } else {
-        onUpdateQuantity(itemId, finalQty - quantity);
+    if (!isNaN(parsed) && parsed >= safeStep) {
+      if (safeStep === 1) {
+        let finalQty = parsed;
+        if (availableStock > 0 && finalQty > availableStock) {
+          finalQty = availableStock;
+        }
+        if (onSetQuantity) {
+          onSetQuantity(itemId, finalQty);
+        } else {
+          onUpdateQuantity(itemId, finalQty - quantity);
+        }
+      } else if (parsed % safeStep === 0 && (maxValidStock <= 0 || parsed <= maxValidStock)) {
+        if (onSetQuantity) {
+          onSetQuantity(itemId, parsed);
+        } else {
+          onUpdateQuantity(itemId, parsed - quantity);
+        }
       }
     }
   };
@@ -95,8 +116,9 @@ const CartQuantityInput: React.FC<CartQuantityInputProps> = ({
     <input
       type="number"
       id={`cart-qty-input-${itemId}`}
-      min={1}
-      max={availableStock > 0 ? availableStock : 9999}
+      min={safeStep}
+      step={safeStep}
+      max={maxValidStock > 0 ? maxValidStock : 9999}
       value={localVal}
       onFocus={(e) => e.target.select()}
       onChange={handleChange}
@@ -108,7 +130,7 @@ const CartQuantityInput: React.FC<CartQuantityInputProps> = ({
       }}
       className="w-8 sm:w-10 h-8 sm:h-8 text-center text-sm sm:text-base font-bold text-gray-900 focus:outline-none focus:bg-blue-50/50 bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none cursor-text select-all"
       aria-label="Cantidad del producto"
-      title="Escribe la cantidad"
+      title={safeStep > 1 ? `Múltiplos de ${safeStep} unidades` : 'Escribe la cantidad'}
     />
   );
 };
@@ -164,6 +186,9 @@ export const CartView: React.FC<CartViewProps> = ({
     const calc = calculateCartItemPricing(item, quantitiesIndex, { isCashMode });
     const remainingToWholesale = calc.isSet ? 0 : Math.max(0, calc.minQty - calc.categoryQty);
     const availableStock = getSelectedVariantStock(item.product, item.selectedVariants || {});
+    const quantityStep = getProductQuantityStep(item.product);
+    const maxSelectableQty =
+      availableStock > 0 ? getMaxValidQuantityForStock(availableStock, quantityStep) : 0;
 
     return {
       ...item,
@@ -181,6 +206,8 @@ export const CartView: React.FC<CartViewProps> = ({
       minQty: calc.minQty,
       cat,
       availableStock,
+      quantityStep,
+      maxSelectableQty,
       pricingMode: calc.pricingMode,
       isSet: calc.isSet,
       isTiered: calc.isTiered,
@@ -531,15 +558,27 @@ export const CartView: React.FC<CartViewProps> = ({
                               </p>
                             )}
 
+                            {item.isTiered && item.quantityStep > 1 && (
+                              <p className="text-[10.5px] text-[#0058bb] font-semibold mt-0.5 truncate">
+                                Incrementos de {item.quantityStep} u.
+                              </p>
+                            )}
+
                             {/* Quantity Modifier, Wholesale Tag & Line Price */}
                             <div className="flex items-center justify-between gap-1.5 sm:gap-2 mt-1 min-w-0">
                               <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                                 <div className="flex items-center border border-gray-300 rounded-xl bg-white overflow-hidden shadow-2xs shrink-0">
                                   <button
                                     type="button"
-                                    onClick={() => onUpdateQuantity(item.id, -1)}
+                                    onClick={() => onUpdateQuantity(item.id, -item.quantityStep)}
                                     className="w-8 h-8 sm:w-8 sm:h-8 text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer flex items-center justify-center active:bg-gray-200"
-                                    title={item.isSet ? 'Disminuir sets' : 'Disminuir cantidad'}
+                                    title={
+                                      item.isSet
+                                        ? 'Disminuir sets'
+                                        : item.quantityStep > 1
+                                        ? `Restar ${item.quantityStep} unidades`
+                                        : 'Disminuir cantidad'
+                                    }
                                   >
                                     <Minus className="w-3.5 h-3.5" />
                                   </button>
@@ -547,23 +586,31 @@ export const CartView: React.FC<CartViewProps> = ({
                                     itemId={item.id}
                                     quantity={item.quantity}
                                     availableStock={item.availableStock}
+                                    quantityStep={item.quantityStep}
                                     onUpdateQuantity={onUpdateQuantity}
                                     onSetQuantity={onSetQuantity}
                                   />
                                   <button
                                     type="button"
-                                    onClick={() => onUpdateQuantity(item.id, 1)}
-                                    disabled={item.availableStock > 0 && item.quantity >= item.availableStock}
+                                    onClick={() => onUpdateQuantity(item.id, item.quantityStep)}
+                                    disabled={
+                                      item.availableStock > 0 &&
+                                      item.quantity + item.quantityStep > item.maxSelectableQty
+                                    }
                                     className={`w-8 h-8 sm:w-8 sm:h-8 text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer flex items-center justify-center active:bg-gray-200 ${
-                                      item.availableStock > 0 && item.quantity >= item.availableStock
+                                      item.availableStock > 0 &&
+                                      item.quantity + item.quantityStep > item.maxSelectableQty
                                         ? 'opacity-40 cursor-not-allowed'
                                         : ''
                                     }`}
                                     title={
-                                      item.availableStock > 0 && item.quantity >= item.availableStock
+                                      item.availableStock > 0 &&
+                                      item.quantity + item.quantityStep > item.maxSelectableQty
                                         ? 'Stock máximo disponible alcanzado'
                                         : item.isSet
                                         ? 'Añadir set completo'
+                                        : item.quantityStep > 1
+                                        ? `Añadir ${item.quantityStep} unidades`
                                         : 'Añadir unidad'
                                     }
                                   >
