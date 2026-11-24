@@ -2346,7 +2346,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               <MichyOfficialBadge />
 
               {/* Beneficios de compra / Garantías */}
-              <div className="pt-1.5 space-y-2.5 sm:space-y-3 text-[13.5px] sm:text-[13px] md:text-sm text-gray-600 leading-snug">
+              <div className="pt-1.5 space-y-2.5 sm:space-y-3 text-sm sm:text-[13px] md:text-sm text-gray-600 leading-snug">
                 <div className="flex items-start gap-2.5 sm:gap-3">
                   <Undo2 className="w-5 h-5 text-gray-500 shrink-0 mt-0.5" strokeWidth={1.6} />
                   <p className="min-w-0">
@@ -2378,7 +2378,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               <h3 className="text-sm sm:text-base md:text-lg font-bold text-gray-900 font-['Montserrat']">
                 Descripción del Producto
               </h3>
-              <div className="text-[14px] sm:text-sm text-gray-600 space-y-2 whitespace-pre-line leading-relaxed font-normal">
+              <div className="text-sm sm:text-sm text-gray-600 space-y-2 whitespace-pre-line leading-relaxed font-normal">
                 {product.description}
               </div>
             </div>
@@ -2427,7 +2427,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                       />
                     ))}
                   </div>
-                  <span className="text-xs sm:text-sm text-gray-500">
+                  <span className="text-sm sm:text-sm text-gray-500">
                     ({product.reviewsCount ?? (product.reviews?.length || 0)} clasificaciones)
                   </span>
                 </div>
