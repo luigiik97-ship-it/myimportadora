@@ -257,7 +257,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 {mode === 'forgot_password' && 'Recuperar Contraseña'}
                 {mode === 'reset_password' && 'Crear Nueva Contraseña'}
               </h3>
-              <p className="text-xs text-blue-100">
+              <p className="text-sm sm:text-xs text-blue-100">
                 {mode === 'login' && 'Accede para ver tus pedidos, datos de envío y comprar más rápido'}
                 {mode === 'register' && 'Regístrate para guardar tu carrito y gestionar tus pedidos'}
                 {mode === 'forgot_password' && 'Te enviaremos un enlace seguro para restablecer tu clave'}
@@ -346,7 +346,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {mode === 'login' && (
             <form onSubmit={handleLogin} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-sm sm:text-xs font-semibold text-gray-700 mb-1">
                   Correo Electrónico
                 </label>
                 <div className="relative">
@@ -365,13 +365,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-semibold text-gray-700">
+                  <label className="block text-sm sm:text-xs font-semibold text-gray-700">
                     Contraseña
                   </label>
                   <button
                     type="button"
                     onClick={() => handleSwitchMode('forgot_password')}
-                    className="text-xs text-[#0058bb] hover:underline font-medium cursor-pointer"
+                    className="text-sm sm:text-xs text-[#0058bb] hover:underline font-medium cursor-pointer"
                   >
                     ¿Olvidaste tu contraseña?
                   </button>
@@ -412,7 +412,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 )}
               </button>
 
-              <div className="pt-2 text-center border-t border-gray-100 text-xs text-gray-600">
+              <div className="pt-2 text-center border-t border-gray-100 text-sm sm:text-xs text-gray-600">
                 ¿No tienes una cuenta?{' '}
                 <button
                   type="button"
@@ -429,7 +429,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {mode === 'register' && (
             <form onSubmit={handleRegister} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-sm sm:text-xs font-semibold text-gray-700 mb-1">
                   Nombre y Apellido Completo *
                 </label>
                 <div className="relative">
@@ -447,7 +447,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-sm sm:text-xs font-semibold text-gray-700 mb-1">
                   Correo Electrónico *
                 </label>
                 <div className="relative">
@@ -465,7 +465,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-sm sm:text-xs font-semibold text-gray-700 mb-1">
                   WhatsApp (Opcional para avisos de entrega)
                 </label>
                 <div className="relative">
@@ -490,7 +490,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm sm:text-xs font-semibold text-gray-700 mb-1">
                     Contraseña *
                   </label>
                   <div className="relative">
@@ -502,13 +502,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Mín. 6 caracteres"
                       autoComplete="new-password"
-                      className="w-full border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all"
+                      className="w-full border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  <label className="block text-sm sm:text-xs font-semibold text-gray-700 mb-1">
                     Confirmar Contraseña *
                   </label>
                   <div className="relative">
@@ -520,13 +520,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="Repite la clave"
                       autoComplete="new-password"
-                      className="w-full border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all"
+                      className="w-full border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between text-xs text-gray-500 pt-0.5">
+              <div className="flex items-center justify-between text-sm sm:text-xs text-gray-500 pt-0.5">
                 <label className="flex items-center gap-1.5 cursor-pointer select-none">
                   <input
                     type="checkbox"
@@ -553,7 +553,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 )}
               </button>
 
-              <div className="pt-2 text-center border-t border-gray-100 text-xs text-gray-600">
+              <div className="pt-2 text-center border-t border-gray-100 text-sm sm:text-xs text-gray-600">
                 ¿Ya tienes una cuenta?{' '}
                 <button
                   type="button"
@@ -570,7 +570,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {mode === 'forgot_password' && (
             <form onSubmit={handleForgotPassword} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-sm sm:text-xs font-semibold text-gray-700 mb-1">
                   Correo Electrónico de tu cuenta
                 </label>
                 <div className="relative">
@@ -585,7 +585,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     className="w-full border border-gray-300 rounded-lg pl-10 pr-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0058bb] focus:border-transparent transition-all"
                   />
                 </div>
-                <p className="text-[11px] text-gray-500 mt-1">
+                <p className="text-sm sm:text-[11px] text-gray-500 mt-1">
                   Te enviaremos un enlace temporal seguro para crear una nueva clave sin exponer datos privados.
                 </p>
               </div>
@@ -605,7 +605,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 )}
               </button>
 
-              <div className="pt-2 text-center border-t border-gray-100 text-xs text-gray-600">
+              <div className="pt-2 text-center border-t border-gray-100 text-sm sm:text-xs text-gray-600">
                 <button
                   type="button"
                   onClick={() => handleSwitchMode('login')}
@@ -620,7 +620,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {/* MODE 4: RESET PASSWORD (FORMULARIO PARA ESTABLECER NUEVA CLAVE) */}
           {mode === 'reset_password' && (
             <form onSubmit={handleResetPassword} className="space-y-3.5 animate-in fade-in duration-200">
-              <div className="bg-blue-50/70 border border-blue-200 text-blue-900 p-3 rounded-xl text-xs flex items-start gap-2">
+              <div className="bg-blue-50/70 border border-blue-200 text-blue-900 p-3 rounded-xl text-sm sm:text-xs flex items-start gap-2">
                 <KeyRound className="w-4 h-4 text-[#0058bb] shrink-0 mt-0.5" />
                 <span>
                   Has verificado tu enlace de recuperación. Ingresa a continuación tu nueva contraseña segura.
@@ -628,7 +628,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-sm sm:text-xs font-semibold text-gray-700 mb-1">
                   Nueva Contraseña *
                 </label>
                 <div className="relative">
@@ -653,7 +653,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                <label className="block text-sm sm:text-xs font-semibold text-gray-700 mb-1">
                   Confirmar Nueva Contraseña *
                 </label>
                 <div className="relative">
@@ -685,7 +685,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 )}
               </button>
 
-              <div className="pt-2 text-center border-t border-gray-100 text-xs text-gray-600">
+              <div className="pt-2 text-center border-t border-gray-100 text-sm sm:text-xs text-gray-600">
                 <button
                   type="button"
                   onClick={() => handleSwitchMode('login')}

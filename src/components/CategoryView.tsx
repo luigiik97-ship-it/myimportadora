@@ -309,17 +309,17 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
 
       {/* Quick Category Navigation Pills (Horizontal Row) */}
       <div className="space-y-1">
-        <div className="flex items-center justify-between text-xs font-semibold text-gray-600">
-          <span className="text-xs">Otras categorías</span>
+        <div className="flex items-center justify-between text-sm sm:text-xs font-semibold text-gray-600">
+          <span className="text-sm sm:text-xs">Otras categorías</span>
         </div>
         <div
           ref={navPillsContainerRef}
-          className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-0.5 no-scrollbar text-xs"
+          className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-0.5 no-scrollbar text-sm sm:text-xs"
         >
           <button
             onClick={() => onSelectCategory('Todo')}
             data-active={categoryName.toLowerCase() === 'todo'}
-            className={`hidden px-3 sm:px-3.5 py-1.5 text-xs font-medium rounded-full transition-all whitespace-nowrap cursor-pointer border ${
+            className={`hidden px-3 sm:px-3.5 py-1.5 text-sm sm:text-xs font-medium rounded-full transition-all whitespace-nowrap cursor-pointer border ${
               categoryName.toLowerCase() === 'todo'
                 ? 'bg-[#0058bb] text-white border-[#0058bb] shadow-xs font-semibold'
                 : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
@@ -337,7 +337,7 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
                 key={cat.id ? `${cat.id}-${idx}` : `${cat.name}-${idx}`}
                 data-active={isSelected}
                 onClick={() => onSelectCategory(cat.name)}
-                className={`px-3 sm:px-3.5 py-1.5 text-xs font-medium rounded-full transition-all whitespace-nowrap cursor-pointer border flex items-center gap-1.5 sm:gap-2 ${
+                className={`px-3 sm:px-3.5 py-1.5 text-sm sm:text-xs font-medium rounded-full transition-all whitespace-nowrap cursor-pointer border flex items-center gap-1.5 sm:gap-2 ${
                   isSelected
                     ? 'bg-[#0058bb] text-white border-[#0058bb] shadow-xs font-semibold'
                     : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:border-[#0058bb]/40'
@@ -369,12 +369,12 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={`Buscar en ${categoryName}...`}
-            className="w-full pl-8 sm:pl-9 pr-6 sm:pr-7 py-1.5 sm:py-1.5 text-xs md:text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0058bb] focus:bg-white transition-all truncate"
+            className="w-full pl-8 sm:pl-9 pr-6 sm:pr-7 py-1.5 sm:py-1.5 text-sm sm:text-xs md:text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0058bb] focus:bg-white transition-all truncate"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-bold cursor-pointer"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm sm:text-xs font-bold cursor-pointer"
             >
               ×
             </button>
@@ -388,7 +388,7 @@ export const CategoryView: React.FC<CategoryViewProps> = ({
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as any)}
-            className="text-xs bg-gray-50 border border-gray-200 rounded-lg px-2 sm:px-2.5 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#0058bb] cursor-pointer"
+            className="text-sm sm:text-xs bg-gray-50 border border-gray-200 rounded-lg px-2 sm:px-2.5 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#0058bb] cursor-pointer"
           >
             <option value="recommended">Recomendados</option>
             <option value="price-asc">Menor precio</option>

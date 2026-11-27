@@ -2194,7 +2194,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   type="button"
                   id="btn-stock-notification"
                   onClick={handleOpenStockNotification}
-                  className="w-full py-2.5 px-4 bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-900 rounded-xl flex items-center justify-center gap-2 text-xs md:text-sm font-bold shadow-xs transition-all cursor-pointer active:scale-[0.99]"
+                  className="w-full py-2.5 px-4 bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-900 rounded-xl flex items-center justify-center gap-2 text-sm sm:text-xs md:text-sm font-bold shadow-xs transition-all cursor-pointer active:scale-[0.99]"
                 >
                   <Bell className="w-4 h-4 text-white shrink-0" />
                   <span>Avísame cuando esté disponible</span>

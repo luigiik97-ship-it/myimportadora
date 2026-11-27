@@ -346,13 +346,13 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                               </span>
                               {getStatusBadge(order.status)}
                             </div>
-                            <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                            <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
                               <Clock className="w-3 h-3" /> {formattedDate}
                             </p>
                           </div>
 
                           <div className="text-right">
-                            <span className="text-[11px] sm:text-xs text-gray-500 block">Total</span>
+                            <span className="text-xs text-gray-500 block">Total</span>
                             <span className="font-bold text-sm sm:text-base text-gray-900">
                               ${order.total.toLocaleString('es-AR')}
                             </span>
@@ -376,10 +376,10 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                                   }}
                                 />
                                 <div className="text-xs">
-                                  <p className="font-medium text-gray-800 line-clamp-1 max-w-[130px] sm:max-w-[150px] text-[11px] sm:text-xs">
+                                  <p className="font-medium text-gray-800 line-clamp-1 max-w-[130px] sm:max-w-[150px] text-xs">
                                     {item.title}
                                   </p>
-                                  <p className="text-[10px] sm:text-xs text-gray-500">
+                                  <p className="text-xs text-gray-500">
                                     Cant: <span className="font-semibold text-gray-700">{item.quantity}</span>
                                     {item.variantText ? ` • ${item.variantText}` : ''}
                                   </p>
@@ -390,7 +390,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                         </div>
 
                         {/* Order Details Footer */}
-                        <div className="flex flex-wrap items-center justify-between text-[11px] sm:text-xs text-gray-600 bg-gray-50/60 rounded-lg p-2 sm:p-2.5 gap-1.5 sm:gap-2">
+                        <div className="flex flex-wrap items-center justify-between text-xs text-gray-600 bg-gray-50/60 rounded-lg p-2 sm:p-2.5 gap-1.5 sm:gap-2">
                           <div className="flex items-center gap-1.5 sm:gap-2">
                             {order.deliveryOption === 'delivery' ? (
                               <Truck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#0058bb]" />
@@ -424,7 +424,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
 
                         {/* Order Card Footer: Cantidad de productos */}
                         <div className="flex items-center justify-between gap-2 pt-1.5 sm:pt-2 border-t border-gray-100">
-                          <span className="text-[11px] sm:text-xs text-gray-500 font-medium">
+                          <span className="text-xs text-gray-500 font-medium">
                             {order.items.reduce((acc, it) => acc + it.quantity, 0)}{' '}
                             {order.items.reduce((acc, it) => acc + it.quantity, 0) === 1
                               ? 'producto'

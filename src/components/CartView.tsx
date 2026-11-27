@@ -369,7 +369,7 @@ export const CartView: React.FC<CartViewProps> = ({
           type="button"
           id="cart-continue-shopping-top-btn"
           onClick={onContinueShopping}
-          className="inline-flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-bold text-[#0058bb] hover:text-[#004bb0] bg-blue-50 hover:bg-blue-100/80 px-3 sm:px-3.5 py-2 rounded-xl transition-colors cursor-pointer min-h-[38px]"
+          className="inline-flex items-center gap-1.5 sm:gap-2 text-sm font-bold text-[#0058bb] hover:text-[#004bb0] bg-blue-50 hover:bg-blue-100/80 px-3 sm:px-3.5 py-2 rounded-xl transition-colors cursor-pointer min-h-[38px]"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Seguir comprando</span>
@@ -469,7 +469,7 @@ export const CartView: React.FC<CartViewProps> = ({
               >
                 {/* Encabezado del grupo de categoría */}
                 <div className="flex items-center justify-between pb-1.5 border-b border-gray-100">
-                  <span className="text-xs sm:text-sm font-bold text-gray-900 tracking-tight flex items-center gap-1.5">
+                  <span className="text-sm font-bold text-gray-900 tracking-tight flex items-center gap-1.5">
                     <span className="text-gray-500 font-semibold">Categoría:</span>
                     <button
                       type="button"
@@ -481,7 +481,7 @@ export const CartView: React.FC<CartViewProps> = ({
                       <ChevronRight className="w-3.5 h-3.5 text-blue-500 group-hover/cat-link:translate-x-0.5 transition-transform" />
                     </button>
                   </span>
-                  <span className="text-xs font-semibold text-gray-500">
+                  <span className="text-sm sm:text-xs font-semibold text-gray-500">
                     {group.totalUnits} {group.totalUnits === 1 ? 'unidad' : 'unidades'}
                   </span>
                 </div>
@@ -546,7 +546,7 @@ export const CartView: React.FC<CartViewProps> = ({
                             </div>
 
                             {variantSummary && (
-                              <p className="text-xs text-gray-500 mt-0.5 font-medium truncate">
+                              <p className="text-sm sm:text-xs text-gray-500 mt-0.5 font-medium truncate">
                                 {variantSummary}
                               </p>
                             )}
@@ -559,7 +559,7 @@ export const CartView: React.FC<CartViewProps> = ({
                             )}
 
                             {item.isTiered && item.quantityStep > 1 && (
-                              <p className="text-[10.5px] text-[#0058bb] font-semibold mt-0.5 truncate">
+                              <p className="hidden text-[10.5px] text-[#0058bb] font-semibold mt-0.5 truncate">
                                 Incrementos de {item.quantityStep} u.
                               </p>
                             )}
@@ -638,11 +638,11 @@ export const CartView: React.FC<CartViewProps> = ({
                                   ${item.effectiveTotalPrice.toLocaleString('es-AR')}
                                 </span>
                                 {item.isSet ? (
-                                  <span className="text-xs text-gray-500 block whitespace-nowrap">
+                                  <span className="text-sm sm:text-xs text-gray-500 block whitespace-nowrap">
                                     (${item.effectiveUnitPrice.toLocaleString('es-AR')}/set · ~${item.informativeEffectiveUnitPrice.toLocaleString('es-AR')} c/u)
                                   </span>
                                 ) : (
-                                  <span className="text-xs text-gray-500 block whitespace-nowrap">
+                                  <span className="text-sm sm:text-xs text-gray-500 block whitespace-nowrap">
                                     (${item.effectiveUnitPrice.toLocaleString('es-AR')} c/u)
                                   </span>
                                 )}
@@ -666,7 +666,7 @@ export const CartView: React.FC<CartViewProps> = ({
                         minWholesaleQty={tp.product.minWholesaleQty || 1}
                         isCashMode={isCashMode}
                         compact={true}
-                        messageClassName="text-xs sm:text-sm"
+                        messageClassName="text-sm sm:text-sm"
                       />
                     ))}
                   </div>
@@ -680,7 +680,7 @@ export const CartView: React.FC<CartViewProps> = ({
                       minQty={group.normalMinQty}
                       isProductDetail={false}
                       hideTitle={true}
-                      messageClassName="text-xs sm:text-sm"
+                      messageClassName="text-sm sm:text-sm"
                     />
                   </div>
                 )}
@@ -740,9 +740,9 @@ export const CartView: React.FC<CartViewProps> = ({
           <div className="border-t-0 md:border-t border-gray-200 pt-1 md:pt-3 space-y-2">
             <div className="flex items-baseline justify-between">
               <div>
-                <span className="text-base font-bold text-gray-900 block leading-tight">Total</span>
+                <span className="text-xl sm:text-base font-bold text-gray-900 block leading-tight">Total</span>
                 {isCashMode && (
-                  <span className="text-xs sm:text-[11px] font-semibold block mt-0.5 text-[#16a34a]">
+                  <span className="text-sm sm:text-[11px] font-semibold block mt-0.5 text-[#16a34a]">
                     Efectivo (exclusivo retiro en local)
                   </span>
                 )}
@@ -751,7 +751,7 @@ export const CartView: React.FC<CartViewProps> = ({
                 <span id="cart-total-amount" className="text-xl sm:text-[22px] font-bold font-['Montserrat'] text-gray-900">
                   ${activeSubtotal.toLocaleString('es-AR')}
                 </span>
-                <span className="text-xs text-gray-400 block">* sin envío</span>
+                <span className="text-sm sm:text-xs text-gray-400 block">* sin envío</span>
               </div>
             </div>
 
@@ -805,13 +805,13 @@ export const CartView: React.FC<CartViewProps> = ({
           </button>
 
           {/* Trust Guarantees */}
-          <div className="space-y-2 pt-2.5 border-t border-gray-100 text-xs sm:text-sm text-gray-500 text-center">
+          <div className="space-y-2 pt-2.5 border-t border-gray-100 text-sm text-gray-500 text-center">
             <div className="flex items-center justify-center gap-2 text-center">
-              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+              <ShieldCheck className="w-5 h-5 sm:w-4 sm:h-4 text-emerald-600 shrink-0" />
               <span>Compra segura y protegida</span>
             </div>
             <div className="flex items-center justify-center gap-2 text-center">
-              <Truck className="w-4 h-4 text-gray-400 shrink-0" />
+              <Truck className="w-5 h-5 sm:w-4 sm:h-4 text-gray-400 shrink-0" />
               <span>Envíos a todo el país.</span>
             </div>
           </div>

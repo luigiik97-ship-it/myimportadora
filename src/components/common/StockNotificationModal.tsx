@@ -156,19 +156,19 @@ export const StockNotificationModal: React.FC<StockNotificationModalProps> = ({
                 <h3 className="text-base sm:text-lg font-bold text-gray-900 leading-tight">
                   Avísame cuando esté disponible
                 </h3>
-                <p className="text-xs text-gray-500 truncate">{productTitle}</p>
+                <p className="text-sm sm:text-xs text-gray-500 truncate">{productTitle}</p>
               </div>
             </div>
 
             {/* Variante seleccionada */}
-            <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl px-3 py-2 text-xs flex items-center justify-between gap-2">
+            <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl px-3 py-2 text-sm sm:text-xs flex items-center justify-between gap-2">
               <span className="text-gray-600 font-medium">Variante:</span>
               <span className="font-bold text-emerald-800 text-right truncate">{displayVariantName}</span>
             </div>
 
             {/* Teléfono / WhatsApp */}
             <div className="space-y-1.5">
-              <label htmlFor="input-whatsapp-notify" className="block text-xs font-bold text-gray-700">
+              <label htmlFor="input-whatsapp-notify" className="block text-sm sm:text-xs font-bold text-gray-700">
                 Tu número de WhatsApp <span className="text-red-500">*</span>
               </label>
               <div className="relative">
@@ -185,14 +185,14 @@ export const StockNotificationModal: React.FC<StockNotificationModalProps> = ({
                   className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-sm font-semibold text-gray-900 focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all"
                 />
               </div>
-              <p className="text-[11px] text-gray-500">
+              <p className="text-sm sm:text-[11px] text-gray-500">
                 Ingresá tu código de área y número. Solo lo usaremos para avisarte cuando reingrese.
               </p>
             </div>
 
             {/* Nombre (opcional) */}
             <div className="space-y-1.5">
-              <label htmlFor="input-name-notify" className="block text-xs font-semibold text-gray-700">
+              <label htmlFor="input-name-notify" className="block text-sm sm:text-xs font-semibold text-gray-700">
                 Tu nombre (opcional)
               </label>
               <div className="relative">

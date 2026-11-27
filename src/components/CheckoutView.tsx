@@ -610,7 +610,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           {/* Prompt to login or session active indicator */}
           {!currentUser ? (
             <div className="bg-blue-50/70 border border-blue-200/80 rounded-xl p-2.5 px-3 sm:px-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-sm text-gray-800">
-              <p className="text-xs text-gray-700">
+              <p className="text-sm sm:text-xs text-gray-700">
                 ¿Ya tienes una cuenta?{' '}
                 <span className="font-medium text-gray-900">
                   Inicia sesión para completar automáticamente tus datos.
@@ -620,13 +620,13 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                 type="button"
                 id="checkout-login-btn"
                 onClick={() => setIsAuthModalOpen(true)}
-                className="shrink-0 bg-[#0058bb] hover:bg-[#004799] text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors cursor-pointer min-h-[34px]"
+                className="shrink-0 bg-[#0058bb] hover:bg-[#004799] text-white text-sm sm:text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors cursor-pointer min-h-[34px]"
               >
                 Iniciar sesión
               </button>
             </div>
           ) : (
-            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-2.5 px-3 sm:px-3.5 flex items-center justify-between gap-2 text-xs md:text-sm text-emerald-900">
+            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-2.5 px-3 sm:px-3.5 flex items-center justify-between gap-2 text-sm sm:text-xs md:text-sm text-emerald-900">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                 <span>
@@ -644,7 +644,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
               <div>
-                <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-1">
+                <label className="text-sm font-semibold text-gray-700 block mb-1">
                   Número de WhatsApp *
                 </label>
                 <input
@@ -664,7 +664,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
               </div>
 
               <div>
-                <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-1">
+                <label className="text-sm font-semibold text-gray-700 block mb-1">
                   Correo Gmail (Se enviará el recibo) *
                 </label>
                 <input
@@ -680,7 +680,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
               </div>
 
               <div className="md:col-span-2">
-                <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-1">
+                <label className="text-sm font-semibold text-gray-700 block mb-1">
                   Nombre y Apellido Completo *
                 </label>
                 <input
@@ -731,17 +731,17 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   />
                   <div>
                     <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                      <span className="text-xs sm:text-sm font-bold text-gray-900">Retiro en local</span>
-                      <span className="bg-[#a3e635] text-gray-900 text-xs font-bold px-2 py-0.5 rounded">
-                        Descuento disponible
+                      <span className="text-sm font-bold text-gray-900">Retiro en local</span>
+                      <span className="bg-[#a3e635] text-gray-900 text-sm sm:text-xs font-bold px-2 py-0.5 rounded">
+                        Descuento
                       </span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-0.5 leading-snug">
+                    <p className="text-sm sm:text-xs text-gray-500 mt-0.5 leading-snug">
                       Local en Av. San Pedrito 28, CABA - Lunes a sábados de 11hs a 17hs
                     </p>
                   </div>
                 </div>
-                <span className="text-xs sm:text-sm font-bold text-[#00a650] shrink-0 pl-1.5">Gratis</span>
+                <span className="text-sm font-bold text-[#00a650] shrink-0 pl-1.5">Gratis</span>
               </label>
 
               {/* Option: Envío a domicilio */}
@@ -767,13 +767,13 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       className="mt-0.5 text-[#0058bb] focus:ring-[#0058bb]"
                     />
                     <div>
-                      <span className="text-xs sm:text-sm font-bold text-gray-900">Envío a domicilio</span>
-                      <p className="text-xs text-gray-500 mt-0.5 leading-snug">
+                      <span className="text-sm font-bold text-gray-900">Envío a domicilio</span>
+                      <p className="text-sm sm:text-xs text-gray-500 mt-0.5 leading-snug">
                         Entrega a la puerta de tu casa o comercio (Uber Moto, Flex o Correo Argentino).
                       </p>
                     </div>
                   </div>
-                  <span className="text-xs sm:text-sm font-bold text-gray-900 shrink-0 pl-1.5 text-right leading-tight">
+                  <span className="hidden md:inline text-sm font-bold text-gray-900 shrink-0 pl-1.5 text-right leading-tight">
                     {selectedShippingOption ? (
                       `$ ${selectedShippingOption.price.toLocaleString('es-AR')}`
                     ) : (
@@ -791,7 +791,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   <div className="mt-3 pt-3 border-t border-blue-200/60 space-y-3">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-0.5">
+                        <label className="text-sm font-semibold text-gray-700 block mb-0.5">
                           Calle {isBranchPickupSelected ? '(opcional)' : '*'}
                         </label>
                         <input
@@ -806,7 +806,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       </div>
 
                       <div>
-                        <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-0.5">
+                        <label className="text-sm font-semibold text-gray-700 block mb-0.5">
                           Número {isBranchPickupSelected ? '(opcional)' : '*'}
                         </label>
                         <input
@@ -820,7 +820,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       </div>
 
                       <div>
-                        <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-0.5">Piso / Dpto</label>
+                        <label className="text-sm font-semibold text-gray-700 block mb-0.5">Piso / Dpto</label>
                         <input
                           type="text"
                           value={floor}
@@ -831,7 +831,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       </div>
 
                       <div>
-                        <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-0.5">Ciudad / Localidad *</label>
+                        <label className="text-sm font-semibold text-gray-700 block mb-0.5">Ciudad / Localidad *</label>
                         <input
                           ref={cityInputRef}
                           type="text"
@@ -844,7 +844,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       </div>
 
                       <div className="col-span-2 sm:col-span-1">
-                        <label className="text-xs sm:text-sm font-semibold text-gray-700 block mb-0.5">
+                        <label className="text-sm font-semibold text-gray-700 block mb-0.5">
                           Código Postal *
                         </label>
                         <input
@@ -871,7 +871,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     {/* Dynamic Postal Code Options Section */}
                     <div className="pt-2 border-t border-blue-200/50 space-y-2">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs sm:text-sm font-bold text-gray-800 flex items-center gap-1.5">
+                        <label className="text-sm font-bold text-gray-800 flex items-center gap-1.5">
                           <MapPin className="w-3.5 h-3.5 text-[#0058bb]" />
                           Opciones de envío disponibles para tu zona:
                         </label>
@@ -883,7 +883,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       </div>
 
                       {deliveryOptionError && (
-                        <div className="text-xs sm:text-sm font-semibold text-red-600 flex items-center gap-2 bg-red-50 p-2 rounded-lg border border-red-200 animate-pulse">
+                        <div className="text-sm font-semibold text-red-600 flex items-center gap-2 bg-red-50 p-2 rounded-lg border border-red-200 animate-pulse">
                           <AlertCircle className="w-3.5 h-3.5 text-red-600 shrink-0" />
                           <span>elija una opción de envió</span>
                         </div>
@@ -913,11 +913,11 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                                   />
                                   <div>
                                     <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="text-xs sm:text-sm font-bold text-gray-900">
+                                      <span className="text-sm font-bold text-gray-900">
                                         {option.name}
                                       </span>
                                     </div>
-                                    <p className="text-xs text-gray-500 mt-0.5">
+                                    <p className="text-sm sm:text-xs text-gray-500 mt-0.5">
                                       {option.description === 'Retiro en sucursal oficial de Correo Argentino' || option.description === 'Retiro en la sucursal'
                                         ? 'Retiro en la sucursal'
                                         : option.description === 'Envío a domicilio por Correo Argentino'
@@ -934,7 +934,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                           })}
                         </div>
                       ) : (
-                        <div className="p-2.5 bg-amber-50/90 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center gap-2">
+                        <div className="p-2.5 bg-amber-50/90 border border-amber-200 rounded-lg text-sm sm:text-xs text-amber-800 flex items-center gap-2">
                           <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                           <span>
                             Por favor escribe tu Código Postal arriba para ver los métodos de envío y tarifas exactas para tu localidad.
@@ -948,11 +948,11 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                           id="checkout-correo-branch-section"
                           className="mt-3 p-3 sm:p-3.5 bg-white border-2 border-amber-300 rounded-xl space-y-1.5 animate-fadeIn shadow-2xs"
                         >
-                          <label className="text-xs sm:text-sm font-bold text-gray-900 flex items-center justify-between">
+                          <label className="text-sm font-bold text-gray-900 flex items-center justify-between gap-2">
                             <span className="flex items-center gap-1.5 text-amber-950 font-bold">
                               Nombre y dirección de la sucursal *
                             </span>
-                            <span className="text-[10px] sm:text-[11px] font-bold text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-full">
+                            <span className="text-sm sm:text-[11px] font-bold text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-full shrink-0">
                               Obligatorio
                             </span>
                           </label>
@@ -973,7 +973,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                             }`}
                           />
                           {correoBranchError && (
-                            <p className="text-xs text-red-600 font-semibold flex items-center gap-1">
+                            <p className="text-sm sm:text-xs text-red-600 font-semibold flex items-center gap-1">
                               <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                               {correoBranchError}
                             </p>
@@ -1015,7 +1015,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-bold text-gray-900">Transferencia</span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-0.5 leading-snug">
+                    <p className="text-sm sm:text-xs text-gray-500 mt-0.5 leading-snug">
                       Realiza el pago por Alias / CVU
                     </p>
                   </div>
@@ -1047,11 +1047,11 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     <div>
                       <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                         <span className="text-sm font-bold text-gray-900">Efectivo</span>
-                        <span className="bg-[#a3e635] text-gray-900 text-xs font-bold px-2 py-0.5 rounded">
+                        <span className="bg-[#a3e635] text-gray-900 text-sm sm:text-xs font-bold px-2 py-0.5 rounded">
                           Total en efectivo
                         </span>
                       </div>
-                      <p className="text-xs text-gray-500 mt-0.5">
+                      <p className="text-sm sm:text-xs text-gray-500 mt-0.5">
                         Abonás al retirar en el local
                       </p>
                     </div>
@@ -1061,7 +1061,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                       $ {cashTotal.toLocaleString('es-AR')}
                     </span>
                     {cashTotal < transferTotal && (
-                      <span className="text-xs text-gray-400 line-through block">
+                      <span className="text-sm sm:text-xs text-gray-400 line-through block">
                         $ {transferTotal.toLocaleString('es-AR')}
                       </span>
                     )}
@@ -1105,10 +1105,10 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     className="w-12 h-12 sm:w-12 sm:h-12 object-contain rounded-xl border border-gray-200 p-0.5 shrink-0 bg-white mt-0.5 shadow-2xs"
                   />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs sm:text-sm font-semibold text-gray-800 leading-snug break-words">
+                    <p className="text-sm font-semibold text-gray-800 leading-snug break-words">
                       {itemLabel}
                     </p>
-                    <p className={`text-xs mt-0.5 font-medium ${
+                    <p className={`text-sm sm:text-xs mt-0.5 font-medium ${
                       paymentMethod === 'cash' ? 'text-[#00a650]' : 'text-gray-500'
                     }`}>
                       {item.isSet
@@ -1124,7 +1124,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             })}
           </div>
 
-          <div className="space-y-2.5 text-xs sm:text-sm">
+          <div className="space-y-2.5 text-sm">
             <div className="flex justify-between text-gray-600">
               <span>Productos ({totalQuantity} unids)</span>
               <span className="font-normal text-gray-900">${productsSubtotal.toLocaleString('es-AR')}</span>
@@ -1134,7 +1134,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
               <div>
                 <span>Envío</span>
                 {deliveryOption === 'delivery' && selectedShippingOption && (
-                  <p className="text-xs text-gray-500 font-normal">
+                  <p className="text-sm sm:text-xs text-gray-500 font-normal">
                     {selectedShippingOption.name}
                   </p>
                 )}
@@ -1150,8 +1150,8 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           </div>
 
           <div className="border-t border-gray-200 pt-3 flex items-baseline justify-between">
-            <span className="text-base font-bold text-gray-900">Total</span>
-            <span id="checkout-total-display" className="text-2xl font-bold text-gray-900 font-['Montserrat']">
+            <span className="text-xl sm:text-base font-bold text-gray-900">Total</span>
+            <span id="checkout-total-display" className="text-xl sm:text-2xl font-bold text-gray-900 font-['Montserrat']">
               $ {totalFinal.toLocaleString('es-AR')}
             </span>
           </div>
@@ -1181,8 +1181,8 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           </button>
 
           <div className="text-center pt-2 space-y-2 text-xs sm:text-sm">
-            <div className="flex items-center justify-center gap-1.5 text-gray-500">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            <div className="flex items-center justify-center gap-1.5 text-sm text-gray-500">
+              <ShieldCheck className="w-5 h-5 sm:w-4 sm:h-4 text-emerald-600 shrink-0" />
               <span>Pago seguro y protegido</span>
             </div>
 

@@ -73,11 +73,7 @@ export const TieredPricingProgressCard: React.FC<TieredPricingProgressCardProps>
             : 'Precios escalonados por cantidad'}
         </span>
         {currentQty > 0 && (
-          <span
-            className={`font-semibold text-gray-500 ${
-              isProductDetail ? 'hidden' : 'text-[11px]'
-            }`}
-          >
+          <span className="hidden font-semibold text-gray-500 text-sm sm:text-[11px]">
             {currentQty} {currentQty === 1 ? 'unidad' : 'unidades'}
           </span>
         )}

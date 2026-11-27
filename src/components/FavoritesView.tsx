@@ -58,7 +58,7 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
                   </h1>
                 </div>
               </div>
-              <p className="text-xs sm:text-sm text-gray-500 leading-snug">
+              <p className="text-sm text-gray-500 leading-snug">
                 Tus publicaciones favoritas guardadas, agrega y quita publicaciones apretando el icono de corazón
               </p>
             </div>
@@ -80,7 +80,7 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
               <h2 className="text-lg sm:text-xl font-bold font-['Montserrat'] text-gray-900">
                 Iniciá sesión para ver tus favoritos
               </h2>
-              <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">
+              <p className="text-sm text-gray-500 leading-relaxed">
                 Guardá tus productos habituales y encontralos siempre sincronizados entre tu teléfono y tu computadora.
               </p>
             </div>
@@ -89,7 +89,7 @@ export const FavoritesView: React.FC<FavoritesViewProps> = ({
                 type="button"
                 id="favorites-login-btn"
                 onClick={onOpenAuth}
-                className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 sm:py-3 bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold text-xs sm:text-sm rounded-xl shadow-xs transition-all cursor-pointer active:scale-95"
+                className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 sm:py-3 bg-[#0058bb] hover:bg-[#004bb0] text-white font-bold text-sm rounded-xl shadow-xs transition-all cursor-pointer active:scale-95"
               >
                 <LogIn className="w-4 h-4" />
                 <span>Iniciar sesión</span>
