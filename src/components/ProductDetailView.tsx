@@ -815,6 +815,60 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   const isTieredWholesaleApplied = effectivePublicationQty >= (product.minWholesaleQty || 1);
   const currentTieredActivePrice = isTieredWholesaleApplied ? currentWholesalePrice : currentRetailPrice;
 
+  // Precio mayorista escalonado exhibido en la ficha:
+  // Refleja exclusivamente el escalón alcanzado por las unidades realmente agregadas al carrito
+  // (sumando todas las variantes de esta misma publicación). Sin escalón alcanzado en carrito,
+  // mantiene la referencia del primer escalón sin adelantarse al selector de cantidad.
+  const tieredDisplay = useMemo(() => {
+    if (!isTieredPricing) {
+      return {
+        price: currentWholesalePrice,
+        badgeMinQty: product.minWholesaleQty || 1,
+      };
+    }
+
+    const minWholesale = Math.max(1, product.minWholesaleQty || 1);
+    const cartResolved = resolveProductPricesForQuantity(
+      product,
+      selectedOptions,
+      undefined,
+      publicationUnitsInCart
+    );
+    const reachedTier = cartResolved.activeTier;
+    const referenceTier = reachedTier || normalizedPriceTiers[0] || null;
+
+    if (referenceTier) {
+      const tierResolved = reachedTier
+        ? cartResolved
+        : resolveProductPricesForQuantity(product, selectedOptions, undefined, referenceTier.minQty);
+      const effectiveQtyForTier = reachedTier
+        ? Math.max(publicationUnitsInCart, reachedTier.minQty)
+        : referenceTier.minQty;
+      const isWholesaleAtTier = effectiveQtyForTier >= minWholesale;
+      const price = isCashMode
+        ? (isWholesaleAtTier ? tierResolved.wholesaleCashPrice : tierResolved.retailCashPrice)
+        : (isWholesaleAtTier ? tierResolved.wholesalePrice : tierResolved.retailPrice);
+      return {
+        price,
+        badgeMinQty: referenceTier.minQty,
+      };
+    }
+
+    const baseResolved = getResolvedProductPrices(product, selectedOptions);
+    return {
+      price: isCashMode ? baseResolved.wholesaleCashPrice : baseResolved.wholesalePrice,
+      badgeMinQty: minWholesale,
+    };
+  }, [
+    isTieredPricing,
+    currentWholesalePrice,
+    product,
+    selectedOptions,
+    publicationUnitsInCart,
+    normalizedPriceTiers,
+    isCashMode,
+  ]);
+
   // Para venta por set: unidades por set de la variante activa y precio unitario informativo
   const selectedUnitsPerSet = useMemo(() => {
     if (!isSetSale) return 1;
@@ -1783,7 +1837,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                         id="wholesale-price-display"
                         className="text-2xl sm:text-2xl md:text-3xl font-bold font-['Montserrat'] tracking-tight text-gray-900"
                       >
-                        ${currentTieredActivePrice.toLocaleString('es-AR')}
+                        ${tieredDisplay.price.toLocaleString('es-AR')}
                       </span>
                       <span className="text-sm sm:text-base font-bold text-gray-900">
                         c/u
@@ -1791,11 +1845,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                     </div>
 
                     <span className="inline-flex items-center text-sm sm:text-base font-semibold bg-[#16a34a] text-white px-1.5 py-0.5 rounded-md leading-tight shrink-0 shadow-xs whitespace-nowrap overflow-hidden">
-                      {resolvedPrices.activeTier
-                        ? `desde ${resolvedPrices.activeTier.minQty} unids`
-                        : normalizedPriceTiers[0]
-                        ? `desde ${normalizedPriceTiers[0].minQty} unids`
-                        : `desde ${product.minWholesaleQty || 1} unids`}
+                      desde {tieredDisplay.badgeMinQty} unids
                     </span>
 
                     {isCashMode && (
@@ -2129,7 +2179,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
             </div>
 
             {/* Retiro Gratis Highlights */}
-            <div className="order-6 lg:order-7 flex items-start gap-2.5 px-0.5">
+            <div className="order-6 lg:order-7 mt-0.5 sm:mt-0 flex items-start gap-2.5 px-0.5">
               <Store className="w-4 h-4 sm:w-5 sm:h-5 text-[#16a34a] shrink-0 mt-0.5" />
               <div className="text-sm sm:text-base">
                 <span className="font-bold text-gray-900">Retiro gratis</span> en Local de Flores, CABA.
